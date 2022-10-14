@@ -18,7 +18,7 @@ namespace AFUT.Tests.Driver
     public class PookieDriverFactory : IPookieDriverFactory
     {
         private const string ChromeInstallPath = "c:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
-        private const string ChromeDownloadUrl = "https://chromedriver.stroage.googleapis.com/";
+        private const string ChromeDownloadUrl = "https://chromedriver.storage.googleapis.com/";
         private const string ChromeDriverDirectory = "ChromeDriver";
 
         private static readonly string[] ChromeOptions = new[]
@@ -70,25 +70,15 @@ namespace AFUT.Tests.Driver
             var options = new ChromeOptions();
             options.AddArguments(MiscChromeOptions);
 
-            if (hasCredentails)
-            {
-                if (Debugger.IsAttached)
-                {
-                    options.AddArguments(ChromeOptions);
-                }
-                else
-                {
-                    options.AddArguments(ChromeDriverOptions);
-                }
-            }
-
             var driver = Task.Run(GetChormeDriverServiceAsync).GetAwaiter().GetResult();
             return new DriverWrapper(driver, options);
         }
 
         private static async Task<string> DownloadChromeDriverAsync(string version)
         {
-            var location = Assembly.GetExecutingAssembly().Location;
+            var driverKey = "";
+            var location = Assembly.GetEntryAssembly().Location;
+            //var location = @"C:\temp\";
             location = Path.GetDirectoryName(location);
             location = Path.Combine(location, ChromeDriverDirectory, version);
 
@@ -96,24 +86,39 @@ namespace AFUT.Tests.Driver
             {
                 return location;
             }
+            else
+            {
+                Directory.CreateDirectory(location);
+            }
             using var clinet = new HttpClient();
             var response = await clinet.GetStringAsync(ChromeDownloadUrl);
             var xml = new XmlDocument();
             xml.LoadXml(response.Replace("xmlns='http://doc.s3.amazon.com/2006-03-01'", string.Empty));
-
-            var driverKey = xml.SelectNodes("//Contents/Key")
-                .OfType<XmlElement>()
-                .Select(x => x.InnerText)
-                .Where(x => x.StartsWith(version))
-                .Where(x => x.Contains("win32"))
-                .OrderByDescending(x => x)
-                .First();
+            //var driverKeyData = xml.ChildNodes[1]
+            //    .OfType<XmlElement>()
+            //    .Select(x => x.InnerText)
+            //    .Where(x => x.StartsWith(version))
+            //    .Where(x => x.Contains("win32"))
+            //    .OrderByDescending(x => x)
+            //    .First().Split('/');
+            //var keyparts = driverKeyData[1].Split(@"\");
+            //var driverKey = driverKeyData[0];
+            XmlNodeList nodes = xml.DocumentElement.ChildNodes;
+            foreach (XmlNode node in nodes)
+            {
+                if (node.InnerText.StartsWith(version) && node.InnerText.Contains("win32"))
+                {
+                    driverKey = node.ChildNodes.OfType<XmlElement>().First().InnerText;
+                    break;
+                }
+            }
 
             using var driverResponse = await clinet.GetStreamAsync($"{ChromeDownloadUrl}{driverKey}");
             using var zip = new ZipArchive(driverResponse, ZipArchiveMode.Read);
             var driver = zip.Entries.First();
 
             var driverlocation = Path.Combine(location, driver.Name);
+
             using var file = File.Create(driverlocation);
             await driver.Open().CopyToAsync(file);
 

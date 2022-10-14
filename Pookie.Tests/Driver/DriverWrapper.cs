@@ -151,7 +151,7 @@ namespace AFUT.Tests.Driver
 
         public void Login(string username, string password, string url)
         {
-            if (url.StartsWith("http")) throw new ArgumentException("Url must be Https");
+            if (url.StartsWith("http:")) throw new ArgumentException("Url must be Https");
 
             var network = Manage().Network;
             network.ClearAuthenticationHandlers();
@@ -163,6 +163,12 @@ namespace AFUT.Tests.Driver
                 },
                 Credentials = new PasswordCredentials(username, password)
             });
+
+            network.NetworkRequestSent += (sender, e) => { Interlocked.Increment(ref requestCount); };
+            network.NetworkResponseReceived += (sender, e) => { Interlocked.Decrement(ref requestCount); };
+
+            network.StartMonitoring();
+            Navigate().GoToUrl(url);
         }
 
         public byte[] CaptureScreen()

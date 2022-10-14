@@ -15,10 +15,12 @@ namespace AFUT.Tests
             if (!string.IsNullOrEmpty(config.UserName))
             {
                 driver.Login(config.UserName, config.Password, config.AppUrl);
+                driver.WaitForReady();
             }
             else
             {
                 driver.Navigate().GoToUrl(config.AppUrl);
+                driver.WaitForReady();
             }
             return new AppPage(driver);
         }
