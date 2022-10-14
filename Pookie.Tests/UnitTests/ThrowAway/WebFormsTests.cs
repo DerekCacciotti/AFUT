@@ -29,7 +29,6 @@ namespace AFUT.Tests.UnitTests.ThrowAway
             routine.LoadApp(parameters);
             routine.Wait(parameters);
             Assert.True(parameters.Worked);
-            Thread.Sleep(100000);
         }
     }
 }
