@@ -6,17 +6,17 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace AFUT.Tests.Routine
+namespace AFUT.Tests.Routine.ThrowAway
 {
     [Routine(Name = "Web Forms Test")]
-    public class WebForms
+    public class WebFormsLoad
     {
         private readonly IPookieWebDriver driver;
         private readonly IAppConfig config;
 
         public static Params GetParameters() => SetUp.For(new Params());
 
-        public WebForms(IPookieWebDriver driver, IAppConfig config)
+        public WebFormsLoad(IPookieWebDriver driver, IAppConfig config)
         {
             this.driver = driver;
             this.config = config;

@@ -24,8 +24,8 @@ namespace AFUT.Tests.UnitTests.ThrowAway
         public void WebFormTry()
         {
             using var driver = driverFactory.CreateDriver();
-            var routine = new Routine.WebForms(driver, config);
-            var parameters = Routine.WebForms.GetParameters();
+            var routine = new Routine.ThrowAway.WebFormsLoad(driver, config);
+            var parameters = Routine.ThrowAway.WebFormsLoad.GetParameters();
             routine.LoadApp(parameters);
             routine.Wait(parameters);
             Assert.True(parameters.Worked);
