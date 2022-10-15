@@ -1,4 +1,5 @@
 ﻿using AFUT.Tests.Driver;
+using AFUT.Tests.Pages;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,6 +15,11 @@ namespace AFUT.Tests
         public AppPage(IPookieWebDriver driver)
         {
             _driver = driver;
+        }
+
+        public HomePage GetHomePage()
+        {
+            return new HomePage(_driver);
         }
     }
 }

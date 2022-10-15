@@ -165,5 +165,10 @@ namespace AFUT.Tests.Driver
             } while (DateTime.Now <= endTime);
             throw new TimeoutException("Browser Alert not on screen.");
         }
+
+        public static void CatchUp(this IWebDriver driver, int timeToWaitinMiliseconds = 10000)
+        {
+            Thread.Sleep(timeToWaitinMiliseconds);
+        }
     }
 }

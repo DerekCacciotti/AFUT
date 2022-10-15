@@ -30,5 +30,16 @@ namespace AFUT.Tests.UnitTests.ThrowAway
             routine.Wait(parameters);
             Assert.True(parameters.Worked);
         }
+
+        [Fact]
+        public void WebFormsButtonClick()
+        {
+            using var driver = driverFactory.CreateDriver();
+            var routine = new Routine.ThrowAway.WebFormsButton(driver, config);
+            var parameters = Routine.ThrowAway.WebFormsButton.GetParameters();
+            routine.LoadApp(parameters);
+            routine.ClickButton(parameters);
+            Assert.True(parameters.Clicked);
+        }
     }
 }
