@@ -29,6 +29,7 @@ namespace AFUT.Tests.Pages
             if (button != null)
             {
                 button.Click();
+                _driver.WaitForUpdatePanel();
 
                 var label = _driver.FindElement(By.CssSelector("#MainContent_lblText"));
                 ButtonClicked = label.Text != String.Empty;

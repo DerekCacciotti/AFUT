@@ -35,7 +35,6 @@ namespace AFUT.Tests.Routine.ThrowAway
         public void ClickButton(Params parms)
         {
             parms.HomePage.ClickButton();
-            driver.CatchUp();
             parms.Clicked = parms.HomePage.ButtonClicked;
         }
 

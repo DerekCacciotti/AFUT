@@ -1,9 +1,11 @@
 ﻿using OpenQA.Selenium;
 using OpenQA.Selenium.DevTools.V104.HeapProfiler;
+using OpenQA.Selenium.Support.Extensions;
 using OpenQA.Selenium.Support.UI;
 using SeleniumExtras.WaitHelpers;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.Linq;
 using System.Net.Http.Headers;
@@ -169,6 +171,12 @@ namespace AFUT.Tests.Driver
         public static void CatchUp(this IWebDriver driver, int timeToWaitinMiliseconds = 10000)
         {
             Thread.Sleep(timeToWaitinMiliseconds);
+        }
+
+        public static void WaitForUpdatePanel(this IWebDriver driver, int TimeoutSeconds = 30)
+        {
+            new WebDriverWait(driver, TimeSpan.FromSeconds(TimeoutSeconds)).Until(d =>
+            !(bool)(driver as IJavaScriptExecutor).ExecuteScript("return Sys.WebForms.PageRequestManager.getInstance().get_isInAsyncPostBack()"));
         }
     }
 }
