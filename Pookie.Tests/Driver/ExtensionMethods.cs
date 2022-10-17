@@ -178,5 +178,10 @@ namespace AFUT.Tests.Driver
             new WebDriverWait(driver, TimeSpan.FromSeconds(TimeoutSeconds)).Until(d =>
             !(bool)(driver as IJavaScriptExecutor).ExecuteScript("return Sys.WebForms.PageRequestManager.getInstance().get_isInAsyncPostBack()"));
         }
+
+        public static IWebElement? GetElementByIDDollarSign(this IWebDriver driver, string controlID)
+        {
+            return driver.FindElement(By.CssSelector($"[ID$='{controlID}']"));
+        }
     }
 }

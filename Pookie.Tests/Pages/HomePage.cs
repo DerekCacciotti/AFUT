@@ -30,8 +30,7 @@ namespace AFUT.Tests.Pages
             {
                 button.Click();
                 _driver.WaitForUpdatePanel();
-
-                var label = _driver.FindElement(By.CssSelector("#MainContent_lblText"));
+                var label = _driver.GetElementByIDDollarSign("lblText");
                 ButtonClicked = label.Text != String.Empty;
             }
         }
