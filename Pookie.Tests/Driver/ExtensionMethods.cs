@@ -54,10 +54,6 @@ namespace AFUT.Tests.Driver
 
         public static IWebElement SetValue(this IWebElement ele, string value)
         {
-            //if (ele.TagName.ToLower() == "select")
-            //{
-            //    ele.Clear();
-            //}
             ele.SendKeys(value);
             ele.SendKeys(Keys.Tab);
             return ele;
