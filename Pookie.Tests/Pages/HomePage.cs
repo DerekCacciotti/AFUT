@@ -34,5 +34,14 @@ namespace AFUT.Tests.Pages
                 ButtonClicked = label.Text != String.Empty;
             }
         }
+
+        public bool SetDropdownList(string value)
+        {
+            _driver.WaitForReady();
+            var ddl = _driver.GetElementByIDDollarSign("ddlNames");
+            ddl.SetValue(value);
+            _driver.WaitForUpdatePanel();
+            return ddl.GetElementValue() != String.Empty;
+        }
     }
 }

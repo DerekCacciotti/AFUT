@@ -41,5 +41,17 @@ namespace AFUT.Tests.UnitTests.ThrowAway
             routine.ClickButton(parameters);
             Assert.True(parameters.Clicked);
         }
+
+        [Fact]
+        public void WebFormsDropDown()
+        {
+            using var driver = driverFactory.CreateDriver();
+            var routine = new Routine.ThrowAway.WebFormsDropDownList(driver, config);
+            var parameters = Routine.ThrowAway.WebFormsDropDownList.GetParameters();
+            parameters.Value = "Pantera";
+            routine.LoadApp(parameters);
+            routine.SetValue(parameters);
+            Assert.True(parameters.Changed);
+        }
     }
 }

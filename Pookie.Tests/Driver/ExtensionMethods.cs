@@ -33,9 +33,9 @@ namespace AFUT.Tests.Driver
             }
         }
 
-        public static IWebElement SetDropdownByText(this IWebElement ele, string text, [CallerMemberName] string fieldName = "")
+        public static IWebElement SetDropdownByText(this IWebElement ele, string text, string controlID)
         {
-            var dropdown = new SelectElement(ele.FindElement(By.Name(fieldName)));
+            var dropdown = new SelectElement(ele.FindElement(By.Id(controlID)));
             dropdown.SelectByText(text);
             return ele;
         }
@@ -54,10 +54,10 @@ namespace AFUT.Tests.Driver
 
         public static IWebElement SetValue(this IWebElement ele, string value)
         {
-            if (ele.TagName.ToLower() == "select")
-            {
-                ele.Clear();
-            }
+            //if (ele.TagName.ToLower() == "select")
+            //{
+            //    ele.Clear();
+            //}
             ele.SendKeys(value);
             ele.SendKeys(Keys.Tab);
             return ele;
