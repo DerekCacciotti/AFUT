@@ -43,5 +43,22 @@ namespace AFUT.Tests.Pages
             _driver.WaitForUpdatePanel();
             return ddl.GetElementValue() != String.Empty;
         }
+
+        public bool SetTextBox(string value)
+        {
+            _driver.WaitForReady();
+            var txtbox = _driver.GetElementByIDDollarSign("txtName");
+            txtbox.SetValue(value);
+            _driver.WaitForUpdatePanel();
+            return txtbox.GetElementValue() != String.Empty;
+        }
+
+        public void ClickHTMLButton()
+        {
+            _driver.WaitForReady();
+            var button = _driver.GetElementByIDDollarSign("btnNormal");
+            button.Click();
+            _driver.WaitForReady();
+        }
     }
 }

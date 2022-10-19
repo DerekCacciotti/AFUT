@@ -53,5 +53,27 @@ namespace AFUT.Tests.UnitTests.ThrowAway
             routine.SetValue(parameters);
             Assert.True(parameters.Changed);
         }
+
+        [Fact]
+        public void WebFormsTextBox()
+        {
+            using var driver = driverFactory.CreateDriver();
+            var routine = new Routine.ThrowAway.WebFormsTextBox(driver, config);
+            var parameters = Routine.ThrowAway.WebFormsTextBox.GetParameters();
+            parameters.Value = "Asking Alexandria";
+            routine.LoadApp(parameters);
+            routine.SetTextBox(parameters);
+            Assert.True(parameters.ValueSet);
+        }
+
+        [Fact]
+        public void WebFormsHTMLButton()
+        {
+            using var driver = driverFactory.CreateDriver();
+            var routine = new Routine.ThrowAway.WebFormsNormalControls(driver, config);
+            var parameters = Routine.ThrowAway.WebFormsNormalControls.GetParameters();
+            routine.LoadApp(parameters);
+            routine.ClickHTMLButton(parameters);
+        }
     }
 }
