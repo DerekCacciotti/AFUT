@@ -22,6 +22,16 @@ namespace AFUT.Tests.Pages
             element = driver.FindElement(By.CssSelector("#divButton"));
         }
 
+        public GridsPage GotoGridsPage()
+        {
+            _driver.WaitForUpdatePanel();
+            var nav = _driver.FindElement(By.CssSelector("#mainNav"));
+            var link = nav.FindElement(By.LinkText("Grids"));
+            link.Click();
+            _driver.WaitForReady();
+            return new GridsPage(_driver);
+        }
+
         public void ClickButton()
         {
             _driver.WaitForReady();

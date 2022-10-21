@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Xunit;
 
 namespace AFUT.Tests.UnitTests.ThrowAway
 {
@@ -74,6 +75,17 @@ namespace AFUT.Tests.UnitTests.ThrowAway
             var parameters = Routine.ThrowAway.WebFormsNormalControls.GetParameters();
             routine.LoadApp(parameters);
             routine.ClickHTMLButton(parameters);
+        }
+
+        [Fact]
+        public void GridsPageTest()
+        {
+            using var driver = driverFactory.CreateDriver();
+            var routine = new Routine.ThrowAway.WebFormsGrids(driver, config);
+            var parameters = Routine.ThrowAway.WebFormsGrids.GetParameters();
+            routine.LoadApp(parameters);
+            routine.GoToGrids(parameters);
+            routine.ClickSelect(parameters);
         }
     }
 }
