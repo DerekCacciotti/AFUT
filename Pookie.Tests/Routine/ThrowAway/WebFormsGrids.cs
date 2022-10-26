@@ -40,13 +40,14 @@ namespace AFUT.Tests.Routine.ThrowAway
         [RoutineStep(3, "Click Select")]
         public void ClickSelect(Params parms)
         {
-            parms.GridsPage.ClickSelectInGrid();
+            parms.Selected = parms.GridsPage.ClickSelectInGrid();
         }
 
         public class Params
         {
             internal HomePage HomePage { get; set; }
             internal GridsPage GridsPage { get; set; }
+            internal bool Selected { get; set; }
         }
     }
 }

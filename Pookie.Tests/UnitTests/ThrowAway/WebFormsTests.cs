@@ -86,6 +86,7 @@ namespace AFUT.Tests.UnitTests.ThrowAway
             routine.LoadApp(parameters);
             routine.GoToGrids(parameters);
             routine.ClickSelect(parameters);
+            Assert.True(parameters.Selected);
         }
     }
 }

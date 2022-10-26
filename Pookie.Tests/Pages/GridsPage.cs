@@ -20,14 +20,18 @@ namespace AFUT.Tests.Pages
             element = driver.GetElementByIDDollarSign("gvAlbums");
         }
 
-        public void ClickSelectInGrid()
+        public bool ClickSelectInGrid()
         {
             _driver.WaitForReady();
-            var tablerows = element.FindElements(By.CssSelector("tbody tr td"));
-            var firstRow = tablerows.FirstOrDefault();
-            var button = firstRow.FindElement(By.LinkText("Select"));
+            var tablecells = element.FindElements(By.CssSelector("tbody tr td"));
+            var firstCell = tablecells.FirstOrDefault();
+            var button = firstCell.FindElement(By.LinkText("Select"));
             button.Click();
-            _driver.WaitForUpdatePanel();
+            _driver.WaitForReady();
+            var tableRows = _driver.FindElements(By.CssSelector("tbody tr"));
+            var firstDataRow = tableRows[1];
+            var attr = firstDataRow.GetAttribute("class");
+            return !string.IsNullOrEmpty(attr);
         }
     }
 }
