@@ -30,8 +30,7 @@ namespace AFUT.Tests.Pages
             _driver.WaitForReady();
             var tableRows = _driver.FindElements(By.CssSelector("tbody tr"));
             var firstDataRow = tableRows[1];
-            var attr = firstDataRow.GetAttribute("class");
-            return !string.IsNullOrEmpty(attr);
+            return firstDataRow.GetAttribute("class") == "success";
         }
     }
 }
