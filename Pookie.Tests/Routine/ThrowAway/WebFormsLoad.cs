@@ -8,6 +8,11 @@ using System.Threading.Tasks;
 
 namespace AFUT.Tests.Routine.ThrowAway
 {
+    /// <summary>
+    /// This class represents a action done a on a page. This called a routine.
+    /// you must include the Routine Attribute and add the Routine Steps attribute on each method
+    /// The nested class Params is required
+    /// </summary>
     [Routine(Name = "Web Forms Test")]
     public class WebFormsLoad
     {

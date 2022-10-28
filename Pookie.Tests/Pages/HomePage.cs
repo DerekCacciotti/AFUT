@@ -8,6 +8,11 @@ using System.Threading.Tasks;
 
 namespace AFUT.Tests.Pages
 {
+    /// <summary>
+    /// This is a sample class for the home page of a application. Its got methods use to navigate and some other actions.
+    /// You should edit this class for your needs. Just leave the ctor and private properties.
+    /// The methods are left in to show how the framework is used.
+    /// </summary>
     [Page]
     public class HomePage
     {

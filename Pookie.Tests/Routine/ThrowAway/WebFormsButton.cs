@@ -10,12 +10,18 @@ using System.Threading.Tasks;
 
 namespace AFUT.Tests.Routine.ThrowAway
 {
+    /// <summary>
+    /// This class represents a action done a on a page. This called a routine.
+    /// you must include the Routine Attribute and add the Routine Steps attribute on each method
+    /// The nested class Params is required
+    /// </summary>
     [Routine(Name = "Click a button")]
     public class WebFormsButton
     {
         private readonly IPookieWebDriver driver;
         private readonly IAppConfig config;
 
+        // This method is used in the unit tests
         public static Params GetParameters() => SetUp.For(new Params());
 
         public WebFormsButton(IPookieWebDriver driver, IAppConfig config)
@@ -38,6 +44,9 @@ namespace AFUT.Tests.Routine.ThrowAway
             parms.Clicked = parms.HomePage.ButtonClicked;
         }
 
+        /// <summary>
+        /// This used to bring and store values to each step
+        /// </summary>
         public class Params
         {
             [RoutineOutput]
