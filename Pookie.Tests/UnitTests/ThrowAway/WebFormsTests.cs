@@ -88,5 +88,16 @@ namespace AFUT.Tests.UnitTests.ThrowAway
             routine.ClickSelect(parameters);
             Assert.True(parameters.Selected);
         }
+
+        [Fact]
+        public void JSTest()
+        {
+            using var driver = driverFactory.CreateDriver();
+            var routine = new Routine.ThrowAway.WebFormsJS(driver, config);
+            var parameters = Routine.ThrowAway.WebFormsJS.GetParameters();
+            routine.LoadApp(parameters);
+            routine.GotoJS(parameters);
+            routine.Alerts(parameters);
+        }
     }
 }
