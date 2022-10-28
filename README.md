@@ -1,6 +1,6 @@
 # AFUT (Average Flipping Unit Testing)
 
-A C# based Uni testing framework for ASP.Net Web Forms Applications. 
+A C# based Unit testing framework for ASP.Net Web Forms Applications. 
 
 
 # Requirements
