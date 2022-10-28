@@ -21,7 +21,7 @@ namespace AFUT.Tests.UnitTests.ThrowAway
             this.driverFactory = config.ServiceProvider.GetService<IPookieDriverFactory>();
         }
 
-        [Fact]
+        [Fact(Skip = "Example")]
         public void WebFormTry()
         {
             using var driver = driverFactory.CreateDriver();
@@ -32,7 +32,7 @@ namespace AFUT.Tests.UnitTests.ThrowAway
             Assert.True(parameters.Worked);
         }
 
-        [Fact]
+        [Fact(Skip = "Example")]
         public void WebFormsButtonClick()
         {
             using var driver = driverFactory.CreateDriver();
@@ -43,7 +43,7 @@ namespace AFUT.Tests.UnitTests.ThrowAway
             Assert.True(parameters.Clicked);
         }
 
-        [Fact]
+        [Fact(Skip = "Example")]
         public void WebFormsDropDown()
         {
             using var driver = driverFactory.CreateDriver();
@@ -55,7 +55,7 @@ namespace AFUT.Tests.UnitTests.ThrowAway
             Assert.True(parameters.Changed);
         }
 
-        [Fact]
+        [Fact(Skip = "Example")]
         public void WebFormsTextBox()
         {
             using var driver = driverFactory.CreateDriver();
@@ -67,7 +67,7 @@ namespace AFUT.Tests.UnitTests.ThrowAway
             Assert.True(parameters.ValueSet);
         }
 
-        [Fact]
+        [Fact(Skip = "Example")]
         public void WebFormsHTMLButton()
         {
             using var driver = driverFactory.CreateDriver();
@@ -77,7 +77,7 @@ namespace AFUT.Tests.UnitTests.ThrowAway
             routine.ClickHTMLButton(parameters);
         }
 
-        [Fact]
+        [Fact(Skip = "Example")]
         public void GridsPageTest()
         {
             using var driver = driverFactory.CreateDriver();
@@ -89,7 +89,7 @@ namespace AFUT.Tests.UnitTests.ThrowAway
             Assert.True(parameters.Selected);
         }
 
-        [Fact]
+        [Fact(Skip = "Example")]
         public void JSTest()
         {
             using var driver = driverFactory.CreateDriver();
