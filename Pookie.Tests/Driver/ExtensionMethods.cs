@@ -71,7 +71,7 @@ namespace AFUT.Tests.Driver
 
         public static IWebElement WaitforElementToBeInDOM(this ISearchContext page, By by, int timeoutSec = 5)
         {
-            var endTime = DateTime.Now.AddSeconds(5);
+            var endTime = DateTime.Now.AddSeconds(timeoutSec);
 
             do
             {
