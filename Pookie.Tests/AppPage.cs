@@ -21,5 +21,15 @@ namespace AFUT.Tests
         {
             return new HomePage(_driver);
         }
+
+        public SelectRolePage GetSelectRolePage()
+        {
+            return new SelectRolePage(_driver);
+        }
+
+        public AdminHomePage GetAdminHomePage()
+        {
+            return new AdminHomePage(_driver);
+        }
     }
 }
