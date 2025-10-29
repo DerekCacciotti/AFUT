@@ -24,7 +24,7 @@ namespace AFUT.Tests.Config
             _config = new ConfigurationBuilder()
                 .AddJsonFile("appsettings.json")
                 .AddUserSecrets(typeof(AppConfig).Assembly)
-                .AddEnvironmentVariables()
+                .AddEnvironmentVariables(prefix: "POOKIE_")
                 .Build();
 
             var services = new ServiceCollection();

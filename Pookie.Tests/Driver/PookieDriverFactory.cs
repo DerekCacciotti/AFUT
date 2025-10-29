@@ -1,24 +1,23 @@
 ﻿using OpenQA.Selenium.Chrome;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Diagnostics;
 using System.Reflection;
-using System.Xml;
 using System.IO.Compression;
-using OpenQA.Selenium.DevTools.V104.Network;
+using System.Net.Http;
 using Microsoft.Extensions.Configuration;
 using AFUT.Tests.Config;
-using System.Net.Http.Headers;
+using System.Text.Json;
 
 namespace AFUT.Tests.Driver
 {
     public class PookieDriverFactory : IPookieDriverFactory
     {
         private const string ChromeInstallPath = "c:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
-        private const string ChromeDownloadUrl = "https://chromedriver.storage.googleapis.com/";
+        private const string ChromeDriverMetadataUrl = "https://googlechromelabs.github.io/chrome-for-testing/latest-versions-per-milestone-with-downloads.json";
+        private const string ChromeDriverPlatformWin64 = "win64";
+        private const string ChromeDriverPlatformWin32 = "win32";
         private const string ChromeDriverDirectory = "ChromeDriver";
 
         private static readonly string[] ChromeOptions = new[]
@@ -42,7 +41,8 @@ namespace AFUT.Tests.Driver
             "--use-gl=\"\""
         };
 
-        private static ChromeDriverService ChromeDriverService;
+        private static ChromeDriverService? ChromeDriverService;
+        private static readonly HttpClient HttpClient = new();
 
         private static async Task<ChromeDriverService> GetChormeDriverServiceAsync()
         {
@@ -51,8 +51,9 @@ namespace AFUT.Tests.Driver
                 return ChromeDriverService;
             }
 
-            var chromeversion = FileVersionInfo.GetVersionInfo(ChromeInstallPath).ProductVersion[..3];
-            var driverLocation = await DownloadChromeDriverAsync(chromeversion);
+            var productVersion = FileVersionInfo.GetVersionInfo(ChromeInstallPath).ProductVersion;
+            var milestone = productVersion?.Split('.')[0] ?? throw new InvalidOperationException("Unable to determine installed Chrome version.");
+            var driverLocation = await DownloadChromeDriverAsync(milestone);
             ChromeDriverService = ChromeDriverService.CreateDefaultService(driverLocation);
             ChromeDriverService.Start();
             return ChromeDriverService;
@@ -74,64 +75,85 @@ namespace AFUT.Tests.Driver
             return new DriverWrapper(driver, options);
         }
 
-        private static async Task<string> DownloadChromeDriverAsync(string version)
+
+        private static async Task<string> DownloadChromeDriverAsync(string milestone)
         {
-            var driverKey = "";
-            var location = Assembly.GetEntryAssembly().Location;
-            //var location = @"C:\temp\";
-            location = Path.GetDirectoryName(location);
-            location = Path.Combine(location, ChromeDriverDirectory, version);
+            var (driverVersion, downloadUrl) = await ResolveChromeDriverDownloadAsync(milestone);
+            var entryAssemblyLocation = Assembly.GetEntryAssembly()?.Location ?? Assembly.GetExecutingAssembly().Location;
+            var baseLocation = Path.GetDirectoryName(entryAssemblyLocation) ?? throw new InvalidOperationException("Unable to determine assembly directory.");
+            var location = Path.Combine(baseLocation, ChromeDriverDirectory, driverVersion);
 
             if (HasChromeDriver(location))
             {
                 return location;
             }
-            else
-            {
-                Directory.CreateDirectory(location);
-            }
-            using var clinet = new HttpClient();
-            var response = await clinet.GetStringAsync(ChromeDownloadUrl);
-            var xml = new XmlDocument();
-            xml.LoadXml(response.Replace("xmlns='http://doc.s3.amazon.com/2006-03-01'", string.Empty));
-            //var driverKeyData = xml.ChildNodes[1]
-            //    .OfType<XmlElement>()
-            //    .Select(x => x.InnerText)
-            //    .Where(x => x.StartsWith(version))
-            //    .Where(x => x.Contains("win32"))
-            //    .OrderByDescending(x => x)
-            //    .First().Split('/');
-            //var keyparts = driverKeyData[1].Split(@"\");
-            //var driverKey = driverKeyData[0];
-            XmlNodeList nodes = xml.DocumentElement.ChildNodes;
-            foreach (XmlNode node in nodes)
-            {
-                if (node.InnerText.StartsWith(version) && node.InnerText.Contains("win32"))
-                {
-                    driverKey = node.ChildNodes.OfType<XmlElement>().First().InnerText;
-                    break;
-                }
-            }
 
-            using var driverResponse = await clinet.GetStreamAsync($"{ChromeDownloadUrl}{driverKey}");
+            Directory.CreateDirectory(location);
+
+            using var driverResponse = await HttpClient.GetStreamAsync(downloadUrl);
             using var zip = new ZipArchive(driverResponse, ZipArchiveMode.Read);
-            var driver = zip.Entries.First();
+            var driverEntry = zip.Entries.FirstOrDefault(entry => entry.Name.Equals("chromedriver.exe", StringComparison.OrdinalIgnoreCase));
 
-            var driverlocation = Path.Combine(location, driver.Name);
+            if (driverEntry is null)
+            {
+                throw new InvalidDataException("Downloaded ChromeDriver archive did not contain chromedriver.exe");
+            }
 
-            using var file = File.Create(driverlocation);
-            await driver.Open().CopyToAsync(file);
+            var driverlocation = Path.Combine(location, driverEntry.Name);
+
+            await using var file = File.Create(driverlocation);
+            await using var entryStream = driverEntry.Open();
+            await entryStream.CopyToAsync(file);
 
             CleanUpOldChromeDrivers();
 
             return location;
         }
 
+        private static async Task<(string Version, string Url)> ResolveChromeDriverDownloadAsync(string milestone)
+        {
+            var response = await HttpClient.GetStringAsync(ChromeDriverMetadataUrl);
+            using var document = JsonDocument.Parse(response);
+
+            if (!document.RootElement.TryGetProperty("milestones", out var milestones) ||
+                !milestones.TryGetProperty(milestone, out var milestoneElement))
+            {
+                throw new InvalidDataException($"Unable to find ChromeDriver metadata for milestone {milestone}.");
+            }
+
+            var version = milestoneElement.GetProperty("version").GetString() ?? milestone;
+            var downloads = milestoneElement.GetProperty("downloads").GetProperty("chromedriver");
+
+            string? url = null;
+            foreach (var entry in downloads.EnumerateArray())
+            {
+                var platform = entry.GetProperty("platform").GetString();
+                if (string.Equals(platform, ChromeDriverPlatformWin64, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(platform, ChromeDriverPlatformWin32, StringComparison.OrdinalIgnoreCase))
+                {
+                    url = entry.GetProperty("url").GetString();
+                    break;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                throw new InvalidDataException($"Unable to locate a ChromeDriver download url for milestone {milestone}.");
+            }
+
+            return (version, url);
+        }
+
+
         private static void CleanUpOldChromeDrivers()
         {
-            var location = Assembly.GetExecutingAssembly().Location;
-            location = Path.GetDirectoryName(location);
-            location = Path.Combine(location, ChromeDriverDirectory);
+            var assemblyLocation = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+            if (string.IsNullOrEmpty(assemblyLocation))
+            {
+                return;
+            }
+
+            var location = Path.Combine(assemblyLocation, ChromeDriverDirectory);
 
             var driverDirectory = new DirectoryInfo(location);
             var tobeRemoved = driverDirectory.GetDirectories()
