@@ -39,10 +39,10 @@ namespace AFUT.Tests.UnitTests.ThrowAway
         [Fact]
         public void User_Can_Open_SearchCases_Dropdown_And_Open_First_Case()
         {
-            var landingPage = fixture.EnsureLandingPage("Program 1", "DataEntry");
+            var landingPage = fixture.EnsureLandingPage();
 
             Assert.NotNull(landingPage);
-            Assert.IsType<HomePage>(landingPage);
+            Assert.True(landingPage.IsLoaded);
 
             var navigationBar = new NavigationBar(fixture.Driver);
             var caseHomePage = navigationBar.OpenFirstRecentCaseFromSearchCasesDropdown();
