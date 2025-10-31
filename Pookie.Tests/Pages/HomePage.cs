@@ -1,6 +1,7 @@
 ﻿using AFUT.Tests.Driver;
 using OpenQA.Selenium;
 using System;
+using System.Linq;
 
 namespace AFUT.Tests.Pages
 {
@@ -25,15 +26,15 @@ namespace AFUT.Tests.Pages
             _usernameField = _driver.WaitforElementToBeInDOM(By.CssSelector("input[id$='hfUsername']"), 60)
                 ?? throw new InvalidOperationException("Home page hidden username field not found.");
 
-            _driver.TryGetElement(By.CssSelector("#divButton"), out _legacyButtonContainer);
-            _driver.TryGetElement(By.Id("ctl00_ContentPlaceHolder1_pnlDashboards"), out _dashboardsPanel);
-            _driver.TryGetElement(By.Id("ctl00_ContentPlaceHolder1_divImpersonateWorker"), out _impersonateSection);
+            _driver.TryGetElement(By.CssSelector("[id$='divButton']"), out _legacyButtonContainer);
+            _driver.TryGetElement(By.CssSelector("[id$='pnlDashboards']"), out _dashboardsPanel);
+            _driver.TryGetElement(By.CssSelector("[id$='divImpersonateWorker']"), out _impersonateSection);
         }
 
         public GridsPage GotoGridsPage()
         {
             _driver.WaitForUpdatePanel();
-            var link = GetNavigation().FindElement(By.LinkText("Grids"));
+            var link = GetNavigationLink("Grids");
             link.Click();
             _driver.WaitForReady();
             return new GridsPage(_driver);
@@ -42,7 +43,7 @@ namespace AFUT.Tests.Pages
         public JSPage GotoJSPage()
         {
             _driver.WaitForUpdatePanel();
-            var link = GetNavigation().FindElement(By.LinkText("JS"));
+            var link = GetNavigationLink("JS");
             link.Click();
             _driver.WaitForReady();
             return new JSPage(_driver);
@@ -95,6 +96,29 @@ namespace AFUT.Tests.Pages
         private IWebElement GetNavigation()
         {
             return _driver.FindElement(By.CssSelector(".navbar"));
+        }
+
+        private IWebElement GetNavigationLink(string linkText)
+        {
+            if (string.IsNullOrWhiteSpace(linkText))
+            {
+                throw new ArgumentException("Link text must be provided.", nameof(linkText));
+            }
+
+            var navigation = GetNavigation();
+            var targetText = linkText.Trim();
+
+            var link = navigation.FindElements(By.CssSelector("a"))
+                                 .FirstOrDefault(element => string.Equals(element.Text?.Trim(), targetText, StringComparison.OrdinalIgnoreCase))
+                        ?? navigation.FindElements(By.CssSelector("a"))
+                                      .FirstOrDefault(element => element.GetAttribute("href")?.Contains($"/{targetText}", StringComparison.OrdinalIgnoreCase) == true);
+
+            if (link is null)
+            {
+                throw new InvalidOperationException($"Navigation link '{linkText}' was not found on the home page.");
+            }
+
+            return link;
         }
     }
 }

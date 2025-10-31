@@ -7,7 +7,7 @@ namespace AFUT.Tests.Pages
     [Page]
     public class AdminHomePage : IAppLandingPage
     {
-        private static readonly By ImpersonateSectionSelector = By.Id("ctl00_ContentPlaceHolder1_divImpersonateWorker");
+        private static readonly By ImpersonateSectionSelector = By.CssSelector("[id$='divImpersonateWorker']");
         private readonly IPookieWebDriver _driver;
         private readonly IWebElement _impersonateSection;
 

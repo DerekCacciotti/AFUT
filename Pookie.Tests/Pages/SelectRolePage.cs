@@ -43,7 +43,7 @@ namespace AFUT.Tests.Pages
 
             _driver.WaitForReady(60);
 
-            var roleLabel = _driver.WaitforElementToBeInDOM(By.Id("ctl00_NavMenu_lblUserRole"), 60)
+            var roleLabel = _driver.WaitforElementToBeInDOM(By.CssSelector("[id$='lblUserRole']"), 60)
                 ?? throw new InvalidOperationException("Navigation menu did not render after selecting role.");
 
             var resolvedRoleName = WaitForRoleLabel(roleLabel, 30);
@@ -54,7 +54,7 @@ namespace AFUT.Tests.Pages
             }
 
             var homeIndicator = _driver.WaitforElementToBeInDOM(By.CssSelector("input[id$='hfUsername']"), 60)
-                               ?? _driver.WaitforElementToBeInDOM(By.CssSelector("#divButton, #ctl00_ContentPlaceHolder1_pnlDashboards"), 30);
+                               ?? _driver.WaitforElementToBeInDOM(By.CssSelector("[id$='divButton'], [id$='pnlDashboards']"), 30);
             if (homeIndicator is null)
             {
                 throw new InvalidOperationException("Home page content did not render after selecting role.");
