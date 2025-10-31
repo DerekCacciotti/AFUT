@@ -35,6 +35,21 @@ namespace AFUT.Tests.UnitTests.ThrowAway
             Assert.True(landingPage.IsLoaded);
             Assert.IsType<AdminHomePage>(landingPage);
         }
+
+        [Fact]
+        public void User_Can_Open_SearchCases_Dropdown_And_Open_First_Case()
+        {
+            var landingPage = fixture.EnsureLandingPage("Program 1", "DataEntry");
+
+            Assert.NotNull(landingPage);
+            Assert.IsType<HomePage>(landingPage);
+
+            var navigationBar = new NavigationBar(fixture.Driver);
+            var caseHomePage = navigationBar.OpenFirstRecentCaseFromSearchCasesDropdown();
+
+            Assert.True(caseHomePage.IsLoaded);
+            Assert.False(string.IsNullOrWhiteSpace(caseHomePage.CaseId));
+        }
     }
 }
 
