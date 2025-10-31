@@ -10,6 +10,8 @@ namespace AFUT.Tests.Pages
     public class SelectRolePage
     {
         private static readonly By RoleGridSelector = By.CssSelector("table[id$='grvProgramRoles']");
+        private static readonly By RoleRowSelector = By.CssSelector("tbody tr");
+        private static readonly By SelectLinkSelector = By.LinkText("Select");
         private readonly IPookieWebDriver _driver;
 
         public SelectRolePage(IPookieWebDriver driver)
@@ -63,12 +65,64 @@ namespace AFUT.Tests.Pages
             return isAdminRole ? new AdminHomePage(_driver) : new HomePage(_driver);
         }
 
+        public IAppLandingPage SelectFirstAvailableRole()
+        {
+            var roleGrid = _driver.WaitforElementToBeInDOM(RoleGridSelector, 30)
+                ?? throw new InvalidOperationException("Role selection grid is not available on the current page.");
+
+            var rows = roleGrid.FindElements(RoleRowSelector)
+                       ?? throw new InvalidOperationException("Role selection grid rows were not found.");
+
+            var firstDataRow = rows.FirstOrDefault();
+            if (firstDataRow is null)
+            {
+                throw new InvalidOperationException("Role selection grid did not contain any roles to select.");
+            }
+
+            var cells = firstDataRow.FindElements(By.TagName("td"));
+            if (cells.Count < 3)
+            {
+                throw new InvalidOperationException("Role selection grid row did not contain expected cells.");
+            }
+
+            var programName = cells[1].Text?.Trim() ?? string.Empty;
+            var roleName = cells[2].Text?.Trim() ?? string.Empty;
+
+            var selectLink = firstDataRow.FindElements(SelectLinkSelector).FirstOrDefault()
+                             ?? throw new InvalidOperationException("Role selection row does not have a selectable link.");
+
+            selectLink.Click();
+
+            _driver.WaitForReady(60);
+
+            var roleLabel = _driver.WaitforElementToBeInDOM(By.CssSelector("[id$='lblUserRole']"), 60)
+                ?? throw new InvalidOperationException("Navigation menu did not render after selecting role.");
+
+            var resolvedRoleName = WaitForRoleLabel(roleLabel, 30);
+            if (!string.IsNullOrWhiteSpace(roleName) &&
+                !string.IsNullOrWhiteSpace(resolvedRoleName) &&
+                !string.Equals(resolvedRoleName, roleName, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException($"Expected role '{roleName}' but landed on role '{resolvedRoleName}'.");
+            }
+
+            var homeIndicator = _driver.WaitforElementToBeInDOM(By.CssSelector("input[id$='hfUsername']"), 60)
+                               ?? _driver.WaitforElementToBeInDOM(By.CssSelector("[id$='divButton'], [id$='pnlDashboards']"), 30);
+            if (homeIndicator is null)
+            {
+                throw new InvalidOperationException("Home page content did not render after selecting role.");
+            }
+
+            var isAdminRole = string.Equals(roleName, "Admin", StringComparison.OrdinalIgnoreCase);
+            return isAdminRole ? new AdminHomePage(_driver) : new HomePage(_driver);
+        }
+
         private IWebElement FindRow(string programName, string roleName)
         {
             var roleGrid = _driver.WaitforElementToBeInDOM(RoleGridSelector, 30)
                 ?? throw new InvalidOperationException("Role selection grid is not available on the current page.");
 
-            var rows = roleGrid.FindElements(By.CssSelector("tbody tr"));
+            var rows = roleGrid.FindElements(RoleRowSelector);
 
             var targetRow = rows.FirstOrDefault(row =>
             {

@@ -48,7 +48,7 @@ namespace AFUT.Tests.UnitTests.ThrowAway
             var caseHomePage = navigationBar.OpenFirstRecentCaseFromSearchCasesDropdown();
 
             Assert.True(caseHomePage.IsLoaded);
-            Assert.False(string.IsNullOrWhiteSpace(caseHomePage.CaseId));
+            Assert.False(string.IsNullOrWhiteSpace(caseHomePage.PC1Id));
         }
     }
 }

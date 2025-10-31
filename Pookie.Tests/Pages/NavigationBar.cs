@@ -45,16 +45,16 @@ namespace AFUT.Tests.Pages
             var firstCaseLink = dropdownMenu.FindElements(CaseLinkSelector).FirstOrDefault()
                 ?? throw new InvalidOperationException("Search Cases dropdown does not contain any cases.");
 
-            var expectedCaseId = firstCaseLink.Text?.Trim();
+            var expectedPc1Id = firstCaseLink.Text?.Trim();
 
             firstCaseLink.Click();
 
             var caseHomePage = new CaseHomePage(_driver);
 
-            if (!string.IsNullOrWhiteSpace(expectedCaseId) &&
-                !string.Equals(caseHomePage.CaseId, expectedCaseId, StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrWhiteSpace(expectedPc1Id) &&
+                !string.Equals(caseHomePage.PC1Id, expectedPc1Id, StringComparison.OrdinalIgnoreCase))
             {
-                throw new InvalidOperationException($"Expected to navigate to case '{expectedCaseId}' but landed on '{caseHomePage.CaseId}'.");
+                throw new InvalidOperationException($"Expected to navigate to case '{expectedPc1Id}' but landed on '{caseHomePage.PC1Id}'.");
             }
 
             return caseHomePage;

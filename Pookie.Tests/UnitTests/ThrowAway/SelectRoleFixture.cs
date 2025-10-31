@@ -63,8 +63,7 @@ namespace AFUT.Tests.UnitTests.ThrowAway
                 return selectRolePage.SelectRole(programName, roleName);
             }
 
-            PromptForManualRoleSelection();
-            return WaitForLandingPageAfterManualSelection();
+            return SelectFirstAvailableRole(selectRolePage);
         }
 
         private SelectRolePage? NavigateToSelectRolePage(bool allowMissing = false)
@@ -139,9 +138,18 @@ namespace AFUT.Tests.UnitTests.ThrowAway
             throw new AggregateException("Unable to determine landing page after role selection.", exceptions);
         }
 
-        private void PromptForManualRoleSelection()
+        private IAppLandingPage SelectFirstAvailableRole(SelectRolePage selectRolePage)
         {
-            Console.WriteLine("[SelectRoleFixture] Manual role selection required. Please pick the desired program/role and wait for the landing page to load.");
+            try
+            {
+                return selectRolePage.SelectFirstAvailableRole();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("[SelectRoleFixture] Automatic role selection failed: " + ex.Message);
+                Console.WriteLine("[SelectRoleFixture] Please select a role manually.");
+                return WaitForLandingPageAfterManualSelection();
+            }
         }
 
         private IAppLandingPage WaitForLandingPageAfterManualSelection()
