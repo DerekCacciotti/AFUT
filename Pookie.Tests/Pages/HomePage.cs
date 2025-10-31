@@ -40,6 +40,13 @@ namespace AFUT.Tests.Pages
             return new GridsPage(_driver);
         }
 
+        public SearchCasesPage OpenSearchCases()
+        {
+            _driver.WaitForReady();
+            var navigationBar = new NavigationBar(_driver);
+            return navigationBar.OpenSearchCasesPage();
+        }
+
         public JSPage GotoJSPage()
         {
             _driver.WaitForUpdatePanel();

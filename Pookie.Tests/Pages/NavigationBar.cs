@@ -11,6 +11,7 @@ namespace AFUT.Tests.Pages
         private static readonly By NavigationSelector = By.CssSelector(".navbar");
         private static readonly By SearchCasesListSelector = By.CssSelector("li[id$='liSearchCases']");
         private static readonly By SearchCasesToggleSelector = By.CssSelector("a.dropdown-toggle");
+        private static readonly By SearchCasesLinkSelector = By.CssSelector("a[href*='SearchCases.aspx']");
         private static readonly By RecentCasesMenuSelector = By.CssSelector("ul[id$='mnuMRUCases']");
         private static readonly By CaseLinkSelector = By.CssSelector("li > a.caseslink");
 
@@ -58,6 +59,32 @@ namespace AFUT.Tests.Pages
             }
 
             return caseHomePage;
+        }
+
+        public SearchCasesPage OpenSearchCasesPage()
+        {
+            var searchCasesNode = _navigationRoot.WaitforElementToBeInDOM(SearchCasesListSelector, 10)
+                ?? throw new InvalidOperationException("Search Cases menu item was not found in the navigation bar.");
+
+            var directLink = searchCasesNode.FindElements(SearchCasesLinkSelector).FirstOrDefault();
+
+            if (directLink is null)
+            {
+                var toggle = searchCasesNode.FindElements(SearchCasesToggleSelector).FirstOrDefault()
+                    ?? throw new InvalidOperationException("Search Cases dropdown toggle was not found.");
+
+                toggle.Click();
+                _driver.WaitForUpdatePanel(30);
+                _driver.WaitForReady(30);
+
+                directLink = searchCasesNode.FindElements(SearchCasesLinkSelector).FirstOrDefault()
+                    ?? throw new InvalidOperationException("Search Cases link was not found after expanding the menu.");
+            }
+
+            directLink.Click();
+            _driver.WaitForUpdatePanel(30);
+            _driver.WaitForReady(30);
+            return new SearchCasesPage(_driver);
         }
 
         private static void WaitUntilDisplayed(IWebElement element, TimeSpan timeout)
