@@ -24,7 +24,7 @@ namespace AFUT.Tests.Pages
         private static readonly By AlternateIdInputSelector = By.CssSelector("input[id$='txtAlternateID']");
         private static readonly By HvCasePkInputSelector = By.CssSelector("input[id$='txtHVCasePK']");
         private static readonly By SearchButtonSelector = By.CssSelector("[id$='btSearch']");
-        private static readonly By CancelButtonSelector = By.CssSelector("input[id$='btnCancel']");
+        private static readonly By CancelButtonSelector = By.CssSelector("a[id$='btnCancel']");
         private static readonly By ResultsGridSelector = By.CssSelector("table[id$='grResults']");
         private static readonly By ResultsRowSelector = By.CssSelector("tbody tr");
         private static readonly By NoRecordsMessageSelector = By.CssSelector("thead td");

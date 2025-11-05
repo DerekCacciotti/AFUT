@@ -125,6 +125,38 @@ namespace AFUT.Tests.UnitTests.SearchCases
 
             Assert.True(searchCasesPage.IsNoRecordsMessageDisplayed(), "Expected the 'No records found.' message to be displayed.");
         }
+
+        [Fact]
+        public void Cancel_Search_Returns_To_Home_Page()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            var routine = new SearchCasesSearchRoutine(driver, _config);
+            var parameters = SearchCasesSearchRoutine.GetParameters();
+
+            routine.LoadApplication(parameters);
+            routine.EnsureSignedIn(parameters);
+            routine.EnsureRoleSelected(parameters);
+            routine.NavigateToSearchCases(parameters);
+
+            Assert.True(parameters.SignedIn, "User was not signed in.");
+            Assert.True(parameters.RoleSelected, "Role was not selected successfully.");
+            Assert.True(parameters.SearchCasesPageLoaded, "Search Cases page did not load.");
+
+            var searchCasesPage = parameters.SearchCasesPage
+                                  ?? throw new InvalidOperationException("Search Cases page reference was not available before cancelling search.");
+
+            searchCasesPage.CancelSearch();
+
+            var homePage = new HomePage(driver);
+            var currentUrl = driver.Url;
+
+            Assert.NotNull(homePage);
+            Assert.True(homePage.IsLoaded, "Home page did not load after cancelling the search.");
+            Assert.True(currentUrl.EndsWith("/Default.aspx", StringComparison.OrdinalIgnoreCase) ||
+                        currentUrl.EndsWith("Default.aspx", StringComparison.OrdinalIgnoreCase),
+                $"Expected to navigate to the home page after cancelling the search, but current URL is '{currentUrl}'.");
+        }
     }
 }
 
