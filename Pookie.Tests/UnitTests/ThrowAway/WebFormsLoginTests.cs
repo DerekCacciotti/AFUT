@@ -29,4 +29,3 @@ namespace AFUT.Tests.UnitTests.ThrowAway
         }
     }
 }
-
