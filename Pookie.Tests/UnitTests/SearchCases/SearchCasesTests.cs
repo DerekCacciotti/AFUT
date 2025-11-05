@@ -27,6 +27,8 @@ namespace AFUT.Tests.UnitTests.SearchCases
             _config = config ?? throw new ArgumentNullException(nameof(config));
             _driverFactory = _config.ServiceProvider.GetService<IPookieDriverFactory>()
                               ?? throw new InvalidOperationException("Driver factory was not registered in the service provider.");
+
+            CaseHomePage.ConfigureDefaultTabs(_config.CaseHomeTabs);
         }
 
         [Fact]

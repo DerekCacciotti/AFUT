@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Collections.Generic;
 
 namespace AFUT.Tests.Config
 {
@@ -11,5 +7,6 @@ namespace AFUT.Tests.Config
         string AppUrl { get; }
         string UserName { get; }
         string Password { get; }
+        IReadOnlyList<string> CaseHomeTabs { get; }
     }
 }

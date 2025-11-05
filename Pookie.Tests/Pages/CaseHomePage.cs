@@ -17,7 +17,7 @@ namespace AFUT.Tests.Pages
         private static readonly By CaseTabsSelector = By.CssSelector("#bsTabs");
         private static readonly By TabLinkSelector = By.CssSelector("#bsTabs ul.nav li > a[data-toggle='tab']");
 
-        public static IReadOnlyList<string> DefaultTabDisplayNames { get; } = Array.AsReadOnly(new[]
+        private static readonly string[] BuiltInTabDisplayNames = new[]
         {
             "Basic Information",
             "Case Filters",
@@ -28,7 +28,12 @@ namespace AFUT.Tests.Pages
             "Family Goal Plans/Transition Plans",
             "Funding Sources",
             "Alerts/Notifications"
-        });
+        };
+
+        private static readonly IReadOnlyList<string> BuiltInTabDisplayNamesReadOnly = Array.AsReadOnly(BuiltInTabDisplayNames);
+        private static IReadOnlyList<string> _defaultTabDisplayNames = BuiltInTabDisplayNamesReadOnly;
+
+        public static IReadOnlyList<string> DefaultTabDisplayNames => _defaultTabDisplayNames;
 
         private readonly IPookieWebDriver _driver;
         private readonly IWebElement _pc1IdField;
@@ -111,6 +116,25 @@ namespace AFUT.Tests.Pages
             }
 
             return tabs.AsReadOnly();
+        }
+
+        public static void ConfigureDefaultTabs(IEnumerable<string> tabDisplayNames)
+        {
+            if (tabDisplayNames is null)
+            {
+                _defaultTabDisplayNames = BuiltInTabDisplayNamesReadOnly;
+                return;
+            }
+
+            var sanitized = tabDisplayNames
+                .Select(name => name?.Trim())
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            _defaultTabDisplayNames = sanitized.Length == 0
+                ? BuiltInTabDisplayNamesReadOnly
+                : Array.AsReadOnly(sanitized);
         }
 
         private void EnsureOnCaseHome()
