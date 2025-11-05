@@ -53,6 +53,49 @@ namespace AFUT.Tests.UnitTests.SearchCases
             Assert.True(string.Equals(parameters.Criteria.Pc1Id, parameters.FirstResultPc1Id, StringComparison.OrdinalIgnoreCase),
                 $"Expected PC1 ID '{parameters.Criteria.Pc1Id}' but found '{parameters.FirstResultPc1Id}'.");
         }
+
+        [Fact]
+        public void Fill_All_Search_Fields_OpensMatchingCaseHome()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            var routine = new SearchCasesSearchRoutine(driver, _config);
+            var parameters = SearchCasesSearchRoutine.GetParameters();
+
+            parameters.Criteria = new SearchCasesCriteria
+            {
+                Pc1Id = "AB12010361993",
+                Pc1FirstName = "Anonymized",
+                Pc1LastName = "Anonymized",
+                TcDob = "060920",
+                WorkerDisplayText = "3396, Worker",
+                AlternateId = "Anonymized"
+            };
+
+            routine.LoadApplication(parameters);
+            routine.EnsureSignedIn(parameters);
+            routine.EnsureRoleSelected(parameters);
+            routine.NavigateToSearchCases(parameters);
+            routine.PopulateSearchCriteria(parameters);
+            routine.SubmitSearch(parameters);
+
+            Assert.True(parameters.SignedIn, "User was not signed in.");
+            Assert.True(parameters.RoleSelected, "Role was not selected successfully.");
+            Assert.True(parameters.SearchCasesPageLoaded, "Search Cases page did not load.");
+            Assert.True(parameters.SearchCompleted, "Search did not complete.");
+
+            var firstResult = parameters.FirstResult
+                             ?? throw new InvalidOperationException("No search results were returned.");
+
+            var caseHomePage = firstResult.OpenCaseHome();
+
+            Assert.NotNull(caseHomePage);
+            Assert.True(caseHomePage.IsLoaded, "Case home page did not load successfully.");
+            Assert.True(string.Equals(parameters.FirstResultPc1Id, caseHomePage.PC1Id, StringComparison.OrdinalIgnoreCase),
+                $"Expected case home PC1 ID '{parameters.FirstResultPc1Id}' but found '{caseHomePage.PC1Id}'.");
+            Assert.True(string.Equals(parameters.Criteria.Pc1Id, caseHomePage.PC1Id, StringComparison.OrdinalIgnoreCase),
+                $"Expected case home PC1 ID '{parameters.Criteria.Pc1Id}' but found '{caseHomePage.PC1Id}'.");
+        }
     }
 }
 
