@@ -24,9 +24,10 @@ namespace AFUT.Tests.Pages
         private static readonly By AlternateIdInputSelector = By.CssSelector("input[id$='txtAlternateID']");
         private static readonly By HvCasePkInputSelector = By.CssSelector("input[id$='txtHVCasePK']");
         private static readonly By SearchButtonSelector = By.CssSelector("[id$='btSearch']");
-        private static readonly By CancelButtonSelector = By.CssSelector("input[id$='btnCancel']");
+        private static readonly By CancelButtonSelector = By.CssSelector("a[id$='btnCancel']");
         private static readonly By ResultsGridSelector = By.CssSelector("table[id$='grResults']");
         private static readonly By ResultsRowSelector = By.CssSelector("tbody tr");
+        private static readonly By NoRecordsMessageSelector = By.CssSelector("thead td");
 
         private readonly IPookieWebDriver _driver;
         private readonly IWebElement _searchForm;
@@ -108,6 +109,24 @@ namespace AFUT.Tests.Pages
         }
 
         public SearchCasesResultRow? GetFirstResult() => GetResults().FirstOrDefault();
+
+        public bool IsNoRecordsMessageDisplayed()
+        {
+            var grid = _driver.WaitforElementToBeInDOM(ResultsGridSelector, 10);
+            if (grid is null)
+            {
+                return false;
+            }
+
+            var headerCell = grid.FindElements(NoRecordsMessageSelector).FirstOrDefault();
+            if (headerCell is null)
+            {
+                return false;
+            }
+
+            var message = headerCell.Text?.Trim();
+            return string.Equals(message, "No records found.", StringComparison.OrdinalIgnoreCase);
+        }
 
         private void SetInputValue(By selector, string? value)
         {

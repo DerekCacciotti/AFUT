@@ -1,7 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using AFUT.Tests.Driver;
 using OpenQA.Selenium;
+using OpenQA.Selenium.Support.UI;
 
 namespace AFUT.Tests.Pages
 {
@@ -12,6 +15,25 @@ namespace AFUT.Tests.Pages
         private static readonly By CaseFormSelector = By.CssSelector("form[action*='CaseHome.aspx']");
         private static readonly By CaseIdDisplaySelector = By.CssSelector("span[id$='ucBasicInformation_lblCaseID']");
         private static readonly By CaseTabsSelector = By.CssSelector("#bsTabs");
+        private static readonly By TabLinkSelector = By.CssSelector("#bsTabs ul.nav li > a[data-toggle='tab']");
+
+        private static readonly string[] BuiltInTabDisplayNames = new[]
+        {
+            "Basic Information",
+            "Case Filters",
+            "Forms",
+            "Case Notes",
+            "Case Documents",
+            "Medical Providers",
+            "Family Goal Plans/Transition Plans",
+            "Funding Sources",
+            "Alerts/Notifications"
+        };
+
+        private static readonly IReadOnlyList<string> BuiltInTabDisplayNamesReadOnly = Array.AsReadOnly(BuiltInTabDisplayNames);
+        private static IReadOnlyList<string> _defaultTabDisplayNames = BuiltInTabDisplayNamesReadOnly;
+
+        public static IReadOnlyList<string> DefaultTabDisplayNames => _defaultTabDisplayNames;
 
         private readonly IPookieWebDriver _driver;
         private readonly IWebElement _pc1IdField;
@@ -41,6 +63,80 @@ namespace AFUT.Tests.Pages
                                  && _driver.FindElements(CaseIdDisplaySelector).Any()
                                  && _driver.FindElements(CaseTabsSelector).Any();
 
+        public IReadOnlyList<CaseHomeTab> GetTabs()
+        {
+            var tabAnchors = _driver.FindElements(TabLinkSelector)
+                                    .Where(anchor => anchor.Displayed)
+                                    .ToList();
+
+            if (tabAnchors.Count == 0)
+            {
+                throw new InvalidOperationException("No navigation tabs were found on the case home page.");
+            }
+
+            var tabs = new List<CaseHomeTab>();
+
+            foreach (var anchor in tabAnchors)
+            {
+                var anchorId = anchor.GetAttribute("id")?.Trim();
+
+                if (string.IsNullOrWhiteSpace(anchorId))
+                {
+                    continue;
+                }
+
+                var paneId = ExtractPaneId(anchor);
+
+                if (string.IsNullOrWhiteSpace(paneId))
+                {
+                    continue;
+                }
+
+                _ = _driver.WaitforElementToBeInDOM(By.Id(paneId), 5)
+                    ?? throw new InvalidOperationException($"Tab pane '{paneId}' was not found on the case home page.");
+
+                var primaryLabel = anchor.FindElements(By.CssSelector("span")).FirstOrDefault();
+                var labelSource = primaryLabel?.Text;
+
+                if (string.IsNullOrWhiteSpace(labelSource))
+                {
+                    labelSource = anchor.Text;
+                }
+
+                var displayName = NormalizeTabLabel(labelSource);
+
+                tabs.Add(new CaseHomeTab(_driver, anchorId, paneId, string.IsNullOrWhiteSpace(displayName)
+                    ? anchorId
+                    : displayName));
+            }
+
+            if (tabs.Count == 0)
+            {
+                throw new InvalidOperationException("Unable to resolve any addressable tabs on the case home page.");
+            }
+
+            return tabs.AsReadOnly();
+        }
+
+        public static void ConfigureDefaultTabs(IEnumerable<string> tabDisplayNames)
+        {
+            if (tabDisplayNames is null)
+            {
+                _defaultTabDisplayNames = BuiltInTabDisplayNamesReadOnly;
+                return;
+            }
+
+            var sanitized = tabDisplayNames
+                .Select(name => name?.Trim())
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            _defaultTabDisplayNames = sanitized.Length == 0
+                ? BuiltInTabDisplayNamesReadOnly
+                : Array.AsReadOnly(sanitized);
+        }
+
         private void EnsureOnCaseHome()
         {
             var form = _driver.WaitforElementToBeInDOM(CaseFormSelector, 30);
@@ -63,6 +159,172 @@ namespace AFUT.Tests.Pages
             if (!tabs.Displayed)
             {
                 throw new InvalidOperationException("Case home navigation tabs are not visible.");
+            }
+        }
+
+        private static string ExtractPaneId(IWebElement anchor)
+        {
+            if (anchor is null)
+            {
+                return string.Empty;
+            }
+
+            var targets = new[]
+            {
+                anchor.GetAttribute("href"),
+                anchor.GetAttribute("data-target")
+            };
+
+            foreach (var target in targets)
+            {
+                var paneId = NormalizeFragment(target);
+                if (!string.IsNullOrWhiteSpace(paneId))
+                {
+                    return paneId;
+                }
+            }
+
+            return string.Empty;
+        }
+
+        private static string NormalizeFragment(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            var trimmed = value.Trim();
+
+            var hashIndex = trimmed.LastIndexOf('#');
+            if (hashIndex >= 0)
+            {
+                if (hashIndex == trimmed.Length - 1)
+                {
+                    return string.Empty;
+                }
+
+                trimmed = trimmed[(hashIndex + 1)..];
+            }
+
+            return trimmed.Trim();
+        }
+
+        private static string NormalizeTabLabel(string? rawLabel)
+        {
+            if (string.IsNullOrWhiteSpace(rawLabel))
+            {
+                return string.Empty;
+            }
+
+            var cleaned = rawLabel
+                .Replace("\r", "\n")
+                .Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .FirstOrDefault()?.Trim() ?? string.Empty;
+
+            cleaned = Regex.Replace(cleaned, "\\s+", " ");
+            cleaned = Regex.Replace(cleaned, "\\s+\\d(\\s+\\d)*$", string.Empty).Trim();
+
+            return cleaned;
+        }
+
+        public class CaseHomeTab
+        {
+            private readonly IPookieWebDriver _driver;
+            private readonly string _anchorId;
+            private readonly string _paneId;
+
+            internal CaseHomeTab(IPookieWebDriver driver, string anchorId, string paneId, string displayName)
+            {
+                _driver = driver ?? throw new ArgumentNullException(nameof(driver));
+                DisplayName = displayName ?? throw new ArgumentNullException(nameof(displayName));
+                _anchorId = anchorId ?? throw new ArgumentNullException(nameof(anchorId));
+                _paneId = paneId ?? throw new ArgumentNullException(nameof(paneId));
+            }
+
+            public string DisplayName { get; }
+
+            public string PaneId => _paneId;
+
+            public bool IsActive
+            {
+                get
+                {
+                    var listItem = GetListItem();
+                    var pane = GetPane();
+                    return HasClass(listItem, "active") && HasClass(pane, "active");
+                }
+            }
+
+            public bool IsContentDisplayed
+            {
+                get
+                {
+                    var pane = GetPane();
+                    return HasClass(pane, "active") && pane.Displayed;
+                }
+            }
+
+            public void Activate(int timeoutSeconds = 10)
+            {
+                if (IsActive)
+                {
+                    return;
+                }
+
+                var clickable = _driver.WaitUntilElementCanBeClicked(By.Id(_anchorId), timeoutSeconds)
+                                ?? throw new InvalidOperationException($"Tab '{DisplayName}' was not clickable.");
+
+                _driver.ExecuteScript("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", clickable);
+
+                clickable.Click();
+                _driver.WaitForReady(timeoutSeconds);
+
+                var wait = new WebDriverWait(_driver, TimeSpan.FromSeconds(timeoutSeconds));
+                wait.Until(_ => IsActive);
+            }
+
+            private IWebElement GetAnchor()
+            {
+                return _driver.WaitforElementToBeInDOM(By.Id(_anchorId), 5)
+                       ?? throw new InvalidOperationException($"Tab anchor '{_anchorId}' was not found on the case home page.");
+            }
+
+            private IWebElement GetListItem()
+            {
+                var anchor = GetAnchor();
+
+                try
+                {
+                    return anchor.GetParent();
+                }
+                catch (NoSuchElementException ex)
+                {
+                    throw new InvalidOperationException($"Tab item for '{DisplayName}' was not found.", ex);
+                }
+            }
+
+            private IWebElement GetPane()
+            {
+                return _driver.WaitforElementToBeInDOM(By.Id(_paneId), 5)
+                       ?? throw new InvalidOperationException($"Content pane '{_paneId}' for tab '{DisplayName}' was not found.");
+            }
+
+            private static bool HasClass(IWebElement element, string className)
+            {
+                if (element is null)
+                {
+                    return false;
+                }
+
+                var classAttribute = element.GetAttribute("class");
+                if (string.IsNullOrWhiteSpace(classAttribute))
+                {
+                    return false;
+                }
+
+                var classes = classAttribute.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                return classes.Any(c => string.Equals(c, className, StringComparison.OrdinalIgnoreCase));
             }
         }
     }

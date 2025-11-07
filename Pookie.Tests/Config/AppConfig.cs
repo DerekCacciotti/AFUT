@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using AFUT.Tests.Driver;
@@ -18,6 +16,7 @@ namespace AFUT.Tests.Config
 
         public string Password => _config["Password"];
         public ServiceProvider ServiceProvider { get; }
+        public IReadOnlyList<string> CaseHomeTabs { get; }
 
         public AppConfig()
         {
@@ -31,10 +30,32 @@ namespace AFUT.Tests.Config
             services.AddSingleton<IPookieDriverFactory, PookieDriverFactory>();
             services.AddSingleton<IAppConfig>(_ => this);
             this.ServiceProvider = services.BuildServiceProvider();
+
+            CaseHomeTabs = LoadCaseHomeTabs();
         }
 
         public void Dispose()
         {
+        }
+
+        private IReadOnlyList<string> LoadCaseHomeTabs()
+        {
+            var configuredTabs = _config.GetSection("CaseHomeTabs").Get<string[]>();
+
+            if (configuredTabs is null || configuredTabs.Length == 0)
+            {
+                return Array.Empty<string>();
+            }
+
+            var sanitized = configuredTabs
+                .Select(tab => tab?.Trim())
+                .Where(tab => !string.IsNullOrWhiteSpace(tab))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            return sanitized.Length == 0
+                ? Array.Empty<string>()
+                : Array.AsReadOnly(sanitized);
         }
     }
 }
