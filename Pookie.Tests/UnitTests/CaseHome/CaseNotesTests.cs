@@ -492,6 +492,88 @@ namespace AFUT.Tests.UnitTests.CaseHome
             _output.WriteLine("Only note validation found!");
         }
 
+        [Fact]
+        public void DeleteCaseNote_ConfirmYes_DeletesSuccessfully()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            var caseHomePage = NavigateToCaseHome(driver);
+            var caseNotesTab = caseHomePage.GetCaseNotesTab();
+
+            // Ensure tab is active
+            caseNotesTab.Activate();
+            System.Threading.Thread.Sleep(1000);
+
+            // Get initial row count and first row text
+            var grid = driver.FindElement(By.Id("tblCaseNotes"));
+            var initialRows = grid.FindElements(By.CssSelector("tbody tr"));
+            var initialRowCount = initialRows.Count;
+            _output.WriteLine($"Initial row count: {initialRowCount}");
+
+            var firstRow = initialRows[0];
+            var firstRowText = firstRow.Text;
+            _output.WriteLine($"First row before deletion: {firstRowText}");
+
+            // Find and click the first Delete button
+            var deleteButtons = driver.FindElements(By.CssSelector("button.delete-gridview"));
+            var firstDeleteButton = deleteButtons.FirstOrDefault(b => b.Displayed);
+            Assert.NotNull(firstDeleteButton);
+            
+            driver.ExecuteScript("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", firstDeleteButton);
+            System.Threading.Thread.Sleep(500);
+            firstDeleteButton.Click();
+            _output.WriteLine("Clicked Delete button");
+
+            // Wait for confirmation modal to appear
+            System.Threading.Thread.Sleep(1500);
+
+            // Verify modal appears
+            var modal = driver.FindElement(By.Id("divDeleteCaseNoteModal"));
+            Assert.True(modal.Displayed, "Delete confirmation modal should be visible");
+            _output.WriteLine($"Confirmation modal displayed: {modal.Text}");
+
+            // Verify modal asks for confirmation
+            Assert.Contains("Are you sure", modal.Text);
+            _output.WriteLine("Modal contains confirmation message");
+
+            // Click Yes to confirm deletion
+            var yesButton = driver.FindElement(By.Id("ctl00_ContentPlaceHolder1_ucCaseNotes_lbDeleteCaseNote"));
+            Assert.NotNull(yesButton);
+            Assert.True(yesButton.Displayed, "Yes button should be visible");
+            
+            yesButton.Click();
+            _output.WriteLine("Clicked Yes to confirm deletion");
+
+            // Wait for deletion to complete
+            driver.WaitForUpdatePanel(30);
+            System.Threading.Thread.Sleep(2000);
+
+            // Verify success toast notification appears
+            var successNotification = driver.FindElements(By.CssSelector(".jq-toast-single.jq-has-icon.jq-icon-success"))
+                .FirstOrDefault(n => n.Displayed && n.Text.Contains("deleted"));
+
+            Assert.NotNull(successNotification);
+            _output.WriteLine($"Success notification: {successNotification.Text}");
+            Assert.Contains("deleted", successNotification.Text, StringComparison.OrdinalIgnoreCase);
+            _output.WriteLine("Toast notification confirmed deletion!");
+
+            // Re-find the grid after page update to avoid stale element reference
+            var updatedGrid = driver.FindElement(By.Id("tblCaseNotes"));
+            var updatedRows = updatedGrid.FindElements(By.CssSelector("tbody tr"));
+
+            // Verify the deleted row is no longer at the top of the grid
+            var currentFirstRow = updatedRows.FirstOrDefault();
+            Assert.NotNull(currentFirstRow);
+            
+            var currentFirstRowText = currentFirstRow.Text;
+            _output.WriteLine($"Old first row: {firstRowText}");
+            _output.WriteLine($"New first row: {currentFirstRowText}");
+            
+            // The deleted row should not be in the grid anymore
+            Assert.NotEqual(firstRowText, currentFirstRowText);
+            _output.WriteLine("Deleted row is no longer at the top of the grid - deletion successful!");
+        }
+
         private IWebElement ClickFirstEditLink(IPookieWebDriver driver, CaseHomePage.CaseNotesTab caseNotesTab)
         {
             // Ensure tab is active
