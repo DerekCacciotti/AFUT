@@ -12,10 +12,17 @@ namespace AFUT.Tests.Pages
     public class CaseHomePage
     {
         private static readonly By Pc1IdHiddenFieldSelector = By.CssSelector("input[id$='hfPC1ID']");
-        private static readonly By CaseFormSelector = By.CssSelector("form[action*='CaseHome.aspx']");
+        private static readonly By CaseFormSelector = By.XPath("//form[contains(translate(@action,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'casehome.aspx')]");
         private static readonly By CaseIdDisplaySelector = By.CssSelector("span[id$='ucBasicInformation_lblCaseID']");
         private static readonly By CaseTabsSelector = By.CssSelector("#bsTabs");
         private static readonly By TabLinkSelector = By.CssSelector("#bsTabs ul.nav li > a[data-toggle='tab']");
+        private static readonly By BasicInformationTabContentSelector = By.CssSelector("#basic-information");
+        private static readonly By BasicInformationEditLinkSelector = By.CssSelector("#basic-information a[href*='BasicCaseInformation.aspx']");
+        private static readonly By BasicInformationAlternateIdSelector = By.CssSelector("span[id$='ucBasicInformation_lblAlternateID']");
+        private static readonly By BasicInformationScreenDateSelector = By.CssSelector("span[id$='ucBasicInformation_lblScreenDate']");
+        private static readonly By BasicInformationTargetChildDobSelector = By.CssSelector("span[id$='ucBasicInformation_lblTCDOB']");
+        private static readonly By BasicInformationIntakeDateSelector = By.CssSelector("span[id$='ucBasicInformation_lblIntakeDate']");
+        private static readonly By BasicInformationParentSurveyDateSelector = By.CssSelector("span[id$='ucBasicInformation_lblKempeDate']");
 
         private static readonly string[] BuiltInTabDisplayNames = new[]
         {
@@ -118,6 +125,54 @@ namespace AFUT.Tests.Pages
             return tabs.AsReadOnly();
         }
 
+        public BasicCaseInformationPage OpenBasicInformationEditor(int timeoutSeconds = 30)
+        {
+            var tabs = GetTabs();
+            var basicTab = tabs.FirstOrDefault(tab => string.Equals(tab.DisplayName, "Basic Information", StringComparison.OrdinalIgnoreCase))
+                            ?? throw new InvalidOperationException("Basic Information tab was not found on the case home page.");
+
+            basicTab.Activate(timeoutSeconds);
+
+            _ = _driver.WaitforElementToBeInDOM(BasicInformationTabContentSelector, timeoutSeconds)
+                ?? throw new InvalidOperationException("Basic Information tab content was not available after activation.");
+
+            var editLink = _driver.WaitUntilElementCanBeClicked(BasicInformationEditLinkSelector, timeoutSeconds)
+                           ?? throw new InvalidOperationException("Edit Information button on the Basic Information tab was not clickable.");
+
+            _driver.ExecuteScript("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", editLink);
+            editLink.Click();
+
+            _driver.WaitForReady(timeoutSeconds);
+
+            var wait = new WebDriverWait(_driver, TimeSpan.FromSeconds(timeoutSeconds));
+            wait.Until(d =>
+            {
+                try
+                {
+                    return d.Url.Contains("BasicCaseInformation.aspx", StringComparison.OrdinalIgnoreCase);
+                }
+                catch (WebDriverException)
+                {
+                    return false;
+                }
+            });
+
+            return new BasicCaseInformationPage(_driver);
+        }
+
+        public BasicInformationSummary GetBasicInformationSummary(int timeoutSeconds = 30)
+        {
+            _ = _driver.WaitforElementToBeInDOM(BasicInformationTabContentSelector, timeoutSeconds)
+                ?? throw new InvalidOperationException("Basic Information summary was not available on the case home page.");
+
+            return new BasicInformationSummary(
+                AlternateId: GetSummaryText(BasicInformationAlternateIdSelector, timeoutSeconds),
+                ScreenDate: GetSummaryText(BasicInformationScreenDateSelector, timeoutSeconds),
+                TargetChildDob: GetSummaryText(BasicInformationTargetChildDobSelector, timeoutSeconds),
+                IntakeDate: GetSummaryText(BasicInformationIntakeDateSelector, timeoutSeconds),
+                ParentSurveyDate: GetSummaryText(BasicInformationParentSurveyDateSelector, timeoutSeconds));
+        }
+
         public static void ConfigureDefaultTabs(IEnumerable<string> tabDisplayNames)
         {
             if (tabDisplayNames is null)
@@ -139,11 +194,8 @@ namespace AFUT.Tests.Pages
 
         private void EnsureOnCaseHome()
         {
-            var form = _driver.WaitforElementToBeInDOM(CaseFormSelector, 30);
-            if (form is null)
-            {
-                throw new InvalidOperationException("Case home page form was not found after navigation.");
-            }
+            var form = _driver.WaitforElementToBeInDOM(CaseFormSelector, 30)
+                ?? throw new InvalidOperationException("Case home page form was not found after navigation.");
 
             var caseIdDisplay = _driver.WaitforElementToBeInDOM(CaseIdDisplaySelector, 30)
                                   ?? throw new InvalidOperationException("Case home page case identifier label not found.");
@@ -226,6 +278,20 @@ namespace AFUT.Tests.Pages
             cleaned = Regex.Replace(cleaned, "\\s+\\d(\\s+\\d)*$", string.Empty).Trim();
 
             return cleaned;
+        }
+
+        public CaseNotesTab GetCaseNotesTab()
+        {
+            var tabs = GetTabs();
+            var caseNotesTab = tabs.FirstOrDefault(tab =>
+                string.Equals(tab.DisplayName, "Case Notes", StringComparison.OrdinalIgnoreCase));
+
+            if (caseNotesTab is null)
+            {
+                throw new InvalidOperationException("Case Notes tab was not found on the case home page.");
+            }
+
+            return new CaseNotesTab(_driver, caseNotesTab);
         }
 
         public class CaseHomeTab
@@ -326,7 +392,149 @@ namespace AFUT.Tests.Pages
                 var classes = classAttribute.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                 return classes.Any(c => string.Equals(c, className, StringComparison.OrdinalIgnoreCase));
             }
+
         }
+
+        public class CaseNotesTab
+        {
+            private static readonly By AddNoteLinkSelector = By.CssSelector("a[id$='lbNewCaseNote']");
+            private static readonly By CaseNoteTextAreaSelector = By.CssSelector("textarea[id$='txtCaseNote']");
+            private static readonly By CaseNoteDateInputSelector = By.CssSelector("input[id$='txtCaseNoteDate']");
+            private static readonly By SaveNoteButtonSelector = By.CssSelector("a[id*='Submit'], button[id*='Submit'], input[type='submit']");
+            private static readonly By CancelNoteButtonSelector = By.CssSelector("a[id$='lbCancelCaseNote']");
+            private static readonly By CaseNotesUpdatePanelSelector = By.CssSelector("[id$='upCaseNotes']");
+            private static readonly By CaseNotesGridSelector = By.CssSelector("table[id='tblCaseNotes'], table[id$='gvCaseNotes']");
+            private static readonly By ValidationMessageSelector = By.CssSelector("[id$='rfvCaseNote'], [id$='rfvCaseNoteDate'], .text-danger, span[style*='color:Red']");
+
+            private readonly IPookieWebDriver _driver;
+            private readonly CaseHomeTab _tab;
+
+            internal CaseNotesTab(IPookieWebDriver driver, CaseHomeTab tab)
+            {
+                _driver = driver ?? throw new ArgumentNullException(nameof(driver));
+                _tab = tab ?? throw new ArgumentNullException(nameof(tab));
+            }
+
+            public void Activate()
+            {
+                _tab.Activate();
+            }
+
+            public bool IsActive => _tab.IsActive;
+
+            public void ClickAddNote()
+            {
+                EnsureTabActive();
+
+                var addLink = _driver.WaitforElementToBeInDOM(AddNoteLinkSelector, 10)
+                    ?? throw new InvalidOperationException("New Case Note link was not found.");
+
+                // Scroll the element into view to avoid navbar overlap
+                _driver.ExecuteScript("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", addLink);
+                System.Threading.Thread.Sleep(500); // Brief pause after scroll
+
+                addLink.Click();
+                _driver.WaitForUpdatePanel(30);
+                _driver.WaitForReady(10);
+            }
+
+            public void EnterNoteText(string? noteText)
+            {
+                var textArea = _driver.WaitforElementToBeInDOM(CaseNoteTextAreaSelector, 10)
+                    ?? throw new InvalidOperationException("Case note text area was not found.");
+
+                textArea.Clear();
+
+                if (!string.IsNullOrWhiteSpace(noteText))
+                {
+                    textArea.SendKeys(noteText);
+                }
+            }
+
+            public void EnterNoteDate(string? noteDate)
+            {
+                var dateInput = _driver.WaitforElementToBeInDOM(CaseNoteDateInputSelector, 10)
+                    ?? throw new InvalidOperationException("Case note date input was not found.");
+
+                dateInput.Clear();
+
+                if (!string.IsNullOrWhiteSpace(noteDate))
+                {
+                    dateInput.SendKeys(noteDate);
+                }
+            }
+
+            public void SaveNote()
+            {
+                var saveButton = _driver.WaitforElementToBeInDOM(SaveNoteButtonSelector, 10)
+                    ?? throw new InvalidOperationException("Save Case Note button was not found or not clickable.");
+
+                // Scroll the element into view to avoid navbar overlap
+                _driver.ExecuteScript("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", saveButton);
+                System.Threading.Thread.Sleep(500); // Brief pause after scroll
+
+                saveButton.Click();
+                _driver.WaitForUpdatePanel(30);
+                _driver.WaitForReady(30);
+            }
+
+            public void CancelNote()
+            {
+                var cancelButton = _driver.WaitUntilElementCanBeClicked(CancelNoteButtonSelector, 10)
+                    ?? throw new InvalidOperationException("Cancel button was not found or not clickable.");
+
+                cancelButton.Click();
+                _driver.WaitForUpdatePanel(30);
+                _driver.WaitForReady(10);
+            }
+
+            public void AddNewCaseNote(string? noteDate, string? noteText)
+            {
+                EnsureTabActive();
+                ClickAddNote();
+                EnterNoteDate(noteDate);
+                EnterNoteText(noteText);
+                SaveNote();
+            }
+
+            public bool IsNoteSaved()
+            {
+                _driver.WaitForReady(5);
+
+                var grid = _driver.WaitforElementToBeInDOM(CaseNotesGridSelector, 10);
+                if (grid is null)
+                {
+                    return false;
+                }
+
+                var rows = grid.FindElements(By.CssSelector("tbody tr"));
+                return rows.Any();
+            }
+
+            public bool HasValidationError()
+            {
+                var validationMessages = _driver.FindElements(ValidationMessageSelector);
+                return validationMessages.Any(msg => msg.Displayed && !string.IsNullOrWhiteSpace(msg.Text));
+            }
+
+            private void EnsureTabActive()
+            {
+                if (!_tab.IsActive)
+                {
+                    _tab.Activate();
+                }
+            }
+        }
+
+        private string GetSummaryText(By selector, int timeoutSeconds)
+        {
+            var element = _driver.WaitforElementToBeInDOM(selector, timeoutSeconds)
+                         ?? throw new InvalidOperationException($"Summary element '{selector}' was not found on the case home page.");
+
+            return element.Text?.Trim() ?? string.Empty;
+        }
+
+        public record BasicInformationSummary(string AlternateId, string ScreenDate, string TargetChildDob, string IntakeDate, string ParentSurveyDate);
     }
 }
 
