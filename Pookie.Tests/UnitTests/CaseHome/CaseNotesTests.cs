@@ -117,6 +117,175 @@ namespace AFUT.Tests.UnitTests.CaseHome
             Assert.True(rows.Count > 0, "No case notes found in the grid after saving.");
         }
 
+        [Fact]
+        public void AddNewCaseNote_WithoutData_ShowsValidation()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            var caseHomePage = NavigateToCaseHome(driver);
+            var caseNotesTab = caseHomePage.GetCaseNotesTab();
+
+            // Click the New Case Note button
+            caseNotesTab.ClickAddNote();
+            _output.WriteLine("Clicked 'New Case Note' button");
+
+            // Find the date and note fields
+            var dateField = driver.WaitforElementToBeInDOM(By.CssSelector("input[id$='txtCaseNoteDate']"), 10);
+            var noteField = driver.WaitforElementToBeInDOM(By.CssSelector("textarea[id$='txtCaseNote']"), 10);
+
+            Assert.NotNull(dateField);
+            Assert.NotNull(noteField);
+            _output.WriteLine("Fields are present, NOT entering any data");
+
+            // Find and click the submit button without entering data
+            var submitButton = driver.WaitforElementToBeInDOM(By.CssSelector("a[id*='lbSubmitCaseNote']"), 10);
+            Assert.NotNull(submitButton);
+            
+            // Scroll into view and click
+            driver.ExecuteScript("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", submitButton);
+            System.Threading.Thread.Sleep(500);
+            submitButton.Click();
+            _output.WriteLine("Clicked Submit button without entering data");
+
+            // Wait for validation to appear
+            driver.WaitForUpdatePanel(10);
+            System.Threading.Thread.Sleep(1000);
+
+            // Check for validation summary that shows both error messages
+            var validationSummary = driver.FindElements(By.CssSelector(".validation-summary.alert.alert-danger"))
+                .FirstOrDefault(vs => vs.Displayed);
+            
+            Assert.NotNull(validationSummary);
+            var summaryText = validationSummary.Text;
+            _output.WriteLine($"Validation summary text: {summaryText}");
+
+            // Verify both required field messages appear
+            Assert.Contains("Case Note Date is required!", summaryText);
+            Assert.Contains("Note is required!", summaryText);
+            _output.WriteLine("Both validation messages found in validation summary");
+
+            // Verify the individual date validator is also visible
+            var dateValidator = driver.FindElement(By.CssSelector("span[id$='rfvCaseNoteDate']"));
+            Assert.NotNull(dateValidator);
+            Assert.True(dateValidator.Displayed, "Date validator should be visible");
+            Assert.Contains("Case Note Date is required!", dateValidator.Text);
+            _output.WriteLine($"Date validator displayed: {dateValidator.Text}");
+
+            // Verify form is still visible (note was not saved)
+            Assert.True(dateField.Displayed, "Date field should still be visible after validation");
+            Assert.True(noteField.Displayed, "Note field should still be visible after validation");
+            _output.WriteLine("Form fields remain visible - note was not saved");
+        }
+
+        [Fact]
+        public void AddNewCaseNote_WithDateButNoNote_ShowsValidation()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            var caseHomePage = NavigateToCaseHome(driver);
+            var caseNotesTab = caseHomePage.GetCaseNotesTab();
+
+            // Click the New Case Note button
+            caseNotesTab.ClickAddNote();
+            _output.WriteLine("Clicked 'New Case Note' button");
+
+            // Enter date but not note text
+            _output.WriteLine("Entering date: 11/10/2025");
+            caseNotesTab.EnterNoteDate("11/10/2025");
+            _output.WriteLine("NOT entering note text - leaving it empty");
+
+            // Find and click the submit button
+            var submitButton = driver.WaitforElementToBeInDOM(By.CssSelector("a[id*='lbSubmitCaseNote']"), 10);
+            Assert.NotNull(submitButton);
+            
+            driver.ExecuteScript("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", submitButton);
+            System.Threading.Thread.Sleep(500);
+            submitButton.Click();
+            _output.WriteLine("Clicked Submit button with date but no note");
+
+            // Wait for validation to appear
+            driver.WaitForUpdatePanel(10);
+            System.Threading.Thread.Sleep(1000);
+
+            // Check for validation summary
+            var validationSummary = driver.FindElements(By.CssSelector(".validation-summary.alert.alert-danger"))
+                .FirstOrDefault(vs => vs.Displayed);
+            
+            Assert.NotNull(validationSummary);
+            var summaryText = validationSummary.Text;
+            _output.WriteLine($"Validation summary text: {summaryText}");
+
+            // Verify only "Note is required!" appears (date is filled)
+            Assert.Contains("Note is required!", summaryText);
+            Assert.DoesNotContain("Case Note Date is required!", summaryText);
+            _output.WriteLine("Only 'Note is required!' validation message found");
+
+            // Verify form is still visible (note was not saved)
+            var dateField = driver.FindElement(By.CssSelector("input[id$='txtCaseNoteDate']"));
+            var noteField = driver.FindElement(By.CssSelector("textarea[id$='txtCaseNote']"));
+            Assert.True(dateField.Displayed, "Date field should still be visible after validation");
+            Assert.True(noteField.Displayed, "Note field should still be visible after validation");
+            _output.WriteLine("Form fields remain visible - note was not saved");
+        }
+
+        [Fact]
+        public void AddNewCaseNote_WithNoteButNoDate_ShowsValidation()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            var caseHomePage = NavigateToCaseHome(driver);
+            var caseNotesTab = caseHomePage.GetCaseNotesTab();
+
+            // Click the New Case Note button
+            caseNotesTab.ClickAddNote();
+            _output.WriteLine("Clicked 'New Case Note' button");
+
+            // Enter note text but not date
+            _output.WriteLine("NOT entering date - leaving it empty");
+            _output.WriteLine("Entering note text: Just Test");
+            caseNotesTab.EnterNoteText("Just Test");
+
+            // Find and click the submit button
+            var submitButton = driver.WaitforElementToBeInDOM(By.CssSelector("a[id*='lbSubmitCaseNote']"), 10);
+            Assert.NotNull(submitButton);
+            
+            driver.ExecuteScript("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", submitButton);
+            System.Threading.Thread.Sleep(500);
+            submitButton.Click();
+            _output.WriteLine("Clicked Submit button with note but no date");
+
+            // Wait for validation to appear
+            driver.WaitForUpdatePanel(10);
+            System.Threading.Thread.Sleep(1000);
+
+            // Check for validation summary
+            var validationSummary = driver.FindElements(By.CssSelector(".validation-summary.alert.alert-danger"))
+                .FirstOrDefault(vs => vs.Displayed);
+            
+            Assert.NotNull(validationSummary);
+            var summaryText = validationSummary.Text;
+            _output.WriteLine($"Validation summary text: {summaryText}");
+
+            // Verify only "Case Note Date is required!" appears (note is filled)
+            Assert.Contains("Case Note Date is required!", summaryText);
+            Assert.DoesNotContain("Note is required!", summaryText);
+            _output.WriteLine("Only 'Case Note Date is required!' validation message found");
+
+            // Verify the individual date validator is also visible
+            var dateValidator = driver.FindElement(By.CssSelector("span[id$='rfvCaseNoteDate']"));
+            Assert.NotNull(dateValidator);
+            Assert.True(dateValidator.Displayed, "Date validator should be visible");
+            Assert.Contains("Case Note Date is required!", dateValidator.Text);
+            _output.WriteLine($"Date validator displayed: {dateValidator.Text}");
+
+            // Verify form is still visible (note was not saved)
+            var dateField = driver.FindElement(By.CssSelector("input[id$='txtCaseNoteDate']"));
+            var noteField = driver.FindElement(By.CssSelector("textarea[id$='txtCaseNote']"));
+            Assert.True(dateField.Displayed, "Date field should still be visible after validation");
+            Assert.True(noteField.Displayed, "Note field should still be visible after validation");
+            _output.WriteLine("Form fields remain visible - note was not saved");
+        }
+
         private CaseHomePage NavigateToCaseHome(IPookieWebDriver driver)
         {
             var routine = new SearchCasesSearchRoutine(driver, _config);
