@@ -280,6 +280,20 @@ namespace AFUT.Tests.Pages
             return cleaned;
         }
 
+        public CaseNotesTab GetCaseNotesTab()
+        {
+            var tabs = GetTabs();
+            var caseNotesTab = tabs.FirstOrDefault(tab =>
+                string.Equals(tab.DisplayName, "Case Notes", StringComparison.OrdinalIgnoreCase));
+
+            if (caseNotesTab is null)
+            {
+                throw new InvalidOperationException("Case Notes tab was not found on the case home page.");
+            }
+
+            return new CaseNotesTab(_driver, caseNotesTab);
+        }
+
         public class CaseHomeTab
         {
             private readonly IPookieWebDriver _driver;
@@ -381,6 +395,136 @@ namespace AFUT.Tests.Pages
 
         }
 
+        public class CaseNotesTab
+        {
+            private static readonly By AddNoteLinkSelector = By.CssSelector("a[id$='lbNewCaseNote']");
+            private static readonly By CaseNoteTextAreaSelector = By.CssSelector("textarea[id$='txtCaseNote']");
+            private static readonly By CaseNoteDateInputSelector = By.CssSelector("input[id$='txtCaseNoteDate']");
+            private static readonly By SaveNoteButtonSelector = By.CssSelector("a[id*='Submit'], button[id*='Submit'], input[type='submit']");
+            private static readonly By CancelNoteButtonSelector = By.CssSelector("a[id$='lbCancelCaseNote']");
+            private static readonly By CaseNotesUpdatePanelSelector = By.CssSelector("[id$='upCaseNotes']");
+            private static readonly By CaseNotesGridSelector = By.CssSelector("table[id='tblCaseNotes'], table[id$='gvCaseNotes']");
+            private static readonly By ValidationMessageSelector = By.CssSelector("[id$='rfvCaseNote'], [id$='rfvCaseNoteDate'], .text-danger, span[style*='color:Red']");
+
+            private readonly IPookieWebDriver _driver;
+            private readonly CaseHomeTab _tab;
+
+            internal CaseNotesTab(IPookieWebDriver driver, CaseHomeTab tab)
+            {
+                _driver = driver ?? throw new ArgumentNullException(nameof(driver));
+                _tab = tab ?? throw new ArgumentNullException(nameof(tab));
+            }
+
+            public void Activate()
+            {
+                _tab.Activate();
+            }
+
+            public bool IsActive => _tab.IsActive;
+
+            public void ClickAddNote()
+            {
+                EnsureTabActive();
+
+                var addLink = _driver.WaitforElementToBeInDOM(AddNoteLinkSelector, 10)
+                    ?? throw new InvalidOperationException("New Case Note link was not found.");
+
+                // Scroll the element into view to avoid navbar overlap
+                _driver.ExecuteScript("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", addLink);
+                System.Threading.Thread.Sleep(500); // Brief pause after scroll
+
+                addLink.Click();
+                _driver.WaitForUpdatePanel(30);
+                _driver.WaitForReady(10);
+            }
+
+            public void EnterNoteText(string? noteText)
+            {
+                var textArea = _driver.WaitforElementToBeInDOM(CaseNoteTextAreaSelector, 10)
+                    ?? throw new InvalidOperationException("Case note text area was not found.");
+
+                textArea.Clear();
+
+                if (!string.IsNullOrWhiteSpace(noteText))
+                {
+                    textArea.SendKeys(noteText);
+                }
+            }
+
+            public void EnterNoteDate(string? noteDate)
+            {
+                var dateInput = _driver.WaitforElementToBeInDOM(CaseNoteDateInputSelector, 10)
+                    ?? throw new InvalidOperationException("Case note date input was not found.");
+
+                dateInput.Clear();
+
+                if (!string.IsNullOrWhiteSpace(noteDate))
+                {
+                    dateInput.SendKeys(noteDate);
+                }
+            }
+
+            public void SaveNote()
+            {
+                var saveButton = _driver.WaitforElementToBeInDOM(SaveNoteButtonSelector, 10)
+                    ?? throw new InvalidOperationException("Save Case Note button was not found or not clickable.");
+
+                // Scroll the element into view to avoid navbar overlap
+                _driver.ExecuteScript("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", saveButton);
+                System.Threading.Thread.Sleep(500); // Brief pause after scroll
+
+                saveButton.Click();
+                _driver.WaitForUpdatePanel(30);
+                _driver.WaitForReady(30);
+            }
+
+            public void CancelNote()
+            {
+                var cancelButton = _driver.WaitUntilElementCanBeClicked(CancelNoteButtonSelector, 10)
+                    ?? throw new InvalidOperationException("Cancel button was not found or not clickable.");
+
+                cancelButton.Click();
+                _driver.WaitForUpdatePanel(30);
+                _driver.WaitForReady(10);
+            }
+
+            public void AddNewCaseNote(string? noteDate, string? noteText)
+            {
+                EnsureTabActive();
+                ClickAddNote();
+                EnterNoteDate(noteDate);
+                EnterNoteText(noteText);
+                SaveNote();
+            }
+
+            public bool IsNoteSaved()
+            {
+                _driver.WaitForReady(5);
+
+                var grid = _driver.WaitforElementToBeInDOM(CaseNotesGridSelector, 10);
+                if (grid is null)
+                {
+                    return false;
+                }
+
+                var rows = grid.FindElements(By.CssSelector("tbody tr"));
+                return rows.Any();
+            }
+
+            public bool HasValidationError()
+            {
+                var validationMessages = _driver.FindElements(ValidationMessageSelector);
+                return validationMessages.Any(msg => msg.Displayed && !string.IsNullOrWhiteSpace(msg.Text));
+            }
+
+            private void EnsureTabActive()
+            {
+                if (!_tab.IsActive)
+                {
+                    _tab.Activate();
+                }
+            }
+        }
         private string GetSummaryText(By selector, int timeoutSeconds)
         {
             var element = _driver.WaitforElementToBeInDOM(selector, timeoutSeconds)
