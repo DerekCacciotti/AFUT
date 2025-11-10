@@ -347,10 +347,10 @@ namespace AFUT.Tests.Pages
             private static readonly By AddNoteLinkSelector = By.CssSelector("a[id$='lbNewCaseNote']");
             private static readonly By CaseNoteTextAreaSelector = By.CssSelector("textarea[id$='txtCaseNote']");
             private static readonly By CaseNoteDateInputSelector = By.CssSelector("input[id$='txtCaseNoteDate']");
-            private static readonly By SaveNoteButtonSelector = By.CssSelector("a[id$='lbSaveCaseNote']");
+            private static readonly By SaveNoteButtonSelector = By.CssSelector("a[id*='Submit'], button[id*='Submit'], input[type='submit']");
             private static readonly By CancelNoteButtonSelector = By.CssSelector("a[id$='lbCancelCaseNote']");
             private static readonly By CaseNotesUpdatePanelSelector = By.CssSelector("[id$='upCaseNotes']");
-            private static readonly By CaseNotesGridSelector = By.CssSelector("table[id$='gvCaseNotes']");
+            private static readonly By CaseNotesGridSelector = By.CssSelector("table[id='tblCaseNotes'], table[id$='gvCaseNotes']");
             private static readonly By ValidationMessageSelector = By.CssSelector("[id$='rfvCaseNote'], [id$='rfvCaseNoteDate'], .text-danger, span[style*='color:Red']");
 
             private readonly IPookieWebDriver _driver;
