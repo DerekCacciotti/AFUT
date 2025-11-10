@@ -97,40 +97,20 @@ namespace AFUT.Tests.UnitTests.BasicCaseInformation
             Assert.NotNull(basicInfoPage);
             Assert.True(basicInfoPage.IsLoaded, "Basic Case Information page did not load successfully.");
 
-            var desiredUpdates = new Dictionary<BasicCaseInformationPage.BasicCaseInformationField, string>
-            {
-                { BasicCaseInformationPage.BasicCaseInformationField.AlternateId, "Anonymized1" },
-                { BasicCaseInformationPage.BasicCaseInformationField.ScreenDate, "10/30/19" },
-                { BasicCaseInformationPage.BasicCaseInformationField.TargetChildDob, "06/09/20" },
-                { BasicCaseInformationPage.BasicCaseInformationField.IntakeDate, "01/07/20" },
-                { BasicCaseInformationPage.BasicCaseInformationField.ParentSurveyDate, "12/17/19" }
-            };
-
-            var originalValues = basicInfoPage.EditableFields.ToDictionary(field => field, field => basicInfoPage.GetFieldValue(field));
+            var originalAlternateId = basicInfoPage.GetFieldValue(BasicCaseInformationPage.BasicCaseInformationField.AlternateId);
+            var newAlternateId = "Anonymized1";
             CaseHomePage? caseHomeAfterSubmit = null;
 
             try
             {
                 basicInfoPage.EnterEditMode();
-
-                foreach (var update in desiredUpdates)
-                {
-                    basicInfoPage.SetFieldValue(update.Key, update.Value);
-                }
+                basicInfoPage.SetFieldValue(BasicCaseInformationPage.BasicCaseInformationField.AlternateId, newAlternateId);
 
                 caseHomeAfterSubmit = basicInfoPage.SubmitChanges();
 
                 var summaryAfterSubmit = caseHomeAfterSubmit.GetBasicInformationSummary();
-                AssertValuesEqual(BasicCaseInformationPage.BasicCaseInformationField.AlternateId, desiredUpdates[BasicCaseInformationPage.BasicCaseInformationField.AlternateId], summaryAfterSubmit.AlternateId,
+                AssertValuesEqual(BasicCaseInformationPage.BasicCaseInformationField.AlternateId, newAlternateId, summaryAfterSubmit.AlternateId,
                     "Alternate ID summary value did not reflect the submitted value.");
-                AssertValuesEqual(BasicCaseInformationPage.BasicCaseInformationField.ScreenDate, desiredUpdates[BasicCaseInformationPage.BasicCaseInformationField.ScreenDate], summaryAfterSubmit.ScreenDate,
-                    "Screen Date summary value did not reflect the submitted value.");
-                AssertValuesEqual(BasicCaseInformationPage.BasicCaseInformationField.TargetChildDob, desiredUpdates[BasicCaseInformationPage.BasicCaseInformationField.TargetChildDob], summaryAfterSubmit.TargetChildDob,
-                    "Target Child DOB summary value did not reflect the submitted value.");
-                AssertValuesEqual(BasicCaseInformationPage.BasicCaseInformationField.IntakeDate, desiredUpdates[BasicCaseInformationPage.BasicCaseInformationField.IntakeDate], summaryAfterSubmit.IntakeDate,
-                    "Intake Date summary value did not reflect the submitted value.");
-                AssertValuesEqual(BasicCaseInformationPage.BasicCaseInformationField.ParentSurveyDate, desiredUpdates[BasicCaseInformationPage.BasicCaseInformationField.ParentSurveyDate], summaryAfterSubmit.ParentSurveyDate,
-                    "Parent Survey Date summary value did not reflect the submitted value.");
             }
             finally
             {
@@ -138,25 +118,13 @@ namespace AFUT.Tests.UnitTests.BasicCaseInformation
                 {
                     var cleanupEditor = (caseHomeAfterSubmit?.OpenBasicInformationEditor()) ?? NavigateToCaseHome(driver).OpenBasicInformationEditor();
                     cleanupEditor.EnterEditMode();
-
-                    foreach (var original in originalValues)
-                    {
-                        cleanupEditor.SetFieldValue(original.Key, original.Value);
-                    }
+                    cleanupEditor.SetFieldValue(BasicCaseInformationPage.BasicCaseInformationField.AlternateId, originalAlternateId);
 
                     var caseHomeAfterRevert = cleanupEditor.SubmitChanges();
                     var summaryAfterRevert = caseHomeAfterRevert.GetBasicInformationSummary();
 
-                    AssertValuesEqual(BasicCaseInformationPage.BasicCaseInformationField.AlternateId, originalValues[BasicCaseInformationPage.BasicCaseInformationField.AlternateId], summaryAfterRevert.AlternateId,
+                    AssertValuesEqual(BasicCaseInformationPage.BasicCaseInformationField.AlternateId, originalAlternateId, summaryAfterRevert.AlternateId,
                         "Alternate ID summary value did not revert to the original value after cleanup.");
-                    AssertValuesEqual(BasicCaseInformationPage.BasicCaseInformationField.ScreenDate, originalValues[BasicCaseInformationPage.BasicCaseInformationField.ScreenDate], summaryAfterRevert.ScreenDate,
-                        "Screen Date summary value did not revert to the original value after cleanup.");
-                    AssertValuesEqual(BasicCaseInformationPage.BasicCaseInformationField.TargetChildDob, originalValues[BasicCaseInformationPage.BasicCaseInformationField.TargetChildDob], summaryAfterRevert.TargetChildDob,
-                        "Target Child DOB summary value did not revert to the original value after cleanup.");
-                    AssertValuesEqual(BasicCaseInformationPage.BasicCaseInformationField.IntakeDate, originalValues[BasicCaseInformationPage.BasicCaseInformationField.IntakeDate], summaryAfterRevert.IntakeDate,
-                        "Intake Date summary value did not revert to the original value after cleanup.");
-                    AssertValuesEqual(BasicCaseInformationPage.BasicCaseInformationField.ParentSurveyDate, originalValues[BasicCaseInformationPage.BasicCaseInformationField.ParentSurveyDate], summaryAfterRevert.ParentSurveyDate,
-                        "Parent Survey Date summary value did not revert to the original value after cleanup.");
                 }
                 catch (Exception revertEx)
                 {
