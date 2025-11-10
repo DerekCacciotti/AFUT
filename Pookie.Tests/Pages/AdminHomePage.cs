@@ -21,6 +21,13 @@ namespace AFUT.Tests.Pages
         }
 
         public bool IsLoaded => _impersonateSection?.Displayed == true;
+
+        public SearchCasesPage OpenSearchCases()
+        {
+            _driver.WaitForReady();
+            var navigationBar = new NavigationBar(_driver);
+            return navigationBar.OpenSearchCasesPage();
+        }
     }
 }
 
