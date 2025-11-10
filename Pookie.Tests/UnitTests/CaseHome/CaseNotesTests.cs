@@ -286,6 +286,232 @@ namespace AFUT.Tests.UnitTests.CaseHome
             _output.WriteLine("Form fields remain visible - note was not saved");
         }
 
+        [Fact]
+        public void EditCaseNote_WithUpdatedData_SavesSuccessfully()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            var caseHomePage = NavigateToCaseHome(driver);
+            var caseNotesTab = caseHomePage.GetCaseNotesTab();
+
+            // Click Edit on the first existing case note
+            var editLink = ClickFirstEditLink(driver, caseNotesTab);
+            _output.WriteLine($"Clicked Edit link: {editLink.GetAttribute("id")}");
+
+            // Wait for form to appear
+            driver.WaitForUpdatePanel(10);
+            System.Threading.Thread.Sleep(1000);
+
+            // Get the current values
+            var dateField = driver.FindElement(By.CssSelector("input[id$='txtCaseNoteDate']"));
+            var noteField = driver.FindElement(By.CssSelector("textarea[id$='txtCaseNote']"));
+
+            var originalDate = dateField.GetAttribute("value");
+            var originalNote = noteField.GetAttribute("value");
+            _output.WriteLine($"Original values - Date: {originalDate}, Note: {originalNote}");
+
+            // Update the values
+            var newDate = "11/11/2025";
+            var newNote = "Updated test note";
+
+            dateField.Clear();
+            dateField.SendKeys(newDate);
+            _output.WriteLine($"Updated date to: {newDate}");
+
+            noteField.Clear();
+            noteField.SendKeys(newNote);
+            _output.WriteLine($"Updated note to: {newNote}");
+
+            // Submit the changes
+            var submitButton = driver.FindElement(By.CssSelector("a[id*='lbSubmitCaseNote']"));
+            driver.ExecuteScript("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", submitButton);
+            System.Threading.Thread.Sleep(500);
+            submitButton.Click();
+            _output.WriteLine("Clicked Submit button");
+
+            // Wait for save
+            driver.WaitForUpdatePanel(30);
+            System.Threading.Thread.Sleep(2000);
+
+            // Verify success notification
+            var successNotification = driver.FindElements(By.CssSelector(".jq-toast-single.jq-has-icon.jq-icon-success"))
+                .FirstOrDefault(n => n.Displayed);
+
+            if (successNotification != null)
+            {
+                _output.WriteLine($"Success notification found: {successNotification.Text}");
+            }
+
+            // Verify the grid shows the updated note
+            var grid = driver.FindElement(By.Id("tblCaseNotes"));
+            var rows = grid.FindElements(By.CssSelector("tbody tr"));
+            _output.WriteLine($"Grid has {rows.Count} rows after update");
+
+            var firstRow = rows[0];
+            var firstRowText = firstRow.Text;
+            _output.WriteLine($"First row after update: {firstRowText}");
+
+            Assert.Contains(newDate, firstRowText);
+            Assert.Contains(newNote, firstRowText);
+            _output.WriteLine("Updated values found in grid!");
+        }
+
+        [Fact]
+        public void EditCaseNote_ClearAllFields_ShowsValidation()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            var caseHomePage = NavigateToCaseHome(driver);
+            var caseNotesTab = caseHomePage.GetCaseNotesTab();
+
+            // Click Edit on the first existing case note
+            var editLink = ClickFirstEditLink(driver, caseNotesTab);
+            _output.WriteLine($"Clicked Edit link: {editLink.GetAttribute("id")}");
+
+            // Wait for form
+            driver.WaitForUpdatePanel(10);
+            System.Threading.Thread.Sleep(1000);
+
+            // Clear both fields
+            var dateField = driver.FindElement(By.CssSelector("input[id$='txtCaseNoteDate']"));
+            var noteField = driver.FindElement(By.CssSelector("textarea[id$='txtCaseNote']"));
+
+            _output.WriteLine("Clearing all fields...");
+            dateField.Clear();
+            noteField.Clear();
+
+            // Submit
+            var submitButton = driver.FindElement(By.CssSelector("a[id*='lbSubmitCaseNote']"));
+            driver.ExecuteScript("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", submitButton);
+            System.Threading.Thread.Sleep(500);
+            submitButton.Click();
+            _output.WriteLine("Clicked Submit with empty fields");
+
+            // Wait for validation
+            driver.WaitForUpdatePanel(10);
+            System.Threading.Thread.Sleep(1000);
+
+            // Check validation summary
+            var validationSummary = driver.FindElements(By.CssSelector(".validation-summary.alert.alert-danger"))
+                .FirstOrDefault(vs => vs.Displayed);
+
+            Assert.NotNull(validationSummary);
+            var summaryText = validationSummary.Text;
+            _output.WriteLine($"Validation summary: {summaryText}");
+
+            Assert.Contains("Case Note Date is required!", summaryText);
+            Assert.Contains("Note is required!", summaryText);
+            _output.WriteLine("Both validation messages found!");
+        }
+
+        [Fact]
+        public void EditCaseNote_ClearDateOnly_ShowsValidation()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            var caseHomePage = NavigateToCaseHome(driver);
+            var caseNotesTab = caseHomePage.GetCaseNotesTab();
+
+            // Click Edit
+            var editLink = ClickFirstEditLink(driver, caseNotesTab);
+            driver.WaitForUpdatePanel(10);
+            System.Threading.Thread.Sleep(1000);
+
+            // Clear only the date field
+            var dateField = driver.FindElement(By.CssSelector("input[id$='txtCaseNoteDate']"));
+            var noteField = driver.FindElement(By.CssSelector("textarea[id$='txtCaseNote']"));
+
+            _output.WriteLine("Clearing date field only...");
+            dateField.Clear();
+            _output.WriteLine($"Note field still has: {noteField.GetAttribute("value")}");
+
+            // Submit
+            var submitButton = driver.FindElement(By.CssSelector("a[id*='lbSubmitCaseNote']"));
+            driver.ExecuteScript("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", submitButton);
+            System.Threading.Thread.Sleep(500);
+            submitButton.Click();
+
+            // Wait for validation
+            driver.WaitForUpdatePanel(10);
+            System.Threading.Thread.Sleep(1000);
+
+            // Check validation
+            var validationSummary = driver.FindElements(By.CssSelector(".validation-summary.alert.alert-danger"))
+                .FirstOrDefault(vs => vs.Displayed);
+
+            Assert.NotNull(validationSummary);
+            var summaryText = validationSummary.Text;
+            _output.WriteLine($"Validation summary: {summaryText}");
+
+            Assert.Contains("Case Note Date is required!", summaryText);
+            Assert.DoesNotContain("Note is required!", summaryText);
+            _output.WriteLine("Only date validation found!");
+        }
+
+        [Fact]
+        public void EditCaseNote_ClearNoteOnly_ShowsValidation()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            var caseHomePage = NavigateToCaseHome(driver);
+            var caseNotesTab = caseHomePage.GetCaseNotesTab();
+
+            // Click Edit
+            var editLink = ClickFirstEditLink(driver, caseNotesTab);
+            driver.WaitForUpdatePanel(10);
+            System.Threading.Thread.Sleep(1000);
+
+            // Clear only the note field
+            var dateField = driver.FindElement(By.CssSelector("input[id$='txtCaseNoteDate']"));
+            var noteField = driver.FindElement(By.CssSelector("textarea[id$='txtCaseNote']"));
+
+            _output.WriteLine($"Date field still has: {dateField.GetAttribute("value")}");
+            _output.WriteLine("Clearing note field only...");
+            noteField.Clear();
+
+            // Submit
+            var submitButton = driver.FindElement(By.CssSelector("a[id*='lbSubmitCaseNote']"));
+            driver.ExecuteScript("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", submitButton);
+            System.Threading.Thread.Sleep(500);
+            submitButton.Click();
+
+            // Wait for validation
+            driver.WaitForUpdatePanel(10);
+            System.Threading.Thread.Sleep(1000);
+
+            // Check validation
+            var validationSummary = driver.FindElements(By.CssSelector(".validation-summary.alert.alert-danger"))
+                .FirstOrDefault(vs => vs.Displayed);
+
+            Assert.NotNull(validationSummary);
+            var summaryText = validationSummary.Text;
+            _output.WriteLine($"Validation summary: {summaryText}");
+
+            Assert.Contains("Note is required!", summaryText);
+            Assert.DoesNotContain("Case Note Date is required!", summaryText);
+            _output.WriteLine("Only note validation found!");
+        }
+
+        private IWebElement ClickFirstEditLink(IPookieWebDriver driver, CaseHomePage.CaseNotesTab caseNotesTab)
+        {
+            // Ensure tab is active
+            caseNotesTab.Activate();
+            System.Threading.Thread.Sleep(1000);
+
+            // Find first visible Edit link
+            var allEditLinks = driver.FindElements(By.CssSelector("a[id*='lbEditCaseNote']"));
+            var firstEditLink = allEditLinks.FirstOrDefault(l => l.Displayed);
+
+            Assert.NotNull(firstEditLink);
+
+            // Click it
+            driver.ExecuteScript("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", firstEditLink);
+            System.Threading.Thread.Sleep(500);
+            firstEditLink.Click();
+
+            return firstEditLink;
+        }
+
         private CaseHomePage NavigateToCaseHome(IPookieWebDriver driver)
         {
             var routine = new SearchCasesSearchRoutine(driver, _config);
