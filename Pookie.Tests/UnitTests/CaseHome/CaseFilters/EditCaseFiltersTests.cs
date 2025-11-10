@@ -4,6 +4,8 @@ using AFUT.Tests.Config;
 using AFUT.Tests.Driver;
 using AFUT.Tests.Pages;
 using Microsoft.Extensions.DependencyInjection;
+using OpenQA.Selenium;
+using Xunit;
 
 namespace AFUT.Tests.UnitTests.CaseHome.CaseFilters
 {
@@ -65,6 +67,40 @@ namespace AFUT.Tests.UnitTests.CaseHome.CaseFilters
             var editor = caseHomePage.OpenCaseFiltersEditor();
 
             editor.Cancel();
+        }
+
+        [Fact]
+        public void SubmittingInvalidDateFormat_ShowsErrorAlert()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            CaseHomePage caseHomePage = CaseHomeTestHelper.NavigateToCaseHome(driver, _config);
+            var editor = caseHomePage.OpenCaseFiltersEditor();
+            var filters = editor.GetFilters();
+
+            // Find a text field that accepts dates
+            var dateField = filters.FirstOrDefault(filter => filter.IsTextInput && filter.IsEnabled);
+            
+            if (dateField is null)
+            {
+                throw new InvalidOperationException("No editable text filter was found for testing invalid dates.");
+            }
+
+            // Enter invalid date value
+            dateField.SetTextValue("43/43/42");
+
+            editor.Submit();
+
+            // Wait for error alert to appear
+            System.Threading.Thread.Sleep(2000);
+
+            // Find the error alert
+            var errorAlert = driver.FindElements(By.CssSelector("div.alert.alert-info"))
+                .FirstOrDefault(alert => alert.Displayed && 
+                                        alert.Text.Contains("You have encountered an error in the Healthy Families application"));
+
+            Assert.NotNull(errorAlert);
+            Assert.Contains("You have encountered an error in the Healthy Families application", errorAlert.Text);
         }
     }
 }
