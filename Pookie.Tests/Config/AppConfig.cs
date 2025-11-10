@@ -50,6 +50,7 @@ namespace AFUT.Tests.Config
             var sanitized = configuredTabs
                 .Select(tab => tab?.Trim())
                 .Where(tab => !string.IsNullOrWhiteSpace(tab))
+                .Select(tab => tab!)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
 
