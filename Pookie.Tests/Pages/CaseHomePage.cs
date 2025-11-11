@@ -23,6 +23,9 @@ namespace AFUT.Tests.Pages
         private static readonly By BasicInformationTargetChildDobSelector = By.CssSelector("span[id$='ucBasicInformation_lblTCDOB']");
         private static readonly By BasicInformationIntakeDateSelector = By.CssSelector("span[id$='ucBasicInformation_lblIntakeDate']");
         private static readonly By BasicInformationParentSurveyDateSelector = By.CssSelector("span[id$='ucBasicInformation_lblKempeDate']");
+        private static readonly By CaseFiltersPaneSelector = By.CssSelector("#case-filters");
+        private static readonly By CaseFiltersTableRowSelector = By.CssSelector("table tr");
+        private static readonly By CaseFiltersEditButtonSelector = By.CssSelector("#case-filters a[href*='CaseFilters.aspx']");
 
         private static readonly string[] BuiltInTabDisplayNames = new[]
         {
@@ -173,6 +176,70 @@ namespace AFUT.Tests.Pages
                 ParentSurveyDate: GetSummaryText(BasicInformationParentSurveyDateSelector, timeoutSeconds));
         }
 
+        public IReadOnlyCollection<CaseFilterEntry> GetCaseFilters()
+        {
+            var pane = _driver.WaitforElementToBeInDOM(CaseFiltersPaneSelector, 10)
+                       ?? throw new InvalidOperationException("Case filters tab content was not found on the case home page.");
+
+            var rows = pane.FindElements(CaseFiltersTableRowSelector)
+                .Where(row => row.FindElements(By.TagName("td")).Count >= 2)
+                .ToList();
+
+            var filters = new List<CaseFilterEntry>();
+
+            foreach (var row in rows)
+            {
+                var cells = row.FindElements(By.TagName("td"));
+                if (cells.Count < 2)
+                {
+                    continue;
+                }
+
+                var name = NormalizeFilterCell(cells[0]);
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    continue;
+                }
+
+                var value = NormalizeFilterCell(cells[1]);
+
+                filters.Add(new CaseFilterEntry(name, value));
+            }
+
+            if (filters.Count == 0)
+            {
+                throw new InvalidOperationException("No case filters were parsed from the case filters tab.");
+            }
+
+            return filters.AsReadOnly();
+        }
+
+        public CaseFiltersPage OpenCaseFiltersEditor()
+        {
+            var filtersTab = GetTabs().FirstOrDefault(tab =>
+                string.Equals(tab.DisplayName, "Case Filters", StringComparison.OrdinalIgnoreCase));
+
+            if (filtersTab is null)
+            {
+                throw new InvalidOperationException("Case Filters tab was not found on the case home page.");
+            }
+
+            filtersTab.Activate();
+
+            var pane = _driver.WaitforElementToBeInDOM(CaseFiltersPaneSelector, 10)
+                       ?? throw new InvalidOperationException("Case filters tab content was not found on the case home page.");
+
+            var editButton = pane.WaitforElementToBeInDOM(By.CssSelector("a[href*='CaseFilters.aspx']"), 10)
+                             ?? _driver.WaitforElementToBeInDOM(CaseFiltersEditButtonSelector, 10)
+                             ?? throw new InvalidOperationException("Case filters edit button was not found.");
+
+            _driver.ExecuteScript("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", editButton);
+            editButton.Click();
+            _driver.WaitForReady(30);
+
+            return new CaseFiltersPage(_driver);
+        }
+
         public static void ConfigureDefaultTabs(IEnumerable<string> tabDisplayNames)
         {
             if (tabDisplayNames is null)
@@ -292,6 +359,42 @@ namespace AFUT.Tests.Pages
             }
 
             return new CaseNotesTab(_driver, caseNotesTab);
+        }
+
+        private static string NormalizeFilterCell(IWebElement cell)
+        {
+            if (cell is null)
+            {
+                return string.Empty;
+            }
+
+            var candidates = new List<string?>();
+
+            var span = cell.FindElements(By.CssSelector("span")).FirstOrDefault();
+            if (span is not null)
+            {
+                candidates.Add(span.Text);
+                candidates.Add(span.GetAttribute("title"));
+            }
+
+            candidates.Add(cell.Text);
+            candidates.Add(cell.GetAttribute("title"));
+
+            foreach (var candidate in candidates)
+            {
+                if (string.IsNullOrWhiteSpace(candidate))
+                {
+                    continue;
+                }
+
+                var normalized = Regex.Replace(candidate.Trim(), "\\s+", " ");
+                if (!string.IsNullOrWhiteSpace(normalized))
+                {
+                    return normalized;
+                }
+            }
+
+            return string.Empty;
         }
 
         public class CaseHomeTab
@@ -525,6 +628,7 @@ namespace AFUT.Tests.Pages
                 }
             }
         }
+
         private string GetSummaryText(By selector, int timeoutSeconds)
         {
             var element = _driver.WaitforElementToBeInDOM(selector, timeoutSeconds)
@@ -534,6 +638,19 @@ namespace AFUT.Tests.Pages
         }
 
         public record BasicInformationSummary(string AlternateId, string ScreenDate, string TargetChildDob, string IntakeDate, string ParentSurveyDate);
+
+        public class CaseFilterEntry
+        {
+            internal CaseFilterEntry(string name, string value)
+            {
+                Name = name ?? string.Empty;
+                Value = value ?? string.Empty;
+            }
+
+            public string Name { get; }
+
+            public string Value { get; }
+        }
     }
 }
 
