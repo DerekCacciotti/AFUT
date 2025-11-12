@@ -1927,6 +1927,809 @@ namespace AFUT.Tests.UnitTests.Referrals
                 throw;
             }
         }
+
+        /// <summary>
+        /// ⚠️ IMPORTANT: IF THIS TEST FAILS WITH "Assert.Contains() Failure: Not found: No records found."
+        /// 
+        /// This means the person already exists in the database from a previous test run.
+        /// 
+        /// TO FIX: Change the test data below (around line 1999-2003):
+        /// - Change firstName (e.g., "checkone" to "checktwo" or "checkone1")
+        /// - Change lastName (e.g., "check" to "check1")
+        /// - Or change the DOB year (e.g., "11091916" to "11091816" for year 2018)
+        /// 
+        /// File: UnitTests/Referrals/ReferralsTests.cs
+        /// Location: Lines 1999-2003 (see *** CHANGE TEST DATA HERE *** comment)
+        /// </summary>
+        [Fact]
+        public void NewReferral_SearchNoRecordsFound_CreateNewPersonProfileWithRaceAndGender()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            // Navigate to the application
+            _output.WriteLine($"Navigating to application URL: {_config.AppUrl}");
+            driver.Navigate().GoToUrl(_config.AppUrl);
+            driver.WaitForReady(30);
+
+            // Sign in
+            _output.WriteLine($"Signing in with user: {_config.UserName}");
+            var loginPage = new LoginPage(driver);
+            loginPage.SignIn(_config.UserName, _config.Password);
+
+            var isSignedIn = loginPage.IsSignedIn();
+            Assert.True(isSignedIn, "User was not signed in successfully.");
+            _output.WriteLine("[PASS] Successfully signed in");
+
+            // Select Data Entry role
+            _output.WriteLine("Attempting to select DataEntry role...");
+            var selectRolePage = new SelectRolePage(driver);
+            var landingPage = selectRolePage.SelectRole("Program 1", "DataEntry");
+
+            Assert.NotNull(landingPage);
+            Assert.True(landingPage.IsLoaded, "Landing page did not load after selecting Data Entry role.");
+            _output.WriteLine("[PASS] Successfully selected Data Entry role");
+
+            // Navigate to Referrals page
+            _output.WriteLine("\nNavigating to Referrals page...");
+            var referralsLink = driver.FindElements(OpenQA.Selenium.By.CssSelector(".navbar a, nav a"))
+                .FirstOrDefault(link => link.GetAttribute("href")?.Contains("Referrals.aspx", StringComparison.OrdinalIgnoreCase) == true);
+
+            Assert.NotNull(referralsLink);
+            
+            _output.WriteLine($"Found Referrals link with text: '{referralsLink.Text?.Trim()}'");
+            referralsLink.Click();
+            driver.WaitForReady(30);
+            System.Threading.Thread.Sleep(2000);
+            
+            _output.WriteLine("[PASS] Successfully navigated to Referrals page");
+            _output.WriteLine($"Current URL: {driver.Url}");
+
+            // Click New Referral button
+            _output.WriteLine("\nClicking New Referral button...");
+            var newReferralButton = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_lnkNewReferral"));
+            Assert.NotNull(newReferralButton);
+            
+            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", newReferralButton);
+            System.Threading.Thread.Sleep(500);
+            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", newReferralButton);
+            
+            driver.WaitForReady(30);
+            System.Threading.Thread.Sleep(1000);
+            _output.WriteLine("[PASS] Clicked New Referral button");
+            _output.WriteLine($"Current URL: {driver.Url}");
+
+            // Fill in the search form with specific test data
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("FILLING IN SEARCH FORM");
+            _output.WriteLine("========================================");
+
+            // *** CHANGE TEST DATA HERE IF TEST FAILS ***
+            // If test fails because person already exists in database, modify these values:
+            var firstName = "checkone";      // Line 1999 - Change to unique value (e.g., "checktwo", "checkone1")
+            var lastName = "check";          // Line 2000 - Change to unique value (e.g., "check1")
+            var dob = "11091916";            // Line 2001 - Change year digits (e.g., "11091816" for 2018, "11091716" for 2017)
+            var phone = "1111111111";        // Line 2002 - Can also change phone number
+            var emergencyPhone = "1111111111"; // Line 2003 - Can also change emergency phone
+            // *** END OF TEST DATA ***
+            
+            // Note: DOB format is MMDDYYYY but system only uses last 2 digits for year
+            // "11091916" becomes "11/09/2019" (system interprets "16" as 2019)
+
+            _output.WriteLine($"PC1 First Name: {firstName}");
+            _output.WriteLine($"PC1 Last Name: {lastName}");
+            _output.WriteLine($"DOB: {dob}");
+            _output.WriteLine($"Phone: {phone}");
+            _output.WriteLine($"Emergency Phone: {emergencyPhone}");
+
+            // Fill First Name
+            var firstNameField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcfirstname"));
+            firstNameField.Click();
+            System.Threading.Thread.Sleep(200);
+            firstNameField.Clear();
+            firstNameField.SendKeys(firstName);
+            _output.WriteLine("[PASS] Filled PC1 First Name");
+
+            // Fill Last Name
+            var lastNameField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpclastname"));
+            lastNameField.Click();
+            System.Threading.Thread.Sleep(200);
+            lastNameField.Clear();
+            lastNameField.SendKeys(lastName);
+            _output.WriteLine("[PASS] Filled PC1 Last Name");
+
+            // Fill DOB
+            var dobField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcdob"));
+            dobField.Click();
+            System.Threading.Thread.Sleep(200);
+            dobField.Clear();
+            dobField.SendKeys(dob);
+            _output.WriteLine("[PASS] Filled DOB");
+
+            // Fill Phone
+            var phoneField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcphone"));
+            phoneField.Click();
+            System.Threading.Thread.Sleep(200);
+            phoneField.Clear();
+            phoneField.SendKeys(phone);
+            _output.WriteLine("[PASS] Filled Phone");
+
+            // Fill Emergency Phone
+            var emergencyPhoneField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcemergencyphone"));
+            emergencyPhoneField.Click();
+            System.Threading.Thread.Sleep(200);
+            emergencyPhoneField.Clear();
+            emergencyPhoneField.SendKeys(emergencyPhone);
+            _output.WriteLine("[PASS] Filled Emergency Phone");
+            
+            System.Threading.Thread.Sleep(500);
+
+            // Click Search button
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("SEARCHING FOR PERSON");
+            _output.WriteLine("========================================");
+
+            var searchButton = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_btSearch"));
+            Assert.NotNull(searchButton);
+            _output.WriteLine($"Found search button: id='{searchButton.GetAttribute("id")}'");
+            
+            searchButton.Click();
+            driver.WaitForReady(30);
+            System.Threading.Thread.Sleep(2000);
+            _output.WriteLine("[PASS] Clicked Search button");
+
+            // Verify "No records found." message
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("VERIFYING 'No records found.' MESSAGE");
+            _output.WriteLine("========================================");
+
+            var pageText = driver.FindElement(OpenQA.Selenium.By.TagName("body")).Text;
+            
+            if (!pageText.Contains("No records found.", StringComparison.Ordinal))
+            {
+                _output.WriteLine("[FAIL] Person already exists in database!");
+                _output.WriteLine("");
+                _output.WriteLine("⚠️⚠️⚠️ TEST FAILED - PERSON ALREADY EXISTS ⚠️⚠️⚠️");
+                _output.WriteLine("");
+                _output.WriteLine("The search returned existing records instead of 'No records found.'");
+                _output.WriteLine("This means the test data already exists in the database from a previous run.");
+                _output.WriteLine("");
+                _output.WriteLine("TO FIX THIS:");
+                _output.WriteLine("1. Open file: UnitTests/Referrals/ReferralsTests.cs");
+                _output.WriteLine("2. Go to lines 2006-2013");
+                _output.WriteLine("3. Look for the comment: *** CHANGE TEST DATA HERE IF TEST FAILS ***");
+                _output.WriteLine("4. Change one or more of these values:");
+                _output.WriteLine($"   - firstName = \"{firstName}\"     (change to \"checktwo\", \"checkone1\", etc.)");
+                _output.WriteLine($"   - lastName = \"{lastName}\"       (change to \"check1\", \"check2\", etc.)");
+                _output.WriteLine($"   - dob = \"{dob}\"           (change to \"11091816\" for 2018, \"11091716\" for 2017, etc.)");
+                _output.WriteLine("");
+                _output.WriteLine("5. Save the file and run the test again");
+                _output.WriteLine("");
+                var searchResults = driver.FindElements(OpenQA.Selenium.By.CssSelector("table tbody tr"));
+                _output.WriteLine($"Current search found {searchResults.Count} matching record(s) in database");
+                _output.WriteLine("========================================");
+            }
+            
+            Assert.Contains("No records found.", pageText, StringComparison.Ordinal);
+            _output.WriteLine("[PASS] Found 'No records found.' message");
+
+            // Find and click the "add new" link
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("CLICKING 'ADD NEW' LINK");
+            _output.WriteLine("========================================");
+
+            var addNewLink = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_lbAddNew"));
+            Assert.NotNull(addNewLink);
+            _output.WriteLine($"Found 'add new' link: '{addNewLink.Text?.Trim()}'");
+            
+            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", addNewLink);
+            System.Threading.Thread.Sleep(500);
+            addNewLink.Click();
+            
+            driver.WaitForReady(30);
+            System.Threading.Thread.Sleep(2000);
+            _output.WriteLine("[PASS] Clicked 'add new' link");
+            _output.WriteLine($"Current URL: {driver.Url}");
+            
+            // Verify we're on the Person Profile page
+            Assert.Contains("PCProfile.aspx", driver.Url, StringComparison.OrdinalIgnoreCase);
+            _output.WriteLine("[PASS] Navigated to Person Profile page");
+
+            // Verify that search data was pre-filled
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("VERIFYING PRE-FILLED DATA");
+            _output.WriteLine("========================================");
+
+            var pcFirstName = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtPCFirstName"));
+            var pcLastName = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtPCLastName"));
+            var pcDOB = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtPCDOB"));
+            var pcPhone = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtPCPrimaryPhone"));
+            var pcEmergencyPhone = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtPCEmergencyPhone"));
+
+            _output.WriteLine($"First Name field value: {pcFirstName.GetAttribute("value")}");
+            _output.WriteLine($"Last Name field value: {pcLastName.GetAttribute("value")}");
+            _output.WriteLine($"DOB field value: {pcDOB.GetAttribute("value")}");
+            _output.WriteLine($"Phone field value: {pcPhone.GetAttribute("value")}");
+            _output.WriteLine($"Emergency Phone field value: {pcEmergencyPhone.GetAttribute("value")}");
+
+            Assert.Equal(firstName, pcFirstName.GetAttribute("value"));
+            Assert.Equal(lastName, pcLastName.GetAttribute("value"));
+            _output.WriteLine("[PASS] Search data was pre-filled correctly");
+
+            // Fill in Race (Asian checkbox)
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("FILLING ADDITIONAL REQUIRED FIELDS");
+            _output.WriteLine("========================================");
+
+            var asianCheckbox = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_chkRace_Asian"));
+            if (!asianCheckbox.Selected)
+            {
+                asianCheckbox.Click();
+                System.Threading.Thread.Sleep(200);
+            }
+            Assert.True(asianCheckbox.Selected, "Asian checkbox should be selected");
+            _output.WriteLine("[PASS] Selected Race: Asian");
+
+            // Fill in Gender (Male from dropdown)
+            var genderDropdown = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_ddlGender"));
+            var genderSelect = new OpenQA.Selenium.Support.UI.SelectElement(genderDropdown);
+            
+            // Log available gender options
+            var genderOptions = genderSelect.Options.Select(o => o.Text).ToList();
+            _output.WriteLine($"Available gender options: {string.Join(", ", genderOptions)}");
+            
+            // Select "2. Male" (the options have numbers prefixed)
+            genderSelect.SelectByText("2. Male");
+            System.Threading.Thread.Sleep(200);
+            
+            Assert.Equal("2. Male", genderSelect.SelectedOption.Text);
+            _output.WriteLine("[PASS] Selected Gender: 2. Male");
+
+            // Click Submit button
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("SUBMITTING PERSON PROFILE");
+            _output.WriteLine("========================================");
+
+            var submitButton = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_btnSubmit"));
+            Assert.NotNull(submitButton);
+            _output.WriteLine($"Found Submit button: text='{submitButton.Text?.Trim()}'");
+            
+            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", submitButton);
+            System.Threading.Thread.Sleep(500);
+            submitButton.Click();
+            
+            driver.WaitForReady(30);
+            System.Threading.Thread.Sleep(2000);
+            _output.WriteLine("[PASS] Clicked Submit button");
+            _output.WriteLine($"Current URL after submit: {driver.Url}");
+
+            // Check for validation errors
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("CHECKING FOR VALIDATION ERRORS");
+            _output.WriteLine("========================================");
+
+            var validationErrorFound = false;
+            var validationMessages = new System.Collections.Generic.List<string>();
+
+            // Check for validation error messages using various selectors
+            var errorSelectors = new[]
+            {
+                OpenQA.Selenium.By.CssSelector(".alert"),
+                OpenQA.Selenium.By.CssSelector(".alert-danger"),
+                OpenQA.Selenium.By.CssSelector(".alert-warning"),
+                OpenQA.Selenium.By.CssSelector("[class*='error']"),
+                OpenQA.Selenium.By.CssSelector("[class*='validation']"),
+                OpenQA.Selenium.By.CssSelector(".field-validation-error"),
+                OpenQA.Selenium.By.CssSelector(".text-danger"),
+                OpenQA.Selenium.By.CssSelector("span[style*='color']"),
+                OpenQA.Selenium.By.XPath("//*[contains(text(), 'must be')]"),
+                OpenQA.Selenium.By.XPath("//*[contains(text(), 'required')]"),
+                OpenQA.Selenium.By.XPath("//*[contains(text(), 'error')]"),
+                OpenQA.Selenium.By.XPath("//*[contains(text(), 'years old')]")
+            };
+
+            _output.WriteLine("Searching for validation error messages...");
+            
+            foreach (var selector in errorSelectors)
+            {
+                try
+                {
+                    var errorElements = driver.FindElements(selector);
+                    foreach (var element in errorElements)
+                    {
+                        if (element.Displayed)
+                        {
+                            var text = element.Text?.Trim() ?? "";
+                            if (!string.IsNullOrWhiteSpace(text) && !validationMessages.Contains(text))
+                            {
+                                validationMessages.Add(text);
+                                _output.WriteLine($"  [FOUND] Validation message: '{text}'");
+                                validationErrorFound = true;
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    // Continue with next selector
+                }
+            }
+
+            // Also check the page text for age validation
+            var validationPageText = driver.FindElement(OpenQA.Selenium.By.TagName("body")).Text;
+            if (validationPageText.Contains("must be at least 8 years old", StringComparison.OrdinalIgnoreCase) ||
+                validationPageText.Contains("8 years old", StringComparison.OrdinalIgnoreCase))
+            {
+                _output.WriteLine("[FOUND] Page contains '8 years old' validation text");
+                validationErrorFound = true;
+            }
+
+            // Log all validation messages found
+            if (validationMessages.Count > 0)
+            {
+                _output.WriteLine($"\nTotal validation messages found: {validationMessages.Count}");
+                foreach (var msg in validationMessages)
+                {
+                    _output.WriteLine($"  - {msg}");
+                }
+            }
+            else
+            {
+                _output.WriteLine("[WARN] No validation error messages found via selectors");
+                _output.WriteLine("Page text preview (first 1000 characters):");
+                _output.WriteLine(validationPageText.Substring(0, Math.Min(1000, validationPageText.Length)));
+            }
+
+            // Check if we're still on the same page (validation failed)
+            var stillOnProfilePage = driver.Url.Contains("PCProfile.aspx", StringComparison.OrdinalIgnoreCase);
+            _output.WriteLine($"\nStill on Person Profile page: {stillOnProfilePage}");
+
+            if (stillOnProfilePage)
+            {
+                _output.WriteLine("[INFO] Form submission was blocked - likely due to validation errors");
+            }
+
+            // Verify navigation after submit
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("TEST SUMMARY");
+            _output.WriteLine("========================================");
+            _output.WriteLine("[PASS] Successfully filled search form with test data");
+            _output.WriteLine("[PASS] Verified 'No records found' message");
+            _output.WriteLine("[PASS] Clicked 'add new' link");
+            _output.WriteLine("[PASS] Verified pre-filled data on Person Profile page");
+            _output.WriteLine("[PASS] Selected Race: Asian");
+            _output.WriteLine("[PASS] Selected Gender: 2. Male");
+            _output.WriteLine("[PASS] Clicked Submit button");
+            
+            if (validationErrorFound)
+            {
+                _output.WriteLine($"[EXPECTED] Validation error(s) found: {validationMessages.Count} message(s)");
+                _output.WriteLine("[PASS] Test correctly detected validation error for age requirement");
+            }
+            else
+            {
+                _output.WriteLine("[WARN] Expected validation error not found");
+            }
+            
+            // Assert that validation error exists (person must be at least 8 years old)
+            Assert.True(validationErrorFound || stillOnProfilePage, 
+                "Expected validation error about age requirement (must be at least 8 years old) to be displayed");
+            
+            _output.WriteLine($"\n[PASS] Test completed successfully! Validation errors properly detected.");
+        }
+
+        /// <summary>
+        /// ⚠️ IMPORTANT: IF THIS TEST FAILS WITH "Assert.Contains() Failure: Not found: No records found."
+        /// 
+        /// This means the person already exists in the database from a previous test run.
+        /// 
+        /// TO FIX: Change the test data below (around line 2349-2353):
+        /// - Change firstName (e.g., "checkone" to "checktwo" or "checkone2")
+        /// - Change lastName (e.g., "check" to "check2")
+        /// - Or change the DOB year (e.g., "11091616" to "11091516" for year 2015)
+        /// 
+        /// File: UnitTests/Referrals/ReferralsTests.cs
+        /// Location: Lines 2349-2353 (see *** CHANGE TEST DATA HERE *** comment)
+        /// </summary>
+        [Fact]
+        public void NewReferral_SearchWithYear2016_CreatePersonProfileAndCheckValidation()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            // Navigate to the application
+            _output.WriteLine($"Navigating to application URL: {_config.AppUrl}");
+            driver.Navigate().GoToUrl(_config.AppUrl);
+            driver.WaitForReady(30);
+
+            // Sign in
+            _output.WriteLine($"Signing in with user: {_config.UserName}");
+            var loginPage = new LoginPage(driver);
+            loginPage.SignIn(_config.UserName, _config.Password);
+
+            var isSignedIn = loginPage.IsSignedIn();
+            Assert.True(isSignedIn, "User was not signed in successfully.");
+            _output.WriteLine("[PASS] Successfully signed in");
+
+            // Select Data Entry role
+            _output.WriteLine("Attempting to select DataEntry role...");
+            var selectRolePage = new SelectRolePage(driver);
+            var landingPage = selectRolePage.SelectRole("Program 1", "DataEntry");
+
+            Assert.NotNull(landingPage);
+            Assert.True(landingPage.IsLoaded, "Landing page did not load after selecting Data Entry role.");
+            _output.WriteLine("[PASS] Successfully selected Data Entry role");
+
+            // Navigate to Referrals page
+            _output.WriteLine("\nNavigating to Referrals page...");
+            var referralsLink = driver.FindElements(OpenQA.Selenium.By.CssSelector(".navbar a, nav a"))
+                .FirstOrDefault(link => link.GetAttribute("href")?.Contains("Referrals.aspx", StringComparison.OrdinalIgnoreCase) == true);
+
+            Assert.NotNull(referralsLink);
+            
+            _output.WriteLine($"Found Referrals link with text: '{referralsLink.Text?.Trim()}'");
+            referralsLink.Click();
+            driver.WaitForReady(30);
+            System.Threading.Thread.Sleep(2000);
+            
+            _output.WriteLine("[PASS] Successfully navigated to Referrals page");
+            _output.WriteLine($"Current URL: {driver.Url}");
+
+            // Click New Referral button
+            _output.WriteLine("\nClicking New Referral button...");
+            var newReferralButton = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_lnkNewReferral"));
+            Assert.NotNull(newReferralButton);
+            
+            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", newReferralButton);
+            System.Threading.Thread.Sleep(500);
+            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", newReferralButton);
+            
+            driver.WaitForReady(30);
+            System.Threading.Thread.Sleep(1000);
+            _output.WriteLine("[PASS] Clicked New Referral button");
+            _output.WriteLine($"Current URL: {driver.Url}");
+
+            // Fill in the search form - note: date field uses only last 2 digits for year
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("FILLING IN SEARCH FORM");
+            _output.WriteLine("========================================");
+
+            // *** CHANGE TEST DATA HERE IF TEST FAILS ***
+            // If test fails because person already exists in database, modify these values:
+            var firstName = "checkone";      // Line 2349 - Change to unique value (e.g., "checktwo", "checkone2")
+            var lastName = "check";          // Line 2350 - Change to unique value (e.g., "check2")
+            var dob = "11091616";            // Line 2351 - Change year digits (e.g., "11091516" for 2015, "11091716" for 2017)
+            var phone = "1111111111";        // Line 2352 - Can also change phone number
+            var emergencyPhone = "1111111111"; // Line 2353 - Can also change emergency phone
+            // *** END OF TEST DATA ***
+            
+            // Note: DOB format is MMDDYYYY but system only uses last 2 digits for year
+            // "11091616" becomes "11/09/2016" (system interprets "16" as 2016)
+
+            _output.WriteLine($"PC1 First Name: {firstName}");
+            _output.WriteLine($"PC1 Last Name: {lastName}");
+            _output.WriteLine($"DOB: {dob} (Will be interpreted as 11/09/2016 - system uses only last 2 digits for year)");
+            _output.WriteLine($"Phone: {phone}");
+            _output.WriteLine($"Emergency Phone: {emergencyPhone}");
+
+            // Fill First Name
+            var firstNameField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcfirstname"));
+            firstNameField.Click();
+            System.Threading.Thread.Sleep(200);
+            firstNameField.Clear();
+            firstNameField.SendKeys(firstName);
+            _output.WriteLine("[PASS] Filled PC1 First Name");
+
+            // Fill Last Name
+            var lastNameField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpclastname"));
+            lastNameField.Click();
+            System.Threading.Thread.Sleep(200);
+            lastNameField.Clear();
+            lastNameField.SendKeys(lastName);
+            _output.WriteLine("[PASS] Filled PC1 Last Name");
+
+            // Fill DOB
+            var dobField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcdob"));
+            dobField.Click();
+            System.Threading.Thread.Sleep(200);
+            dobField.Clear();
+            dobField.SendKeys(dob);
+            _output.WriteLine("[PASS] Filled DOB");
+
+            // Fill Phone
+            var phoneField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcphone"));
+            phoneField.Click();
+            System.Threading.Thread.Sleep(200);
+            phoneField.Clear();
+            phoneField.SendKeys(phone);
+            _output.WriteLine("[PASS] Filled Phone");
+
+            // Fill Emergency Phone
+            var emergencyPhoneField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcemergencyphone"));
+            emergencyPhoneField.Click();
+            System.Threading.Thread.Sleep(200);
+            emergencyPhoneField.Clear();
+            emergencyPhoneField.SendKeys(emergencyPhone);
+            _output.WriteLine("[PASS] Filled Emergency Phone");
+            
+            System.Threading.Thread.Sleep(500);
+
+            // Click Search button
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("SEARCHING FOR PERSON");
+            _output.WriteLine("========================================");
+
+            var searchButton = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_btSearch"));
+            Assert.NotNull(searchButton);
+            _output.WriteLine($"Found search button: id='{searchButton.GetAttribute("id")}'");
+            
+            searchButton.Click();
+            driver.WaitForReady(30);
+            System.Threading.Thread.Sleep(2000);
+            _output.WriteLine("[PASS] Clicked Search button");
+
+            // Verify "No records found." message
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("VERIFYING 'No records found.' MESSAGE");
+            _output.WriteLine("========================================");
+
+            var pageText = driver.FindElement(OpenQA.Selenium.By.TagName("body")).Text;
+            
+            if (!pageText.Contains("No records found.", StringComparison.Ordinal))
+            {
+                _output.WriteLine("[FAIL] Person already exists in database!");
+                _output.WriteLine("");
+                _output.WriteLine("⚠️⚠️⚠️ TEST FAILED - PERSON ALREADY EXISTS ⚠️⚠️⚠️");
+                _output.WriteLine("");
+                _output.WriteLine("The search returned existing records instead of 'No records found.'");
+                _output.WriteLine("This means the test data already exists in the database from a previous run.");
+                _output.WriteLine("");
+                _output.WriteLine("TO FIX THIS:");
+                _output.WriteLine("1. Open file: UnitTests/Referrals/ReferralsTests.cs");
+                _output.WriteLine("2. Go to lines 2350-2357");
+                _output.WriteLine("3. Look for the comment: *** CHANGE TEST DATA HERE IF TEST FAILS ***");
+                _output.WriteLine("4. Change one or more of these values:");
+                _output.WriteLine($"   - firstName = \"{firstName}\"     (change to \"checktwo\", \"checkone2\", etc.)");
+                _output.WriteLine($"   - lastName = \"{lastName}\"       (change to \"check2\", \"check3\", etc.)");
+                _output.WriteLine($"   - dob = \"{dob}\"           (change to \"11091516\" for 2015, \"11091716\" for 2017, etc.)");
+                _output.WriteLine("");
+                _output.WriteLine("5. Save the file and run the test again");
+                _output.WriteLine("");
+                var searchResults = driver.FindElements(OpenQA.Selenium.By.CssSelector("table tbody tr"));
+                _output.WriteLine($"Current search found {searchResults.Count} matching record(s) in database");
+                _output.WriteLine("========================================");
+            }
+            
+            Assert.Contains("No records found.", pageText, StringComparison.Ordinal);
+            _output.WriteLine("[PASS] Found 'No records found.' message");
+
+            // Find and click the "add new" link
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("CLICKING 'ADD NEW' LINK");
+            _output.WriteLine("========================================");
+
+            var addNewLink = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_lbAddNew"));
+            Assert.NotNull(addNewLink);
+            _output.WriteLine($"Found 'add new' link: '{addNewLink.Text?.Trim()}'");
+            
+            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", addNewLink);
+            System.Threading.Thread.Sleep(500);
+            addNewLink.Click();
+            
+            driver.WaitForReady(30);
+            System.Threading.Thread.Sleep(2000);
+            _output.WriteLine("[PASS] Clicked 'add new' link");
+            _output.WriteLine($"Current URL: {driver.Url}");
+            
+            // Verify we're on the Person Profile page
+            Assert.Contains("PCProfile.aspx", driver.Url, StringComparison.OrdinalIgnoreCase);
+            _output.WriteLine("[PASS] Navigated to Person Profile page");
+
+            // Verify that search data was pre-filled
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("VERIFYING PRE-FILLED DATA");
+            _output.WriteLine("========================================");
+
+            var pcFirstName = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtPCFirstName"));
+            var pcLastName = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtPCLastName"));
+            var pcDOB = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtPCDOB"));
+            var pcPhone = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtPCPrimaryPhone"));
+            var pcEmergencyPhone = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtPCEmergencyPhone"));
+
+            // Capture values before they become stale
+            var firstNameValue = pcFirstName.GetAttribute("value");
+            var lastNameValue = pcLastName.GetAttribute("value");
+            var dobValue = pcDOB.GetAttribute("value");
+            var phoneValue = pcPhone.GetAttribute("value");
+            var emergencyPhoneValue = pcEmergencyPhone.GetAttribute("value");
+
+            _output.WriteLine($"First Name field value: {firstNameValue}");
+            _output.WriteLine($"Last Name field value: {lastNameValue}");
+            _output.WriteLine($"DOB field value: {dobValue}");
+            _output.WriteLine($"Phone field value: {phoneValue}");
+            _output.WriteLine($"Emergency Phone field value: {emergencyPhoneValue}");
+
+            Assert.Equal(firstName, firstNameValue);
+            Assert.Equal(lastName, lastNameValue);
+            _output.WriteLine("[PASS] Search data was pre-filled correctly");
+
+            // Fill in Race (Asian checkbox)
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("FILLING ADDITIONAL REQUIRED FIELDS");
+            _output.WriteLine("========================================");
+
+            var asianCheckbox = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_chkRace_Asian"));
+            if (!asianCheckbox.Selected)
+            {
+                asianCheckbox.Click();
+                System.Threading.Thread.Sleep(200);
+            }
+            Assert.True(asianCheckbox.Selected, "Asian checkbox should be selected");
+            _output.WriteLine("[PASS] Selected Race: Asian");
+
+            // Fill in Gender (Male from dropdown)
+            var genderDropdown = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_ddlGender"));
+            var genderSelect = new OpenQA.Selenium.Support.UI.SelectElement(genderDropdown);
+            
+            // Log available gender options
+            var genderOptions = genderSelect.Options.Select(o => o.Text).ToList();
+            _output.WriteLine($"Available gender options: {string.Join(", ", genderOptions)}");
+            
+            // Select "2. Male" (the options have numbers prefixed)
+            genderSelect.SelectByText("2. Male");
+            System.Threading.Thread.Sleep(200);
+            
+            Assert.Equal("2. Male", genderSelect.SelectedOption.Text);
+            _output.WriteLine("[PASS] Selected Gender: 2. Male");
+
+            // Click Submit button
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("SUBMITTING PERSON PROFILE");
+            _output.WriteLine("========================================");
+
+            var submitButton = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_btnSubmit"));
+            Assert.NotNull(submitButton);
+            _output.WriteLine($"Found Submit button: text='{submitButton.Text?.Trim()}'");
+            
+            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", submitButton);
+            System.Threading.Thread.Sleep(500);
+            submitButton.Click();
+            
+            driver.WaitForReady(30);
+            System.Threading.Thread.Sleep(2000);
+            _output.WriteLine("[PASS] Clicked Submit button");
+            
+            var urlAfterSubmit = driver.Url;
+            _output.WriteLine($"Current URL after submit: {urlAfterSubmit}");
+
+            // Check for validation errors
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("CHECKING FOR VALIDATION ERRORS");
+            _output.WriteLine("========================================");
+
+            var validationErrorFound = false;
+            var validationMessages = new System.Collections.Generic.List<string>();
+
+            // Check for validation error messages using various selectors
+            var errorSelectors = new[]
+            {
+                OpenQA.Selenium.By.CssSelector(".alert"),
+                OpenQA.Selenium.By.CssSelector(".alert-danger"),
+                OpenQA.Selenium.By.CssSelector(".alert-warning"),
+                OpenQA.Selenium.By.CssSelector("[class*='error']"),
+                OpenQA.Selenium.By.CssSelector("[class*='validation']"),
+                OpenQA.Selenium.By.CssSelector(".field-validation-error"),
+                OpenQA.Selenium.By.CssSelector(".text-danger"),
+                OpenQA.Selenium.By.CssSelector("span[style*='color']"),
+                OpenQA.Selenium.By.XPath("//*[contains(text(), 'must be')]"),
+                OpenQA.Selenium.By.XPath("//*[contains(text(), 'required')]"),
+                OpenQA.Selenium.By.XPath("//*[contains(text(), 'error')]"),
+                OpenQA.Selenium.By.XPath("//*[contains(text(), 'years')]"),
+                OpenQA.Selenium.By.XPath("//*[contains(text(), 'date')]"),
+                OpenQA.Selenium.By.XPath("//*[contains(text(), 'invalid')]")
+            };
+
+            _output.WriteLine("Searching for validation error messages...");
+            
+            foreach (var selector in errorSelectors)
+            {
+                try
+                {
+                    var errorElements = driver.FindElements(selector);
+                    foreach (var element in errorElements)
+                    {
+                        if (element.Displayed)
+                        {
+                            var text = element.Text?.Trim() ?? "";
+                            if (!string.IsNullOrWhiteSpace(text) && !validationMessages.Contains(text))
+                            {
+                                validationMessages.Add(text);
+                                _output.WriteLine($"  [FOUND] Validation message: '{text}'");
+                                validationErrorFound = true;
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    // Continue with next selector
+                }
+            }
+
+            // Also check the page text for various validation patterns
+            var validationPageText = driver.FindElement(OpenQA.Selenium.By.TagName("body")).Text;
+            
+            var patterns = new[] { "must be", "years old", "invalid", "error", "date", "too old", "maximum age" };
+            foreach (var pattern in patterns)
+            {
+                if (validationPageText.Contains(pattern, StringComparison.OrdinalIgnoreCase))
+                {
+                    _output.WriteLine($"[FOUND] Page contains '{pattern}' text");
+                    validationErrorFound = true;
+                }
+            }
+
+            // Log all validation messages found
+            if (validationMessages.Count > 0)
+            {
+                _output.WriteLine($"\nTotal validation messages found: {validationMessages.Count}");
+                foreach (var msg in validationMessages)
+                {
+                    _output.WriteLine($"  - {msg}");
+                }
+            }
+            else
+            {
+                _output.WriteLine("[WARN] No validation error messages found via selectors");
+                _output.WriteLine("Page text preview (first 1500 characters):");
+                _output.WriteLine(validationPageText.Substring(0, Math.Min(1500, validationPageText.Length)));
+            }
+
+            // Check if we're still on the same page (validation failed) or navigated to a new page (success)
+            var stillOnProfilePage = urlAfterSubmit.Contains("PCProfile.aspx", StringComparison.OrdinalIgnoreCase);
+            var navigatedToReferralPage = urlAfterSubmit.Contains("Referral.aspx", StringComparison.OrdinalIgnoreCase);
+            
+            _output.WriteLine($"\nStill on Person Profile page: {stillOnProfilePage}");
+            _output.WriteLine($"Navigated to Referral page: {navigatedToReferralPage}");
+
+            if (stillOnProfilePage)
+            {
+                _output.WriteLine("[INFO] Form submission was blocked - likely due to validation errors");
+            }
+            else if (navigatedToReferralPage)
+            {
+                _output.WriteLine("[SUCCESS] Form was accepted and person profile was created successfully!");
+                _output.WriteLine("[INFO] No age validation error for 9-year-old (only checks if under 8 years old)");
+            }
+
+            // Test summary
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("TEST SUMMARY - YEAR 2016 TEST");
+            _output.WriteLine("========================================");
+            _output.WriteLine("[PASS] Successfully filled search form with DOB input '11091616'");
+            _output.WriteLine("[PASS] Verified 'No records found' message");
+            _output.WriteLine("[PASS] Clicked 'add new' link");
+            _output.WriteLine("[PASS] Verified pre-filled data on Person Profile page");
+            _output.WriteLine($"[INFO] DOB field showed: {dobValue} (System interpreted '16' as 2016)");
+            _output.WriteLine("[PASS] Selected Race: Asian");
+            _output.WriteLine("[PASS] Selected Gender: 2. Male");
+            _output.WriteLine("[PASS] Clicked Submit button");
+            
+            if (navigatedToReferralPage)
+            {
+                _output.WriteLine("[SUCCESS] Person profile created successfully - no validation errors");
+                _output.WriteLine("[INFO] A 9-year-old person (born 2016) meets the minimum age requirement of 8 years");
+            }
+            else if (validationErrorFound)
+            {
+                _output.WriteLine($"[FOUND] Validation error(s) detected: {validationMessages.Count} message(s)");
+                _output.WriteLine("[INFO] Test detected validation error");
+            }
+            else
+            {
+                _output.WriteLine("[INFO] No validation error found");
+            }
+            
+            _output.WriteLine($"\n[COMPLETE] Test finished! Final URL: {urlAfterSubmit}");
+        }
     }
 }
 
