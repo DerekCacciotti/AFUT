@@ -384,6 +384,78 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("\n=== EXPLORATION COMPLETE ===");
         }
 
+
+        [Fact]
+        public void ReferralsPage_ClickFirstEdit_OpensEditPage()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            _output.WriteLine($"Navigating to application URL: {_config.AppUrl}");
+            driver.Navigate().GoToUrl(_config.AppUrl);
+            driver.WaitForReady(30);
+
+            var loginPage = new LoginPage(driver);
+            loginPage.SignIn(_config.UserName, _config.Password);
+            Assert.True(loginPage.IsSignedIn(), "User was not signed in successfully.");
+            _output.WriteLine("[PASS] Signed in");
+
+            var selectRolePage = new SelectRolePage(driver);
+            var landingPage = selectRolePage.SelectRole("Program 1", "DataEntry");
+            Assert.NotNull(landingPage);
+            Assert.True(landingPage.IsLoaded, "Landing page did not load after selecting Data Entry role.");
+            _output.WriteLine("[PASS] Data Entry role selected");
+
+            var referralsLink = driver.FindElements(OpenQA.Selenium.By.CssSelector(".navbar a, nav a"))
+                .FirstOrDefault(link => link.GetAttribute("href")?.Contains("Referrals.aspx", StringComparison.OrdinalIgnoreCase) == true);
+            Assert.NotNull(referralsLink);
+            referralsLink.Click();
+            driver.WaitForReady(30);
+            _output.WriteLine("[PASS] Referrals page opened");
+
+            // Find the active referrals table and the first edit button within it
+            var activeReferralsTable = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_grActiveReferrals"));
+            Assert.NotNull(activeReferralsTable);
+
+            var editButton = activeReferralsTable
+                .FindElements(OpenQA.Selenium.By.CssSelector("a, button, input[type='button'], input[type='submit'], input[type='image']"))
+                .FirstOrDefault(el =>
+                {
+                    var text = el.Text?.Trim() ?? el.GetAttribute("value") ?? "";
+                    var id = el.GetAttribute("id") ?? "";
+                    return el.Enabled &&
+                           (text.Equals("Edit", StringComparison.OrdinalIgnoreCase) ||
+                            id.Contains("Edit", StringComparison.OrdinalIgnoreCase));
+                });
+
+            Assert.NotNull(editButton);
+            _output.WriteLine($"[PASS] Found edit button: id='{editButton.GetAttribute("id")}'");
+
+            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", editButton);
+            System.Threading.Thread.Sleep(300);
+
+            if (!editButton.Displayed)
+            {
+                ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", editButton);
+            }
+            else
+            {
+                editButton.Click();
+            }
+
+            driver.WaitForReady(30);
+            System.Threading.Thread.Sleep(500);
+
+            var currentUrl = driver.Url;
+            var pageTitle = driver.Title;
+
+            _output.WriteLine($"[INFO] Navigated to URL: {currentUrl}");
+            _output.WriteLine($"[INFO] Page title: {pageTitle}");
+
+            Assert.Contains("Referral.aspx", currentUrl, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Referral", pageTitle, StringComparison.OrdinalIgnoreCase);
+            _output.WriteLine("[PASS] Edit page opened successfully");
+        }
+
         [Fact]
         public void ChangeCompletedReferralYear_UpdatesTableWithCorrectYearEntries()
         {
