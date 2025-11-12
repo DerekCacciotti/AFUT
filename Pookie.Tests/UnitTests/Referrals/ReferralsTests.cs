@@ -2726,6 +2726,845 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("To change test data, modify lines 2457-2461 in ReferralsTests.cs");
             _output.WriteLine("========================================");
         }
+
+        [Fact]
+        public void ReferralsPage_EditExistingReferral_CapturesLogsAndObservesPageState()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("TEST: EDIT EXISTING REFERRAL - CAPTURE LOGS");
+            _output.WriteLine("========================================");
+
+            // Use helper method for login and navigation
+            LoginAndNavigateToReferrals(driver);
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("FINDING REFERRAL TO EDIT");
+            _output.WriteLine("========================================");
+
+            // Find the active referrals table
+            var activeReferralsTable = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_grActiveReferrals"));
+            Assert.NotNull(activeReferralsTable);
+            _output.WriteLine("[PASS] Found active referrals table");
+
+            // Get all rows from the table
+            var tableRows = activeReferralsTable.FindElements(OpenQA.Selenium.By.CssSelector("tbody tr"));
+            _output.WriteLine($"[INFO] Found {tableRows.Count} rows in active referrals table");
+
+            // Log table headers to understand structure
+            var headerCells = activeReferralsTable.FindElements(OpenQA.Selenium.By.CssSelector("thead th"));
+            _output.WriteLine("\n[INFO] Table Headers:");
+            for (int i = 0; i < headerCells.Count; i++)
+            {
+                _output.WriteLine($"  Column {i}: {headerCells[i].Text?.Trim()}");
+            }
+
+            // Look for a referral with "checkone" person (search in each row)
+            OpenQA.Selenium.IWebElement targetRow = null;
+            int targetRowIndex = -1;
+
+            for (int i = 0; i < tableRows.Count; i++)
+            {
+                var rowText = tableRows[i].Text?.ToLowerInvariant() ?? "";
+                if (rowText.Contains("checkone") || rowText.Contains("check"))
+                {
+                    targetRow = tableRows[i];
+                    targetRowIndex = i;
+                    _output.WriteLine($"\n[PASS] Found target row at index {i}");
+                    _output.WriteLine($"[INFO] Row text: {tableRows[i].Text}");
+                    break;
+                }
+            }
+
+            // If no "checkone" found, use the first available row
+            if (targetRow == null && tableRows.Count > 0)
+            {
+                targetRow = tableRows[0];
+                targetRowIndex = 0;
+                _output.WriteLine($"\n[INFO] 'checkone' not found, using first available row at index 0");
+                _output.WriteLine($"[INFO] Row text: {targetRow.Text}");
+            }
+
+            Assert.NotNull(targetRow);
+            _output.WriteLine($"[PASS] Selected row {targetRowIndex} for editing");
+
+            // Find the edit button in the target row
+            var editButton = targetRow
+                .FindElements(OpenQA.Selenium.By.CssSelector("a, button, input[type='button'], input[type='submit'], input[type='image']"))
+                .FirstOrDefault(el =>
+                {
+                    var text = el.Text?.Trim() ?? el.GetAttribute("value") ?? "";
+                    var id = el.GetAttribute("id") ?? "";
+                    var title = el.GetAttribute("title") ?? "";
+                    return el.Enabled &&
+                           (text.Equals("Edit", StringComparison.OrdinalIgnoreCase) ||
+                            id.Contains("Edit", StringComparison.OrdinalIgnoreCase) ||
+                            title.Contains("Edit", StringComparison.OrdinalIgnoreCase));
+                });
+
+            Assert.NotNull(editButton);
+            _output.WriteLine($"[PASS] Found edit button: id='{editButton.GetAttribute("id")}', text='{editButton.Text}'");
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("CLICKING EDIT BUTTON");
+            _output.WriteLine("========================================");
+
+            // Capture page state before clicking
+            var urlBeforeClick = driver.Url;
+            _output.WriteLine($"[INFO] URL before click: {urlBeforeClick}");
+
+            // Scroll into view and click
+            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", editButton);
+            System.Threading.Thread.Sleep(500);
+
+            if (!editButton.Displayed)
+            {
+                _output.WriteLine("[INFO] Edit button not visible, using JavaScript click");
+                ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", editButton);
+            }
+            else
+            {
+                _output.WriteLine("[INFO] Edit button visible, using regular click");
+                editButton.Click();
+            }
+
+            _output.WriteLine("[PASS] Clicked edit button successfully");
+
+            // Wait for navigation
+            driver.WaitForReady(30);
+            System.Threading.Thread.Sleep(2000);
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("AFTER CLICKING EDIT - PAGE STATE");
+            _output.WriteLine("========================================");
+
+            // Capture page state after clicking
+            var urlAfterClick = driver.Url;
+            var pageTitle = driver.Title;
+            var pageSource = driver.PageSource;
+
+            _output.WriteLine($"[INFO] URL after click: {urlAfterClick}");
+            _output.WriteLine($"[INFO] Page title: {pageTitle}");
+            _output.WriteLine($"[INFO] Navigation occurred: {urlBeforeClick != urlAfterClick}");
+
+            // Verify we're on the Referral edit page
+            Assert.Contains("Referral.aspx", urlAfterClick, StringComparison.OrdinalIgnoreCase);
+            _output.WriteLine("[PASS] Successfully navigated to Referral edit page");
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("INSPECTING REFERRAL EDIT PAGE ELEMENTS");
+            _output.WriteLine("========================================");
+
+            // Log all visible form fields
+            try
+            {
+                var formFields = driver.FindElements(OpenQA.Selenium.By.CssSelector("input[type='text'], textarea, select"));
+                _output.WriteLine($"[INFO] Found {formFields.Count} form fields on the page");
+
+                int fieldCount = 0;
+                foreach (var field in formFields)
+                {
+                    if (field.Displayed)
+                    {
+                        var fieldId = field.GetAttribute("id") ?? "no-id";
+                        var fieldName = field.GetAttribute("name") ?? "no-name";
+                        var fieldValue = field.GetAttribute("value") ?? "";
+                        var fieldType = field.TagName;
+                        
+                        fieldCount++;
+                        _output.WriteLine($"\n  Field {fieldCount}:");
+                        _output.WriteLine($"    Type: {fieldType}");
+                        _output.WriteLine($"    ID: {fieldId}");
+                        _output.WriteLine($"    Name: {fieldName}");
+                        _output.WriteLine($"    Value: {fieldValue}");
+                        
+                        if (fieldCount >= 20) // Limit to first 20 fields to avoid excessive output
+                        {
+                            _output.WriteLine($"\n  ... and {formFields.Count(f => f.Displayed) - 20} more fields");
+                            break;
+                        }
+                    }
+                }
+
+                _output.WriteLine($"\n[PASS] Logged {Math.Min(fieldCount, 20)} visible form fields");
+            }
+            catch (Exception ex)
+            {
+                _output.WriteLine($"[WARN] Error while inspecting form fields: {ex.Message}");
+            }
+
+            // Check for any checkboxes on the page
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("INSPECTING CHECKBOXES");
+            _output.WriteLine("========================================");
+
+            try
+            {
+                var checkboxes = driver.FindElements(OpenQA.Selenium.By.CssSelector("input[type='checkbox']"));
+                _output.WriteLine($"[INFO] Found {checkboxes.Count} checkboxes on the page");
+
+                int checkboxCount = 0;
+                foreach (var checkbox in checkboxes)
+                {
+                    if (checkbox.Displayed)
+                    {
+                        var checkboxId = checkbox.GetAttribute("id") ?? "no-id";
+                        var checkboxName = checkbox.GetAttribute("name") ?? "no-name";
+                        var isChecked = checkbox.Selected;
+                        
+                        checkboxCount++;
+                        _output.WriteLine($"\n  Checkbox {checkboxCount}:");
+                        _output.WriteLine($"    ID: {checkboxId}");
+                        _output.WriteLine($"    Name: {checkboxName}");
+                        _output.WriteLine($"    Checked: {isChecked}");
+                        
+                        if (checkboxCount >= 15) // Limit output
+                        {
+                            _output.WriteLine($"\n  ... and {checkboxes.Count(c => c.Displayed) - 15} more checkboxes");
+                            break;
+                        }
+                    }
+                }
+
+                _output.WriteLine($"\n[PASS] Logged {Math.Min(checkboxCount, 15)} visible checkboxes");
+            }
+            catch (Exception ex)
+            {
+                _output.WriteLine($"[WARN] Error while inspecting checkboxes: {ex.Message}");
+            }
+
+            // Check for buttons on the page
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("INSPECTING BUTTONS");
+            _output.WriteLine("========================================");
+
+            try
+            {
+                var buttons = driver.FindElements(OpenQA.Selenium.By.CssSelector("button, input[type='button'], input[type='submit']"));
+                _output.WriteLine($"[INFO] Found {buttons.Count} buttons on the page");
+
+                int buttonCount = 0;
+                foreach (var button in buttons)
+                {
+                    if (button.Displayed)
+                    {
+                        var buttonId = button.GetAttribute("id") ?? "no-id";
+                        var buttonText = button.Text?.Trim() ?? button.GetAttribute("value") ?? "";
+                        
+                        buttonCount++;
+                        _output.WriteLine($"  Button {buttonCount}: ID='{buttonId}', Text='{buttonText}'");
+                        
+                        if (buttonCount >= 10) // Limit output
+                        {
+                            _output.WriteLine($"  ... and {buttons.Count(b => b.Displayed) - 10} more buttons");
+                            break;
+                        }
+                    }
+                }
+
+                _output.WriteLine($"\n[PASS] Logged {Math.Min(buttonCount, 10)} visible buttons");
+            }
+            catch (Exception ex)
+            {
+                _output.WriteLine($"[WARN] Error while inspecting buttons: {ex.Message}");
+            }
+
+            // Check for any validation messages or alerts
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("CHECKING FOR MESSAGES/ALERTS");
+            _output.WriteLine("========================================");
+
+            try
+            {
+                var alertSelectors = new[]
+                {
+                    OpenQA.Selenium.By.CssSelector(".alert"),
+                    OpenQA.Selenium.By.CssSelector("[class*='alert']"),
+                    OpenQA.Selenium.By.CssSelector("[class*='message']"),
+                    OpenQA.Selenium.By.CssSelector("[class*='notification']"),
+                    OpenQA.Selenium.By.CssSelector("[class*='toast']"),
+                    OpenQA.Selenium.By.CssSelector("[role='alert']")
+                };
+
+                bool foundAnyAlerts = false;
+                foreach (var selector in alertSelectors)
+                {
+                    try
+                    {
+                        var alerts = driver.FindElements(selector);
+                        var visibleAlerts = alerts.Where(a => a.Displayed).ToList();
+                        
+                        if (visibleAlerts.Any())
+                        {
+                            foundAnyAlerts = true;
+                            _output.WriteLine($"[INFO] Found {visibleAlerts.Count} visible alert(s) using selector: {selector}");
+                            
+                            foreach (var alert in visibleAlerts.Take(5))
+                            {
+                                _output.WriteLine($"  Alert text: {alert.Text}");
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // Continue to next selector
+                    }
+                }
+
+                if (!foundAnyAlerts)
+                {
+                    _output.WriteLine("[INFO] No visible alerts or messages found");
+                }
+            }
+            catch (Exception ex)
+            {
+                _output.WriteLine($"[WARN] Error while checking for alerts: {ex.Message}");
+            }
+
+            // Log browser console output if available
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("BROWSER CONSOLE LOGS");
+            _output.WriteLine("========================================");
+
+            try
+            {
+                var logs = driver.Manage().Logs.GetLog(OpenQA.Selenium.LogType.Browser);
+                if (logs != null && logs.Any())
+                {
+                    _output.WriteLine($"[INFO] Found {logs.Count} console log entries:");
+                    
+                    foreach (var log in logs.Take(50)) // Limit to 50 entries
+                    {
+                        _output.WriteLine($"  [{log.Level}] {log.Timestamp}: {log.Message}");
+                    }
+                    
+                    if (logs.Count > 50)
+                    {
+                        _output.WriteLine($"  ... and {logs.Count - 50} more log entries");
+                    }
+                }
+                else
+                {
+                    _output.WriteLine("[INFO] No console logs available or browser doesn't support log retrieval");
+                }
+            }
+            catch (Exception ex)
+            {
+                _output.WriteLine($"[INFO] Browser console logs not available: {ex.Message}");
+            }
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("TEST SUMMARY");
+            _output.WriteLine("========================================");
+            _output.WriteLine("[PASS] Successfully clicked edit button on referral");
+            _output.WriteLine("[PASS] Successfully navigated to referral edit page");
+            _output.WriteLine("[PASS] Captured and logged page state and elements");
+            _output.WriteLine($"[INFO] Final URL: {driver.Url}");
+            _output.WriteLine("========================================");
+        }
+
+        [Fact]
+        public void ReferralsPage_EditReferral_ExploreNewContactFormFields()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("TEST: EXPLORE NEW CONTACT ATTEMPT FORM FIELDS");
+            _output.WriteLine("========================================");
+
+            // Use helper method for login and navigation
+            LoginAndNavigateToReferrals(driver);
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("FINDING REFERRAL TO EDIT");
+            _output.WriteLine("========================================");
+
+            // Find the active referrals table
+            var activeReferralsTable = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_grActiveReferrals"));
+            Assert.NotNull(activeReferralsTable);
+            _output.WriteLine("[PASS] Found active referrals table");
+
+            // Get all rows from the table
+            var tableRows = activeReferralsTable.FindElements(OpenQA.Selenium.By.CssSelector("tbody tr"));
+            _output.WriteLine($"[INFO] Found {tableRows.Count} rows in active referrals table");
+
+            // Look for a referral with "checkone" person (or use first available)
+            OpenQA.Selenium.IWebElement targetRow = null;
+            for (int i = 0; i < tableRows.Count; i++)
+            {
+                var rowText = tableRows[i].Text?.ToLowerInvariant() ?? "";
+                if (rowText.Contains("checkone") || rowText.Contains("check"))
+                {
+                    targetRow = tableRows[i];
+                    _output.WriteLine($"[PASS] Found target row at index {i}: {tableRows[i].Text}");
+                    break;
+                }
+            }
+
+            if (targetRow == null && tableRows.Count > 0)
+            {
+                targetRow = tableRows[0];
+                _output.WriteLine($"[INFO] Using first available row: {targetRow.Text}");
+            }
+
+            Assert.NotNull(targetRow);
+
+            // Find and click the edit button
+            var editButton = targetRow
+                .FindElements(OpenQA.Selenium.By.CssSelector("a, button, input[type='button'], input[type='submit'], input[type='image']"))
+                .FirstOrDefault(el =>
+                {
+                    var text = el.Text?.Trim() ?? el.GetAttribute("value") ?? "";
+                    var id = el.GetAttribute("id") ?? "";
+                    var title = el.GetAttribute("title") ?? "";
+                    return el.Enabled &&
+                           (text.Equals("Edit", StringComparison.OrdinalIgnoreCase) ||
+                            id.Contains("Edit", StringComparison.OrdinalIgnoreCase) ||
+                            title.Contains("Edit", StringComparison.OrdinalIgnoreCase));
+                });
+
+            Assert.NotNull(editButton);
+            _output.WriteLine($"[PASS] Found edit button: id='{editButton.GetAttribute("id")}'");
+
+            // Click edit button
+            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", editButton);
+            System.Threading.Thread.Sleep(500);
+            editButton.Click();
+
+            driver.WaitForReady(30);
+            System.Threading.Thread.Sleep(2000);
+
+            _output.WriteLine($"[PASS] Clicked edit button, navigated to: {driver.Url}");
+            Assert.Contains("Referral.aspx", driver.Url, StringComparison.OrdinalIgnoreCase);
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("SEARCHING FOR 'NEW CONTACT' BUTTON/LINK");
+            _output.WriteLine("========================================");
+
+            // Search for New Contact button/link using multiple strategies
+            OpenQA.Selenium.IWebElement newContactButton = null;
+            var strategies = new[]
+            {
+                new { Selector = OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_btnNewContact"), Description = "By ID: btnNewContact" },
+                new { Selector = OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_lnkNewContact"), Description = "By ID: lnkNewContact" },
+                new { Selector = OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_btnAddContact"), Description = "By ID: btnAddContact" },
+                new { Selector = OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_lnkAddContact"), Description = "By ID: lnkAddContact" },
+                new { Selector = OpenQA.Selenium.By.CssSelector("button[id*='NewContact'], a[id*='NewContact']"), Description = "By CSS: contains 'NewContact'" },
+                new { Selector = OpenQA.Selenium.By.CssSelector("button[id*='AddContact'], a[id*='AddContact']"), Description = "By CSS: contains 'AddContact'" },
+                new { Selector = OpenQA.Selenium.By.XPath("//button[contains(text(), 'New Contact') or contains(text(), 'Add Contact')]"), Description = "By XPath: button text" },
+                new { Selector = OpenQA.Selenium.By.XPath("//a[contains(text(), 'New Contact') or contains(text(), 'Add Contact')]"), Description = "By XPath: link text" }
+            };
+
+            foreach (var strategy in strategies)
+            {
+                try
+                {
+                    var elements = driver.FindElements(strategy.Selector);
+                    var visibleElement = elements.FirstOrDefault(e => e.Displayed && e.Enabled);
+                    if (visibleElement != null)
+                    {
+                        newContactButton = visibleElement;
+                        _output.WriteLine($"[PASS] Found New Contact button using: {strategy.Description}");
+                        _output.WriteLine($"  ID: {newContactButton.GetAttribute("id")}");
+                        _output.WriteLine($"  Text: {newContactButton.Text?.Trim()}");
+                        _output.WriteLine($"  Tag: {newContactButton.TagName}");
+                        break;
+                    }
+                }
+                catch
+                {
+                    // Continue to next strategy
+                }
+            }
+
+            // If not found by specific strategies, search all buttons/links
+            if (newContactButton == null)
+            {
+                _output.WriteLine("[INFO] Specific selectors didn't work, searching all buttons and links...");
+                
+                var allButtons = driver.FindElements(OpenQA.Selenium.By.CssSelector("button, a, input[type='button'], input[type='submit']"));
+                _output.WriteLine($"[INFO] Found {allButtons.Count} total buttons/links on page");
+                
+                _output.WriteLine("\n[INFO] All visible buttons/links:");
+                int buttonIndex = 0;
+                foreach (var btn in allButtons)
+                {
+                    if (btn.Displayed)
+                    {
+                        var btnId = btn.GetAttribute("id") ?? "no-id";
+                        var btnText = btn.Text?.Trim() ?? btn.GetAttribute("value") ?? "";
+                        var btnTitle = btn.GetAttribute("title") ?? "";
+                        
+                        buttonIndex++;
+                        _output.WriteLine($"  {buttonIndex}. ID='{btnId}', Text='{btnText}', Title='{btnTitle}'");
+                        
+                        // Check if this is the New Contact button
+                        if (btnText.Contains("New Contact", StringComparison.OrdinalIgnoreCase) ||
+                            btnText.Contains("Add Contact", StringComparison.OrdinalIgnoreCase) ||
+                            btnId.Contains("NewContact", StringComparison.OrdinalIgnoreCase) ||
+                            btnId.Contains("AddContact", StringComparison.OrdinalIgnoreCase) ||
+                            btnTitle.Contains("New Contact", StringComparison.OrdinalIgnoreCase) ||
+                            btnTitle.Contains("Add Contact", StringComparison.OrdinalIgnoreCase))
+                        {
+                            newContactButton = btn;
+                            _output.WriteLine($"\n[PASS] Found New Contact button at index {buttonIndex}!");
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (newContactButton == null)
+            {
+                _output.WriteLine("\n[WARN] Could not find 'New Contact' button on this page");
+                _output.WriteLine("[INFO] This might be a different type of referral form or the button has a different name");
+                _output.WriteLine("[INFO] Test will end here - no New Contact button to click");
+                return;
+            }
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("CLICKING 'NEW CONTACT' BUTTON");
+            _output.WriteLine("========================================");
+
+            var urlBeforeContactClick = driver.Url;
+            _output.WriteLine($"[INFO] URL before clicking New Contact: {urlBeforeContactClick}");
+
+            // Scroll into view and click
+            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", newContactButton);
+            System.Threading.Thread.Sleep(500);
+
+            newContactButton.Click();
+            _output.WriteLine("[PASS] Clicked 'New Contact' button");
+
+            // Wait for modal/popup or page change
+            driver.WaitForReady(10);
+            System.Threading.Thread.Sleep(1500);
+
+            var urlAfterContactClick = driver.Url;
+            _output.WriteLine($"[INFO] URL after clicking New Contact: {urlAfterContactClick}");
+            _output.WriteLine($"[INFO] Navigation occurred: {urlBeforeContactClick != urlAfterContactClick}");
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("INSPECTING NEW CONTACT FORM/MODAL");
+            _output.WriteLine("========================================");
+
+            // Check for modal dialog
+            bool modalFound = false;
+            try
+            {
+                var modalSelectors = new[]
+                {
+                    OpenQA.Selenium.By.CssSelector(".modal"),
+                    OpenQA.Selenium.By.CssSelector("[class*='modal']"),
+                    OpenQA.Selenium.By.CssSelector(".dialog"),
+                    OpenQA.Selenium.By.CssSelector("[role='dialog']"),
+                    OpenQA.Selenium.By.CssSelector(".popup"),
+                    OpenQA.Selenium.By.CssSelector("[class*='popup']")
+                };
+
+                foreach (var selector in modalSelectors)
+                {
+                    try
+                    {
+                        var modals = driver.FindElements(selector);
+                        var visibleModal = modals.FirstOrDefault(m => m.Displayed);
+                        
+                        if (visibleModal != null)
+                        {
+                            modalFound = true;
+                            _output.WriteLine($"[PASS] Found visible modal using selector: {selector}");
+                            _output.WriteLine($"  Modal class: {visibleModal.GetAttribute("class")}");
+                            _output.WriteLine($"  Modal text (first 200 chars): {visibleModal.Text?.Substring(0, Math.Min(200, visibleModal.Text.Length))}");
+                            break;
+                        }
+                    }
+                    catch
+                    {
+                        // Continue
+                    }
+                }
+
+                if (!modalFound)
+                {
+                    _output.WriteLine("[INFO] No modal dialog found, might be a new page or inline form");
+                }
+            }
+            catch (Exception ex)
+            {
+                _output.WriteLine($"[INFO] Error checking for modal: {ex.Message}");
+            }
+
+            // Log all form fields visible now
+            try
+            {
+                var formFields = driver.FindElements(OpenQA.Selenium.By.CssSelector("input[type='text'], textarea, select"));
+                var visibleFields = formFields.Where(f => f.Displayed).ToList();
+                _output.WriteLine($"[INFO] Found {visibleFields.Count} visible form fields");
+                
+                foreach (var field in visibleFields.Take(10))
+                {
+                    _output.WriteLine($"  Field: ID='{field.GetAttribute("id")}', Value='{field.GetAttribute("value")}'");
+                }
+            }
+            catch (Exception ex)
+            {
+                _output.WriteLine($"[WARN] Error inspecting form fields: {ex.Message}");
+            }
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("STEP: INSPECTING CONTACT ATTEMPT FORM FIELDS");
+            _output.WriteLine("========================================");
+
+            // Look for contact-specific fields (not the main referral form fields)
+            try
+            {
+                var allSelects = driver.FindElements(OpenQA.Selenium.By.TagName("select"));
+                var allTextFields = driver.FindElements(OpenQA.Selenium.By.CssSelector("input[type='text']"));
+                var allCheckboxes = driver.FindElements(OpenQA.Selenium.By.CssSelector("input[type='checkbox']"));
+                
+                _output.WriteLine($"\n[INFO] All SELECT fields on page:");
+                foreach (var select in allSelects.Where(s => s.Displayed))
+                {
+                    var id = select.GetAttribute("id") ?? "";
+                    var name = select.GetAttribute("name") ?? "";
+                    _output.WriteLine($"  ID='{id}', Name='{name}'");
+                }
+                
+                _output.WriteLine($"\n[INFO] All CHECKBOXES on page:");
+                foreach (var cb in allCheckboxes.Where(c => c.Displayed))
+                {
+                    var id = cb.GetAttribute("id") ?? "";
+                    var name = cb.GetAttribute("name") ?? "";
+                    _output.WriteLine($"  ID='{id}', Name='{name}'");
+                }
+            }
+            catch (Exception ex)
+            {
+                _output.WriteLine($"[WARN] Error inspecting fields: {ex.Message}");
+            }
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("SEARCHING FOR SUBMIT BUTTON");
+            _output.WriteLine("========================================");
+
+            // Find submit button (LinkButton) - we know it's ctl00_ContentPlaceHolder1_lbSubmitContactAttempt
+            OpenQA.Selenium.IWebElement submitButton = null;
+            try
+            {
+                submitButton = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_lbSubmitContactAttempt"));
+                _output.WriteLine($"[PASS] Found Submit button: ID='{submitButton.GetAttribute("id")}', Text='{submitButton.Text?.Trim()}'");
+            }
+            catch
+            {
+                _output.WriteLine("[INFO] Could not find submit button by specific ID, searching all buttons...");
+                
+                var allButtons = driver.FindElements(OpenQA.Selenium.By.CssSelector("button, a, input[type='button'], input[type='submit']"));
+                _output.WriteLine($"[INFO] Found {allButtons.Count} buttons/links, listing visible ones:");
+                
+                foreach (var btn in allButtons)
+                {
+                    if (btn.Displayed)
+                    {
+                        var btnId = btn.GetAttribute("id") ?? "";
+                        var btnText = btn.Text?.Trim() ?? btn.GetAttribute("value") ?? "";
+                        _output.WriteLine($"  ID='{btnId}', Text='{btnText}'");
+                        
+                        if (submitButton == null && btn.Enabled &&
+                            (btnId.Contains("SubmitContact", StringComparison.OrdinalIgnoreCase) ||
+                             btnId.Contains("SaveContact", StringComparison.OrdinalIgnoreCase) ||
+                             btnText.Contains("Submit", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            submitButton = btn;
+                            _output.WriteLine($"[INFO] Using this as submit button");
+                        }
+                    }
+                }
+            }
+
+            _output.WriteLine($"\n[INFO] Submit button status: {(submitButton != null ? "FOUND" : "NOT FOUND")}");
+            
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("TEST WILL STOP HERE FOR NOW");
+            _output.WriteLine("========================================");
+            _output.WriteLine("[INFO] This test is for EXPLORATION only - to see what fields appear after clicking 'New Contact Attempt'");
+            _output.WriteLine("[INFO] Run this test to see all available form fields and buttons");
+            _output.WriteLine("[INFO] Then we can create a proper test to fill and submit the form");
+            _output.WriteLine("========================================");
+        }
+
+        [Fact]
+        public void ReferralsPage_NewContactAttempt_ValidationRequired()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("TEST: NEW CONTACT ATTEMPT - VALIDATION");
+            _output.WriteLine("========================================");
+
+            // Login and navigate
+            LoginAndNavigateToReferrals(driver);
+
+            // Find and click edit on first referral
+            var activeReferralsTable = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_grActiveReferrals"));
+            var tableRows = activeReferralsTable.FindElements(OpenQA.Selenium.By.CssSelector("tbody tr"));
+            var firstRow = tableRows.FirstOrDefault();
+            Assert.NotNull(firstRow);
+
+            var editButton = firstRow.FindElement(OpenQA.Selenium.By.CssSelector("a[id*='lnkEditReferral']"));
+            editButton.Click();
+            driver.WaitForReady(30);
+            System.Threading.Thread.Sleep(2000);
+            _output.WriteLine($"[PASS] Opened referral edit page: {driver.Url}");
+
+            // Click "New Contact Attempt"
+            var newContactBtn = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_lbNewContactAttempt"));
+            newContactBtn.Click();
+            System.Threading.Thread.Sleep(2000);
+            _output.WriteLine("[PASS] Clicked 'New Contact Attempt'");
+
+            // Fill Contact Date
+            _output.WriteLine("\n[INFO] ========== FILLING CONTACT DATE ==========");
+            var contactDateField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtContactAttemptDate"));
+            _output.WriteLine($"[INFO] Found Contact Date field: ID={contactDateField.GetAttribute("id")}");
+            
+            var todayDate = DateTime.Now.ToString("MM/dd/yyyy");
+            contactDateField.Clear();
+            contactDateField.SendKeys(todayDate);
+            System.Threading.Thread.Sleep(300);
+            
+            var enteredValue = contactDateField.GetAttribute("value");
+            _output.WriteLine($"[PASS] Filled Contact Date: {todayDate}");
+            _output.WriteLine($"[INFO] Field now contains: {enteredValue}");
+
+            // Fill Worker dropdown
+            _output.WriteLine("\n[INFO] ========== FILLING WORKER DROPDOWN ==========");
+            var workerDropdown = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_ddlContactAttemptWorker"));
+            _output.WriteLine($"[INFO] Found Worker dropdown: ID={workerDropdown.GetAttribute("id")}");
+            
+            var workerSelect = new OpenQA.Selenium.Support.UI.SelectElement(workerDropdown);
+            var workerOptions = workerSelect.Options;
+            _output.WriteLine($"[INFO] Worker dropdown has {workerOptions.Count} options:");
+            for (int i = 0; i < Math.Min(3, workerOptions.Count); i++)
+            {
+                _output.WriteLine($"  [{i}] Text: '{workerOptions[i].Text}', Value: '{workerOptions[i].GetAttribute("value")}'");
+            }
+            
+            var validWorkerOptions = workerOptions.Where(o => !string.IsNullOrWhiteSpace(o.Text) && o.Text != "--Select--").ToList();
+            if (validWorkerOptions.Any())
+            {
+                var selectedWorkerText = workerOptions[1].Text; // Store before selecting
+                workerSelect.SelectByIndex(1); // Select first real option
+                _output.WriteLine($"[PASS] Selected worker at index 1: {selectedWorkerText}");
+                System.Threading.Thread.Sleep(1000); // Wait for any page updates
+            }
+
+            // Fill Was Family Successfully Contacted
+            _output.WriteLine("\n[INFO] ========== FILLING 'WAS FAMILY SUCCESSFULLY CONTACTED?' ==========");
+            var contactedDropdown = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_ddlContactAttemptSuccessful"));
+            _output.WriteLine($"[INFO] Found 'Successfully Contacted' dropdown: ID={contactedDropdown.GetAttribute("id")}");
+            
+            var contactedSelect = new OpenQA.Selenium.Support.UI.SelectElement(contactedDropdown);
+            var contactedOptions = contactedSelect.Options;
+            _output.WriteLine($"[INFO] 'Successfully Contacted' dropdown has {contactedOptions.Count} options:");
+            for (int i = 0; i < contactedOptions.Count; i++)
+            {
+                _output.WriteLine($"  [{i}] Text: '{contactedOptions[i].Text}', Value: '{contactedOptions[i].GetAttribute("value")}'");
+            }
+            
+            var yesOption = contactedOptions.FirstOrDefault(o => o.Text.Contains("Yes", StringComparison.OrdinalIgnoreCase));
+            if (yesOption != null)
+            {
+                var yesOptionText = yesOption.Text; // Store before selecting
+                var yesOptionValue = yesOption.GetAttribute("value");
+                _output.WriteLine($"[INFO] Found 'Yes' option: Text='{yesOptionText}', Value='{yesOptionValue}'");
+                
+                contactedSelect.SelectByText(yesOptionText);
+                _output.WriteLine($"[PASS] Selected: {yesOptionText}");
+                System.Threading.Thread.Sleep(1000); // Wait for any page updates
+            }
+            else
+            {
+                _output.WriteLine("[ERROR] Could not find 'Yes' option!");
+            }
+
+            System.Threading.Thread.Sleep(500);
+
+            // NOTE: NOT filling Contact Attempt Type(s) - this should trigger validation!
+            _output.WriteLine("\n[INFO] ========== SKIPPING CONTACT ATTEMPT TYPE(S) ==========");
+            _output.WriteLine("[INFO] Intentionally NOT filling Contact Attempt Type(s) to trigger validation");
+
+            // Try to submit WITHOUT filling Contact Attempt Type(s)
+            _output.WriteLine("\n[INFO] ========== CLICKING SUBMIT BUTTON ==========");
+            var submitBtn = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_lbSubmitContactAttempt"));
+            _output.WriteLine($"[INFO] Found Submit button: ID={submitBtn.GetAttribute("id")}, Text='{submitBtn.Text}'");
+            _output.WriteLine($"[INFO] Submit button enabled: {submitBtn.Enabled}");
+            
+            submitBtn.Click();
+            _output.WriteLine("[PASS] Clicked Submit button");
+            System.Threading.Thread.Sleep(3000);
+            _output.WriteLine("[INFO] Waited 3 seconds for validation to appear");
+
+            // Check for validation messages
+            _output.WriteLine("\n[INFO] ========== CHECKING FOR VALIDATION MESSAGES ==========");
+            
+            var validationMessages = GetValidationErrorMessages(driver);
+            
+            if (validationMessages.Any())
+            {
+                _output.WriteLine($"[PASS] Found {validationMessages.Count} validation messages:");
+                foreach (var msg in validationMessages)
+                {
+                    _output.WriteLine($"  ✓ {msg}");
+                }
+            }
+            else
+            {
+                _output.WriteLine("[INFO] No validation messages found in standard locations");
+            }
+            
+            // Also check for toast notifications
+            try
+            {
+                var toastElements = driver.FindElements(OpenQA.Selenium.By.CssSelector(".toast, .alert, [class*='notification'], [class*='message'], [role='alert'], [class*='toast']"));
+                var visibleToasts = toastElements.Where(t => t.Displayed).ToList();
+                
+                if (visibleToasts.Any())
+                {
+                    _output.WriteLine($"\n[INFO] Found {visibleToasts.Count} toast/alert messages:");
+                    foreach (var toast in visibleToasts)
+                    {
+                        var toastText = toast.Text?.Trim();
+                        if (!string.IsNullOrWhiteSpace(toastText))
+                        {
+                            _output.WriteLine($"  ✓ {toastText}");
+                            validationMessages.Add(toastText);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _output.WriteLine($"[INFO] Could not find toast notifications: {ex.Message}");
+            }
+
+            _output.WriteLine("[INFO] ========== END VALIDATION CHECK ==========\n");
+
+            // Verify that validation toast appeared
+            var hasContactAttemptValidation = validationMessages.Any(m => 
+                m.Contains("Contact Attempt Validation Failed", StringComparison.OrdinalIgnoreCase) ||
+                m.Contains("contact attempt is invalid", StringComparison.OrdinalIgnoreCase) ||
+                m.Contains("validation summary", StringComparison.OrdinalIgnoreCase));
+            
+            Assert.True(hasContactAttemptValidation, 
+                "Expected 'Contact Attempt Validation Failed' toast notification, but it was not found!");
+            
+            _output.WriteLine($"[PASS] ✓ Validation test passed! 'Contact Attempt Validation Failed' toast appeared!");
+            _output.WriteLine($"[PASS] ✓ Total validation messages found: {validationMessages.Count}");
+            _output.WriteLine("========================================");
+        }
+
     }
 }
+
 
