@@ -25,6 +25,187 @@ namespace AFUT.Tests.UnitTests.Referrals
             CaseHomePage.ConfigureDefaultTabs(_config.CaseHomeTabs);
         }
 
+        #region Helper Methods
+
+        /// <summary>
+        /// Logs in and navigates to the Referrals page
+        /// </summary>
+        private void LoginAndNavigateToReferrals(IPookieWebDriver driver)
+        {
+            _output.WriteLine($"Navigating to application URL: {_config.AppUrl}");
+            driver.Navigate().GoToUrl(_config.AppUrl);
+            driver.WaitForReady(30);
+
+            _output.WriteLine($"Signing in with user: {_config.UserName}");
+            var loginPage = new LoginPage(driver);
+            loginPage.SignIn(_config.UserName, _config.Password);
+
+            var isSignedIn = loginPage.IsSignedIn();
+            Assert.True(isSignedIn, "User was not signed in successfully.");
+            _output.WriteLine("[PASS] Successfully signed in");
+
+            _output.WriteLine("Attempting to select DataEntry role...");
+            var selectRolePage = new SelectRolePage(driver);
+            var landingPage = selectRolePage.SelectRole("Program 1", "DataEntry");
+
+            Assert.NotNull(landingPage);
+            Assert.True(landingPage.IsLoaded, "Landing page did not load after selecting Data Entry role.");
+            _output.WriteLine("[PASS] Successfully selected Data Entry role");
+
+            _output.WriteLine("\nNavigating to Referrals page...");
+            var referralsLink = driver.FindElements(OpenQA.Selenium.By.CssSelector(".navbar a, nav a"))
+                .FirstOrDefault(link => link.GetAttribute("href")?.Contains("Referrals.aspx", StringComparison.OrdinalIgnoreCase) == true);
+
+            Assert.NotNull(referralsLink);
+            _output.WriteLine($"Found Referrals link with text: '{referralsLink.Text?.Trim()}'");
+            referralsLink.Click();
+            driver.WaitForReady(30);
+            System.Threading.Thread.Sleep(2000);
+            
+            _output.WriteLine("[PASS] Successfully navigated to Referrals page");
+            _output.WriteLine($"Current URL: {driver.Url}");
+        }
+
+        /// <summary>
+        /// Clicks the New Referral button on the Referrals page
+        /// </summary>
+        private void ClickNewReferralButton(IPookieWebDriver driver)
+        {
+            _output.WriteLine("\nClicking New Referral button...");
+            var newReferralButton = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_lnkNewReferral"));
+            Assert.NotNull(newReferralButton);
+            
+            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", newReferralButton);
+            System.Threading.Thread.Sleep(500);
+            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", newReferralButton);
+            
+            driver.WaitForReady(30);
+            System.Threading.Thread.Sleep(1000);
+            _output.WriteLine("[PASS] Clicked New Referral button");
+            _output.WriteLine($"Current URL: {driver.Url}");
+        }
+
+        /// <summary>
+        /// Fills in the person search form
+        /// </summary>
+        private void FillPersonSearchForm(IPookieWebDriver driver, string firstName, string lastName, string dob, string phone, string emergencyPhone)
+        {
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("FILLING IN SEARCH FORM");
+            _output.WriteLine("========================================");
+
+            _output.WriteLine($"PC1 First Name: {firstName}");
+            _output.WriteLine($"PC1 Last Name: {lastName}");
+            _output.WriteLine($"DOB: {dob}");
+            _output.WriteLine($"Phone: {phone}");
+            _output.WriteLine($"Emergency Phone: {emergencyPhone}");
+
+            var firstNameField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcfirstname"));
+            firstNameField.Click();
+            System.Threading.Thread.Sleep(200);
+            firstNameField.Clear();
+            firstNameField.SendKeys(firstName);
+            _output.WriteLine("[PASS] Filled PC1 First Name");
+
+            var lastNameField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpclastname"));
+            lastNameField.Click();
+            System.Threading.Thread.Sleep(200);
+            lastNameField.Clear();
+            lastNameField.SendKeys(lastName);
+            _output.WriteLine("[PASS] Filled PC1 Last Name");
+
+            var dobField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcdob"));
+            dobField.Click();
+            System.Threading.Thread.Sleep(200);
+            dobField.Clear();
+            dobField.SendKeys(dob);
+            _output.WriteLine("[PASS] Filled DOB");
+
+            var phoneField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcphone"));
+            phoneField.Click();
+            System.Threading.Thread.Sleep(200);
+            phoneField.Clear();
+            phoneField.SendKeys(phone);
+            _output.WriteLine("[PASS] Filled Phone");
+
+            var emergencyPhoneField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcemergencyphone"));
+            emergencyPhoneField.Click();
+            System.Threading.Thread.Sleep(200);
+            emergencyPhoneField.Clear();
+            emergencyPhoneField.SendKeys(emergencyPhone);
+            _output.WriteLine("[PASS] Filled Emergency Phone");
+            
+            System.Threading.Thread.Sleep(500);
+        }
+
+        /// <summary>
+        /// Clicks the search button on the person search form
+        /// </summary>
+        private void ClickSearchButton(IPookieWebDriver driver)
+        {
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("SEARCHING FOR PERSON");
+            _output.WriteLine("========================================");
+
+            var searchButton = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_btSearch"));
+            Assert.NotNull(searchButton);
+            _output.WriteLine($"Found search button: id='{searchButton.GetAttribute("id")}'");
+            
+            searchButton.Click();
+            driver.WaitForReady(30);
+            System.Threading.Thread.Sleep(2000);
+            _output.WriteLine("[PASS] Clicked Search button");
+        }
+
+        /// <summary>
+        /// Checks for validation error messages on the page
+        /// </summary>
+        private System.Collections.Generic.HashSet<string> GetValidationErrorMessages(IPookieWebDriver driver)
+        {
+            var errorSelectors = new[]
+            {
+                OpenQA.Selenium.By.CssSelector(".alert"),
+                OpenQA.Selenium.By.CssSelector(".alert-danger"),
+                OpenQA.Selenium.By.CssSelector(".alert-warning"),
+                OpenQA.Selenium.By.CssSelector("[class*='error']"),
+                OpenQA.Selenium.By.CssSelector("[class*='validation']"),
+                OpenQA.Selenium.By.CssSelector(".field-validation-error"),
+                OpenQA.Selenium.By.CssSelector(".text-danger"),
+                OpenQA.Selenium.By.CssSelector("span[style*='color: red']"),
+                OpenQA.Selenium.By.CssSelector("span[style*='color:red']"),
+                OpenQA.Selenium.By.XPath("//*[contains(text(), 'required')]")
+            };
+
+            var uniqueErrorMessages = new System.Collections.Generic.HashSet<string>();
+            
+            foreach (var selector in errorSelectors)
+            {
+                try
+                {
+                    var elements = driver.FindElements(selector);
+                    foreach (var element in elements)
+                    {
+                        if (element.Displayed)
+                        {
+                            var text = element.Text?.Trim() ?? "";
+                            if (!string.IsNullOrWhiteSpace(text))
+                            {
+                                uniqueErrorMessages.Add(text);
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    // Continue with next selector
+                }
+            }
+
+            return uniqueErrorMessages;
+        }
+
+        #endregion
+
         [Fact]
         public void ExploreReferralsPage_AfterLogin_LogAvailableElements()
         {
@@ -765,27 +946,8 @@ namespace AFUT.Tests.UnitTests.Referrals
         {
             using var driver = _driverFactory.CreateDriver();
 
-            _output.WriteLine($"Navigating to application URL: {_config.AppUrl}");
-            driver.Navigate().GoToUrl(_config.AppUrl);
-            driver.WaitForReady(30);
-
-            var loginPage = new LoginPage(driver);
-            loginPage.SignIn(_config.UserName, _config.Password);
-            Assert.True(loginPage.IsSignedIn(), "User was not signed in successfully.");
-            _output.WriteLine("[PASS] Signed in");
-
-            var selectRolePage = new SelectRolePage(driver);
-            var landingPage = selectRolePage.SelectRole("Program 1", "DataEntry");
-            Assert.NotNull(landingPage);
-            Assert.True(landingPage.IsLoaded, "Landing page did not load after selecting Data Entry role.");
-            _output.WriteLine("[PASS] Data Entry role selected");
-
-            var referralsLink = driver.FindElements(OpenQA.Selenium.By.CssSelector(".navbar a, nav a"))
-                .FirstOrDefault(link => link.GetAttribute("href")?.Contains("Referrals.aspx", StringComparison.OrdinalIgnoreCase) == true);
-            Assert.NotNull(referralsLink);
-            referralsLink.Click();
-            driver.WaitForReady(30);
-            _output.WriteLine("[PASS] Referrals page opened");
+            // Use helper method for login and navigation
+            LoginAndNavigateToReferrals(driver);
 
             // Find the active referrals table and the first edit button within it
             var activeReferralsTable = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_grActiveReferrals"));
@@ -836,38 +998,8 @@ namespace AFUT.Tests.UnitTests.Referrals
         {
             using var driver = _driverFactory.CreateDriver();
 
-            // Navigate to the application
-            _output.WriteLine($"Navigating to application URL: {_config.AppUrl}");
-            driver.Navigate().GoToUrl(_config.AppUrl);
-            driver.WaitForReady(30);
-
-            // Sign in
-            _output.WriteLine($"Signing in with user: {_config.UserName}");
-            var loginPage = new LoginPage(driver);
-            loginPage.SignIn(_config.UserName, _config.Password);
-
-            var isSignedIn = loginPage.IsSignedIn();
-            Assert.True(isSignedIn, "User was not signed in successfully.");
-            _output.WriteLine("[PASS] Successfully signed in");
-
-            // Select Data Entry role
-            _output.WriteLine("Attempting to select DataEntry role...");
-            var selectRolePage = new SelectRolePage(driver);
-            var landingPage = selectRolePage.SelectRole("Program 1", "DataEntry");
-
-            Assert.NotNull(landingPage);
-            Assert.True(landingPage.IsLoaded, "Landing page did not load after selecting Data Entry role.");
-            _output.WriteLine("[PASS] Successfully selected Data Entry role");
-
-            // Navigate to Referrals page
-            _output.WriteLine("\nNavigating to Referrals page...");
-            var referralsLink = driver.FindElements(OpenQA.Selenium.By.CssSelector(".navbar a, nav a"))
-                .FirstOrDefault(link => link.GetAttribute("href")?.Contains("Referrals.aspx", StringComparison.OrdinalIgnoreCase) == true);
-
-            Assert.NotNull(referralsLink);
-            referralsLink.Click();
-            driver.WaitForReady(30);
-            _output.WriteLine("[PASS] Successfully navigated to Referrals page");
+            // Use helper method for login and navigation
+            LoginAndNavigateToReferrals(driver);
 
             // Find the year dropdown
             var yearDropdown = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_ddlCompletedReferralYear"));
@@ -1097,38 +1229,8 @@ namespace AFUT.Tests.UnitTests.Referrals
         {
             using var driver = _driverFactory.CreateDriver();
 
-            // Navigate to the application
-            _output.WriteLine($"Navigating to application URL: {_config.AppUrl}");
-            driver.Navigate().GoToUrl(_config.AppUrl);
-            driver.WaitForReady(30);
-
-            // Sign in
-            _output.WriteLine($"Signing in with user: {_config.UserName}");
-            var loginPage = new LoginPage(driver);
-            loginPage.SignIn(_config.UserName, _config.Password);
-
-            var isSignedIn = loginPage.IsSignedIn();
-            Assert.True(isSignedIn, "User was not signed in successfully.");
-            _output.WriteLine("[PASS] Successfully signed in");
-
-            // Select Data Entry role
-            _output.WriteLine("Attempting to select DataEntry role...");
-            var selectRolePage = new SelectRolePage(driver);
-            var landingPage = selectRolePage.SelectRole("Program 1", "DataEntry");
-
-            Assert.NotNull(landingPage);
-            Assert.True(landingPage.IsLoaded, "Landing page did not load after selecting Data Entry role.");
-            _output.WriteLine("[PASS] Successfully selected Data Entry role");
-
-            // Navigate to Referrals page
-            _output.WriteLine("\nNavigating to Referrals page...");
-            var referralsLink = driver.FindElements(OpenQA.Selenium.By.CssSelector(".navbar a, nav a"))
-                .FirstOrDefault(link => link.GetAttribute("href")?.Contains("Referrals.aspx", StringComparison.OrdinalIgnoreCase) == true);
-
-            Assert.NotNull(referralsLink);
-            referralsLink.Click();
-            driver.WaitForReady(30);
-            _output.WriteLine("[PASS] Successfully navigated to Referrals page");
+            // Use helper method for login and navigation
+            LoginAndNavigateToReferrals(driver);
 
             _output.WriteLine("\n========================================");
             _output.WriteLine("CHECKING DEFAULT YEAR");
@@ -1291,197 +1393,21 @@ namespace AFUT.Tests.UnitTests.Referrals
         {
             using var driver = _driverFactory.CreateDriver();
 
-            // Navigate to the application
-            _output.WriteLine($"Navigating to application URL: {_config.AppUrl}");
-            driver.Navigate().GoToUrl(_config.AppUrl);
-            driver.WaitForReady(30);
+            // Use helper methods for login and navigation
+            LoginAndNavigateToReferrals(driver);
+            ClickNewReferralButton(driver);
 
-            // Sign in
-            _output.WriteLine($"Signing in with user: {_config.UserName}");
-            var loginPage = new LoginPage(driver);
-            loginPage.SignIn(_config.UserName, _config.Password);
-
-            var isSignedIn = loginPage.IsSignedIn();
-            Assert.True(isSignedIn, "User was not signed in successfully.");
-            _output.WriteLine("[PASS] Successfully signed in");
-
-            // Select Data Entry role
-            _output.WriteLine("Attempting to select DataEntry role...");
-            var selectRolePage = new SelectRolePage(driver);
-            var landingPage = selectRolePage.SelectRole("Program 1", "DataEntry");
-
-            Assert.NotNull(landingPage);
-            Assert.True(landingPage.IsLoaded, "Landing page did not load after selecting Data Entry role.");
-            _output.WriteLine("[PASS] Successfully selected Data Entry role");
-
-            // Navigate to Referrals page
-            _output.WriteLine("\nNavigating to Referrals page...");
-            var referralsLink = driver.FindElements(OpenQA.Selenium.By.CssSelector(".navbar a, nav a"))
-                .FirstOrDefault(link => link.GetAttribute("href")?.Contains("Referrals.aspx", StringComparison.OrdinalIgnoreCase) == true);
-
-            Assert.NotNull(referralsLink);
-            
-            _output.WriteLine($"Found Referrals link with text: '{referralsLink.Text?.Trim()}'");
-            referralsLink.Click();
-            driver.WaitForReady(30);
-            
-            _output.WriteLine("[PASS] Clicked Referrals link");
-            _output.WriteLine($"Current URL: {driver.Url}");
-            
-            // Wait for Referrals page to load completely
-            System.Threading.Thread.Sleep(2000);
-            driver.WaitForReady(30);
-            
-            // Verify we're on the Referrals page by checking for the New Referral button
-            var newReferralButtonExists = driver.FindElements(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_lnkNewReferral")).Any();
-            _output.WriteLine($"New Referral button present on page: {newReferralButtonExists}");
-            
-            Assert.True(newReferralButtonExists, "Failed to find New Referral button on Referrals page");
-            _output.WriteLine("[PASS] Successfully navigated to Referrals page and verified page loaded");
-
-            // Click New Referral button
-            _output.WriteLine("\nClicking New Referral button...");
-            
-            try
-            {
-                var newReferralButton = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_lnkNewReferral"));
-                Assert.NotNull(newReferralButton);
-                
-                _output.WriteLine($"Found New Referral button: id='{newReferralButton.GetAttribute("id")}', displayed={newReferralButton.Displayed}, enabled={newReferralButton.Enabled}");
-                
-                // Scroll to the button and add some offset to avoid navbar
-                ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", newReferralButton);
-                System.Threading.Thread.Sleep(500);
-                
-                // Use JavaScript click to avoid navbar interception
-                _output.WriteLine("Clicking New Referral button using JavaScript...");
-                ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", newReferralButton);
-                _output.WriteLine("[PASS] Clicked New Referral button");
-                
-                driver.WaitForReady(30);
-                System.Threading.Thread.Sleep(1000); // Wait for navigation
-                
-                _output.WriteLine($"[PASS] Successfully navigated after clicking New Referral button");
-                _output.WriteLine($"Current URL: {driver.Url}");
-                _output.WriteLine($"Page Title: {driver.Title}");
-            }
-            catch (Exception ex)
-            {
-                _output.WriteLine($"[FAIL] Error clicking New Referral button: {ex.Message}");
-                _output.WriteLine($"Current URL: {driver.Url}");
-                throw;
-            }
-
-            // Fill in the search form with Person / Test data
-            _output.WriteLine("\n========================================");
-            _output.WriteLine("FILLING IN SEARCH FORM");
-            _output.WriteLine("========================================");
-
+            // Search for Person/Test data
             var firstName = "Unit";
             var lastName = "Test";
             var todayDate = DateTime.Now.ToString("MMddyyyy");
             var phone = "0000000000";
             var emergencyPhone = "0000000000";
 
-            _output.WriteLine($"PC1 First Name: {firstName}");
-            _output.WriteLine($"PC1 Last Name: {lastName}");
-            _output.WriteLine($"DOB: {todayDate}");
-            _output.WriteLine($"Phone: {phone}");
-            _output.WriteLine($"Emergency Phone: {emergencyPhone}");
-
             try
             {
-                // Fill First Name
-                var firstNameField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcfirstname"));
-                firstNameField.Click();
-                System.Threading.Thread.Sleep(200);
-                firstNameField.Clear();
-                firstNameField.SendKeys(firstName);
-                _output.WriteLine("[PASS] Filled PC1 First Name");
-
-                // Fill Last Name
-                var lastNameField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpclastname"));
-                lastNameField.Click();
-                System.Threading.Thread.Sleep(200);
-                lastNameField.Clear();
-                lastNameField.SendKeys(lastName);
-                _output.WriteLine("[PASS] Filled PC1 Last Name");
-
-                // Fill DOB
-                var dobField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcdob"));
-                dobField.Click();
-                System.Threading.Thread.Sleep(200);
-                dobField.Clear();
-                dobField.SendKeys(todayDate);
-                _output.WriteLine("[PASS] Filled DOB");
-
-                // Fill Phone
-                var phoneField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcphone"));
-                phoneField.Click();
-                System.Threading.Thread.Sleep(200);
-                phoneField.Clear();
-                phoneField.SendKeys(phone);
-                _output.WriteLine("[PASS] Filled Phone");
-
-                // Fill Emergency Phone
-                var emergencyPhoneField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcemergencyphone"));
-                emergencyPhoneField.Click();
-                System.Threading.Thread.Sleep(200);
-                emergencyPhoneField.Clear();
-                emergencyPhoneField.SendKeys(emergencyPhone);
-                _output.WriteLine("[PASS] Filled Emergency Phone");
-                
-                // Wait a moment for any field validation or form activation
-                System.Threading.Thread.Sleep(500);
-
-                // Find and click the Search button
-                _output.WriteLine("\n========================================");
-                _output.WriteLine("SEARCHING FOR REFERRAL");
-                _output.WriteLine("========================================");
-
-                var allButtons = driver.FindElements(OpenQA.Selenium.By.CssSelector("button, input[type='button'], input[type='submit'], input[type='image'], a[id*='btn'], [id*='Button'], [id*='search'], [id*='Search']"));
-                
-                var searchButton = allButtons
-                    .Where(b => b.Displayed && b.Enabled)
-                    .FirstOrDefault(b => 
-                    {
-                        var text = b.Text?.Trim() ?? b.GetAttribute("value") ?? "";
-                        var id = b.GetAttribute("id") ?? "";
-                        return text.Equals("Search", StringComparison.OrdinalIgnoreCase) && 
-                               !id.Contains("SearchCases", StringComparison.OrdinalIgnoreCase) &&
-                               !text.Contains("Cases", StringComparison.OrdinalIgnoreCase);
-                    });
-
-                if (searchButton == null)
-                {
-                    searchButton = allButtons
-                        .FirstOrDefault(b =>
-                        {
-                            var id = b.GetAttribute("id") ?? "";
-                            var text = b.Text?.Trim() ?? b.GetAttribute("value") ?? "";
-                            return id.Contains("ContentPlaceHolder", StringComparison.OrdinalIgnoreCase) &&
-                                   id.Contains("btn", StringComparison.OrdinalIgnoreCase) &&
-                                   text.Contains("Search", StringComparison.OrdinalIgnoreCase);
-                        });
-                }
-
-                Assert.NotNull(searchButton);
-                var buttonId = searchButton.GetAttribute("id") ?? "no-id";
-                var buttonText = searchButton.Text?.Trim() ?? searchButton.GetAttribute("value") ?? "";
-                _output.WriteLine($"Using search button: id='{buttonId}', text='{buttonText}'");
-                
-                if (!searchButton.Displayed)
-                {
-                    ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", searchButton);
-                }
-                else
-                {
-                    searchButton.Click();
-                }
-                
-                driver.WaitForReady(30);
-                System.Threading.Thread.Sleep(2000); // Wait for results to load
-                _output.WriteLine("[PASS] Clicked Search button");
+                FillPersonSearchForm(driver, firstName, lastName, todayDate, phone, emergencyPhone);
+                ClickSearchButton(driver);
 
                 // Check for results grid
                 _output.WriteLine("\n========================================");
@@ -1561,240 +1487,21 @@ namespace AFUT.Tests.UnitTests.Referrals
         {
             using var driver = _driverFactory.CreateDriver();
 
-            // Navigate to the application
-            _output.WriteLine($"Navigating to application URL: {_config.AppUrl}");
-            driver.Navigate().GoToUrl(_config.AppUrl);
-            driver.WaitForReady(30);
+            // Use helper methods for login and navigation
+            LoginAndNavigateToReferrals(driver);
+            ClickNewReferralButton(driver);
 
-            // Sign in
-            _output.WriteLine($"Signing in with user: {_config.UserName}");
-            var loginPage = new LoginPage(driver);
-            loginPage.SignIn(_config.UserName, _config.Password);
-
-            var isSignedIn = loginPage.IsSignedIn();
-            Assert.True(isSignedIn, "User was not signed in successfully.");
-            _output.WriteLine("[PASS] Successfully signed in");
-
-            // Select Data Entry role
-            _output.WriteLine("Attempting to select DataEntry role...");
-            var selectRolePage = new SelectRolePage(driver);
-            var landingPage = selectRolePage.SelectRole("Program 1", "DataEntry");
-
-            Assert.NotNull(landingPage);
-            Assert.True(landingPage.IsLoaded, "Landing page did not load after selecting Data Entry role.");
-            _output.WriteLine("[PASS] Successfully selected Data Entry role");
-
-            // Navigate to Referrals page
-            _output.WriteLine("\nNavigating to Referrals page...");
-            var referralsLink = driver.FindElements(OpenQA.Selenium.By.CssSelector(".navbar a, nav a"))
-                .FirstOrDefault(link => link.GetAttribute("href")?.Contains("Referrals.aspx", StringComparison.OrdinalIgnoreCase) == true);
-
-            Assert.NotNull(referralsLink);
-            
-            _output.WriteLine($"Found Referrals link with text: '{referralsLink.Text?.Trim()}'");
-            referralsLink.Click();
-            driver.WaitForReady(30);
-            
-            _output.WriteLine("[PASS] Clicked Referrals link");
-            _output.WriteLine($"Current URL: {driver.Url}");
-            
-            // Wait for Referrals page to load completely
-            System.Threading.Thread.Sleep(2000);
-            driver.WaitForReady(30);
-            
-            // Verify we're on the Referrals page by checking for the New Referral button
-            var newReferralButtonExists = driver.FindElements(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_lnkNewReferral")).Any();
-            _output.WriteLine($"New Referral button present on page: {newReferralButtonExists}");
-            
-            Assert.True(newReferralButtonExists, "Failed to find New Referral button on Referrals page");
-            _output.WriteLine("[PASS] Successfully navigated to Referrals page and verified page loaded");
-
-            // Click New Referral button
-            _output.WriteLine("\nClicking New Referral button...");
-            
-            try
-            {
-                var newReferralButton = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_lnkNewReferral"));
-                Assert.NotNull(newReferralButton);
-                
-                _output.WriteLine($"Found New Referral button: id='{newReferralButton.GetAttribute("id")}', displayed={newReferralButton.Displayed}, enabled={newReferralButton.Enabled}");
-                
-                // Scroll to the button and add some offset to avoid navbar
-                ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", newReferralButton);
-                System.Threading.Thread.Sleep(500);
-                
-                // Use JavaScript click to avoid navbar interception
-                _output.WriteLine("Clicking New Referral button using JavaScript...");
-                ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", newReferralButton);
-                _output.WriteLine("[PASS] Clicked New Referral button");
-                
-                driver.WaitForReady(30);
-                System.Threading.Thread.Sleep(1000); // Wait for navigation
-                
-                _output.WriteLine($"[PASS] Successfully navigated after clicking New Referral button");
-                _output.WriteLine($"Current URL: {driver.Url}");
-                _output.WriteLine($"Page Title: {driver.Title}");
-            }
-            catch (Exception ex)
-            {
-                _output.WriteLine($"[FAIL] Error clicking New Referral button: {ex.Message}");
-                _output.WriteLine($"Current URL: {driver.Url}");
-                throw;
-            }
-
-            // Fill in the search form with test data
-            _output.WriteLine("\n========================================");
-            _output.WriteLine("FILLING IN SEARCH FORM");
-            _output.WriteLine("========================================");
-
+            // Search for unit/test data (expecting no results)
             var firstName = "unit";
             var lastName = "test";
             var todayDate = DateTime.Now.ToString("MMddyyyy");
             var phone = "0000000000";
             var emergencyPhone = "0000000000";
 
-            _output.WriteLine($"PC1 First Name: {firstName}");
-            _output.WriteLine($"PC1 Last Name: {lastName}");
-            _output.WriteLine($"DOB: {todayDate}");
-            _output.WriteLine($"Phone: {phone}");
-            _output.WriteLine($"Emergency Phone: {emergencyPhone}");
-
             try
             {
-                // Fill First Name (click to activate, then fill)
-                var firstNameField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcfirstname"));
-                firstNameField.Click();
-                System.Threading.Thread.Sleep(200);
-                firstNameField.Clear();
-                firstNameField.SendKeys(firstName);
-                _output.WriteLine("[PASS] Filled PC1 First Name");
-
-                // Fill Last Name
-                var lastNameField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpclastname"));
-                lastNameField.Click();
-                System.Threading.Thread.Sleep(200);
-                lastNameField.Clear();
-                lastNameField.SendKeys(lastName);
-                _output.WriteLine("[PASS] Filled PC1 Last Name");
-
-                // Fill DOB
-                var dobField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcdob"));
-                dobField.Click();
-                System.Threading.Thread.Sleep(200);
-                dobField.Clear();
-                dobField.SendKeys(todayDate);
-                _output.WriteLine("[PASS] Filled DOB");
-
-                // Fill Phone
-                var phoneField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcphone"));
-                phoneField.Click();
-                System.Threading.Thread.Sleep(200);
-                phoneField.Clear();
-                phoneField.SendKeys(phone);
-                _output.WriteLine("[PASS] Filled Phone");
-
-                // Fill Emergency Phone
-                var emergencyPhoneField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcemergencyphone"));
-                emergencyPhoneField.Click();
-                System.Threading.Thread.Sleep(200);
-                emergencyPhoneField.Clear();
-                emergencyPhoneField.SendKeys(emergencyPhone);
-                _output.WriteLine("[PASS] Filled Emergency Phone");
-                
-                // Wait a moment for any field validation or form activation
-                System.Threading.Thread.Sleep(500);
-
-                // Find and click the Search button (below the emergency contact field)
-                _output.WriteLine("\n========================================");
-                _output.WriteLine("SEARCHING FOR REFERRAL");
-                _output.WriteLine("========================================");
-
-                // Log all buttons on the page to see what we have (including hidden ones)
-                var allButtons = driver.FindElements(OpenQA.Selenium.By.CssSelector("button, input[type='button'], input[type='submit'], input[type='image'], a[id*='btn'], [id*='Button'], [id*='search'], [id*='Search']"));
-                _output.WriteLine($"Found {allButtons.Count} total button elements on the page (including hidden):");
-                
-                foreach (var btn in allButtons)
-                {
-                    try
-                    {
-                        var id = btn.GetAttribute("id") ?? "no-id";
-                        var text = btn.Text?.Trim() ?? btn.GetAttribute("value") ?? "";
-                        var type = btn.GetAttribute("type") ?? btn.TagName;
-                        var displayed = btn.Displayed;
-                        var enabled = btn.Enabled;
-                        var style = btn.GetAttribute("style") ?? "";
-                        
-                        var styleInfo = displayed ? "" : $", style='{style}'";
-                        _output.WriteLine($"  - {type}: id='{id}', text='{text}', displayed={displayed}, enabled={enabled}{styleInfo}");
-                    }
-                    catch
-                    {
-                        // Continue
-                    }
-                }
-
-                // Now find the correct search button
-                // First try to find displayed buttons with "Search" in text but exclude "Search Cases"
-                var searchButton = allButtons
-                    .Where(b => b.Displayed && b.Enabled)
-                    .FirstOrDefault(b => 
-                    {
-                        var text = b.Text?.Trim() ?? b.GetAttribute("value") ?? "";
-                        var id = b.GetAttribute("id") ?? "";
-                        return text.Equals("Search", StringComparison.OrdinalIgnoreCase) && 
-                               !id.Contains("SearchCases", StringComparison.OrdinalIgnoreCase) &&
-                               !text.Contains("Cases", StringComparison.OrdinalIgnoreCase);
-                    });
-
-                // If not found in displayed, try any button with search in ContentPlaceHolder (even if hidden)
-                if (searchButton == null)
-                {
-                    _output.WriteLine("Search button not found in displayed elements, checking all elements including hidden...");
-                    searchButton = allButtons
-                        .FirstOrDefault(b =>
-                        {
-                            var id = b.GetAttribute("id") ?? "";
-                            var text = b.Text?.Trim() ?? b.GetAttribute("value") ?? "";
-                            return id.Contains("ContentPlaceHolder", StringComparison.OrdinalIgnoreCase) &&
-                                   id.Contains("btn", StringComparison.OrdinalIgnoreCase) &&
-                                   text.Contains("Search", StringComparison.OrdinalIgnoreCase);
-                        });
-                }
-
-                // If still not found, try looking for image buttons
-                if (searchButton == null)
-                {
-                    _output.WriteLine("Checking for image buttons...");
-                    searchButton = allButtons
-                        .FirstOrDefault(b =>
-                        {
-                            var type = b.GetAttribute("type") ?? "";
-                            var id = b.GetAttribute("id") ?? "";
-                            return type == "image" && id.Contains("btn", StringComparison.OrdinalIgnoreCase);
-                        });
-                }
-
-                Assert.NotNull(searchButton);
-                var buttonId = searchButton.GetAttribute("id") ?? "no-id";
-                var buttonText = searchButton.Text?.Trim() ?? searchButton.GetAttribute("value") ?? "";
-                var buttonType = searchButton.GetAttribute("type") ?? searchButton.TagName;
-                var isDisplayed = searchButton.Displayed;
-                _output.WriteLine($"\nUsing search button: type={buttonType}, id='{buttonId}', text='{buttonText}', displayed={isDisplayed}'");
-                
-                // If button is not displayed, try to make it visible or use JavaScript click
-                if (!isDisplayed)
-                {
-                    _output.WriteLine("Button is not displayed, using JavaScript click...");
-                    ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", searchButton);
-                }
-                else
-                {
-                    searchButton.Click();
-                }
-                
-                driver.WaitForReady(30);
-                System.Threading.Thread.Sleep(2000); // Wait for results to load
-                _output.WriteLine("[PASS] Clicked Search button");
+                FillPersonSearchForm(driver, firstName, lastName, todayDate, phone, emergencyPhone);
+                ClickSearchButton(driver);
 
                 // Check for "No records found." message (exact match)
                 _output.WriteLine("\n========================================");
@@ -1946,136 +1653,25 @@ namespace AFUT.Tests.UnitTests.Referrals
         {
             using var driver = _driverFactory.CreateDriver();
 
-            // Navigate to the application
-            _output.WriteLine($"Navigating to application URL: {_config.AppUrl}");
-            driver.Navigate().GoToUrl(_config.AppUrl);
-            driver.WaitForReady(30);
-
-            // Sign in
-            _output.WriteLine($"Signing in with user: {_config.UserName}");
-            var loginPage = new LoginPage(driver);
-            loginPage.SignIn(_config.UserName, _config.Password);
-
-            var isSignedIn = loginPage.IsSignedIn();
-            Assert.True(isSignedIn, "User was not signed in successfully.");
-            _output.WriteLine("[PASS] Successfully signed in");
-
-            // Select Data Entry role
-            _output.WriteLine("Attempting to select DataEntry role...");
-            var selectRolePage = new SelectRolePage(driver);
-            var landingPage = selectRolePage.SelectRole("Program 1", "DataEntry");
-
-            Assert.NotNull(landingPage);
-            Assert.True(landingPage.IsLoaded, "Landing page did not load after selecting Data Entry role.");
-            _output.WriteLine("[PASS] Successfully selected Data Entry role");
-
-            // Navigate to Referrals page
-            _output.WriteLine("\nNavigating to Referrals page...");
-            var referralsLink = driver.FindElements(OpenQA.Selenium.By.CssSelector(".navbar a, nav a"))
-                .FirstOrDefault(link => link.GetAttribute("href")?.Contains("Referrals.aspx", StringComparison.OrdinalIgnoreCase) == true);
-
-            Assert.NotNull(referralsLink);
-            
-            _output.WriteLine($"Found Referrals link with text: '{referralsLink.Text?.Trim()}'");
-            referralsLink.Click();
-            driver.WaitForReady(30);
-            System.Threading.Thread.Sleep(2000);
-            
-            _output.WriteLine("[PASS] Successfully navigated to Referrals page");
-            _output.WriteLine($"Current URL: {driver.Url}");
-
-            // Click New Referral button
-            _output.WriteLine("\nClicking New Referral button...");
-            var newReferralButton = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_lnkNewReferral"));
-            Assert.NotNull(newReferralButton);
-            
-            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", newReferralButton);
-            System.Threading.Thread.Sleep(500);
-            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", newReferralButton);
-            
-            driver.WaitForReady(30);
-            System.Threading.Thread.Sleep(1000);
-            _output.WriteLine("[PASS] Clicked New Referral button");
-            _output.WriteLine($"Current URL: {driver.Url}");
-
-            // Fill in the search form with specific test data
-            _output.WriteLine("\n========================================");
-            _output.WriteLine("FILLING IN SEARCH FORM");
-            _output.WriteLine("========================================");
+            // Use helper methods for login and navigation
+            LoginAndNavigateToReferrals(driver);
+            ClickNewReferralButton(driver);
 
             // *** CHANGE TEST DATA HERE IF TEST FAILS ***
             // If test fails because person already exists in database, modify these values:
-            var firstName = "checkone";      // Line 1999 - Change to unique value (e.g., "checktwo", "checkone1")
-            var lastName = "check";          // Line 2000 - Change to unique value (e.g., "check1")
-            var dob = "11091916";            // Line 2001 - Change year digits (e.g., "11091816" for 2018, "11091716" for 2017)
-            var phone = "1111111111";        // Line 2002 - Can also change phone number
-            var emergencyPhone = "1111111111"; // Line 2003 - Can also change emergency phone
+            var firstName = "Noavailable";      // Change to unique value (e.g., "checktwo", "checkone1")
+            var lastName = "checkavailable";          // Change to unique value (e.g., "check1")
+            var dob = "10091916";            // Change year digits (e.g., "11091816" for 2018, "11091716" for 2017)
+            var phone = "2222222222";        // Can also change phone number
+            var emergencyPhone = "2222222222"; // Can also change emergency phone
             // *** END OF TEST DATA ***
             
             // Note: DOB format is MMDDYYYY but system only uses last 2 digits for year
             // "11091916" becomes "11/09/2019" (system interprets "16" as 2019)
 
-            _output.WriteLine($"PC1 First Name: {firstName}");
-            _output.WriteLine($"PC1 Last Name: {lastName}");
-            _output.WriteLine($"DOB: {dob}");
-            _output.WriteLine($"Phone: {phone}");
-            _output.WriteLine($"Emergency Phone: {emergencyPhone}");
-
-            // Fill First Name
-            var firstNameField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcfirstname"));
-            firstNameField.Click();
-            System.Threading.Thread.Sleep(200);
-            firstNameField.Clear();
-            firstNameField.SendKeys(firstName);
-            _output.WriteLine("[PASS] Filled PC1 First Name");
-
-            // Fill Last Name
-            var lastNameField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpclastname"));
-            lastNameField.Click();
-            System.Threading.Thread.Sleep(200);
-            lastNameField.Clear();
-            lastNameField.SendKeys(lastName);
-            _output.WriteLine("[PASS] Filled PC1 Last Name");
-
-            // Fill DOB
-            var dobField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcdob"));
-            dobField.Click();
-            System.Threading.Thread.Sleep(200);
-            dobField.Clear();
-            dobField.SendKeys(dob);
-            _output.WriteLine("[PASS] Filled DOB");
-
-            // Fill Phone
-            var phoneField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcphone"));
-            phoneField.Click();
-            System.Threading.Thread.Sleep(200);
-            phoneField.Clear();
-            phoneField.SendKeys(phone);
-            _output.WriteLine("[PASS] Filled Phone");
-
-            // Fill Emergency Phone
-            var emergencyPhoneField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcemergencyphone"));
-            emergencyPhoneField.Click();
-            System.Threading.Thread.Sleep(200);
-            emergencyPhoneField.Clear();
-            emergencyPhoneField.SendKeys(emergencyPhone);
-            _output.WriteLine("[PASS] Filled Emergency Phone");
-            
-            System.Threading.Thread.Sleep(500);
-
-            // Click Search button
-            _output.WriteLine("\n========================================");
-            _output.WriteLine("SEARCHING FOR PERSON");
-            _output.WriteLine("========================================");
-
-            var searchButton = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_btSearch"));
-            Assert.NotNull(searchButton);
-            _output.WriteLine($"Found search button: id='{searchButton.GetAttribute("id")}'");
-            
-            searchButton.Click();
-            driver.WaitForReady(30);
-            System.Threading.Thread.Sleep(2000);
-            _output.WriteLine("[PASS] Clicked Search button");
+            // Fill in the search form with specific test data
+            FillPersonSearchForm(driver, firstName, lastName, dob, phone, emergencyPhone);
+            ClickSearchButton(driver);
 
             // Verify "No records found." message
             _output.WriteLine("\n========================================");
@@ -2115,7 +1711,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             // Find and click the "add new" link
             _output.WriteLine("\n========================================");
             _output.WriteLine("CLICKING 'ADD NEW' LINK");
-            _output.WriteLine("========================================");
+            _output.WriteLine("=====DONT GO ON LOGS, AS THE DETAILS MAY BE CHANGED , BUT NOT IN THE LOGS===================================");
 
             var addNewLink = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_lbAddNew"));
             Assert.NotNull(addNewLink);
@@ -2335,136 +1931,27 @@ namespace AFUT.Tests.UnitTests.Referrals
         {
             using var driver = _driverFactory.CreateDriver();
 
-            // Navigate to the application
-            _output.WriteLine($"Navigating to application URL: {_config.AppUrl}");
-            driver.Navigate().GoToUrl(_config.AppUrl);
-            driver.WaitForReady(30);
-
-            // Sign in
-            _output.WriteLine($"Signing in with user: {_config.UserName}");
-            var loginPage = new LoginPage(driver);
-            loginPage.SignIn(_config.UserName, _config.Password);
-
-            var isSignedIn = loginPage.IsSignedIn();
-            Assert.True(isSignedIn, "User was not signed in successfully.");
-            _output.WriteLine("[PASS] Successfully signed in");
-
-            // Select Data Entry role
-            _output.WriteLine("Attempting to select DataEntry role...");
-            var selectRolePage = new SelectRolePage(driver);
-            var landingPage = selectRolePage.SelectRole("Program 1", "DataEntry");
-
-            Assert.NotNull(landingPage);
-            Assert.True(landingPage.IsLoaded, "Landing page did not load after selecting Data Entry role.");
-            _output.WriteLine("[PASS] Successfully selected Data Entry role");
-
-            // Navigate to Referrals page
-            _output.WriteLine("\nNavigating to Referrals page...");
-            var referralsLink = driver.FindElements(OpenQA.Selenium.By.CssSelector(".navbar a, nav a"))
-                .FirstOrDefault(link => link.GetAttribute("href")?.Contains("Referrals.aspx", StringComparison.OrdinalIgnoreCase) == true);
-
-            Assert.NotNull(referralsLink);
-            
-            _output.WriteLine($"Found Referrals link with text: '{referralsLink.Text?.Trim()}'");
-            referralsLink.Click();
-            driver.WaitForReady(30);
-            System.Threading.Thread.Sleep(2000);
-            
-            _output.WriteLine("[PASS] Successfully navigated to Referrals page");
-            _output.WriteLine($"Current URL: {driver.Url}");
-
-            // Click New Referral button
-            _output.WriteLine("\nClicking New Referral button...");
-            var newReferralButton = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_lnkNewReferral"));
-            Assert.NotNull(newReferralButton);
-            
-            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", newReferralButton);
-            System.Threading.Thread.Sleep(500);
-            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", newReferralButton);
-            
-            driver.WaitForReady(30);
-            System.Threading.Thread.Sleep(1000);
-            _output.WriteLine("[PASS] Clicked New Referral button");
-            _output.WriteLine($"Current URL: {driver.Url}");
-
-            // Fill in the search form - note: date field uses only last 2 digits for year
-            _output.WriteLine("\n========================================");
-            _output.WriteLine("FILLING IN SEARCH FORM");
-            _output.WriteLine("========================================");
+            // Use helper methods for login and navigation
+            LoginAndNavigateToReferrals(driver);
+            ClickNewReferralButton(driver);
 
             // *** CHANGE TEST DATA HERE IF TEST FAILS ***
             // If test fails because person already exists in database, modify these values:
-            var firstName = "checkone";      // Line 2349 - Change to unique value (e.g., "checktwo", "checkone2")
-            var lastName = "check";          // Line 2350 - Change to unique value (e.g., "check2")
-            var dob = "11091616";            // Line 2351 - Change year digits (e.g., "11091516" for 2015, "11091716" for 2017)
-            var phone = "1111111111";        // Line 2352 - Can also change phone number
-            var emergencyPhone = "1111111111"; // Line 2353 - Can also change emergency phone
+            var firstName = "checktwo";      // Change to unique value (e.g., "checktwo", "checkone2")
+            var lastName = "checkingagain";          // Change to unique value (e.g., "check2")
+            var dob = "10091616";            // Change year digits (e.g., "11091516" for 2015, "11091716" for 2017)
+            var phone = "1100000111";        // Can also change phone number
+            var emergencyPhone = "1100000111"; // Can also change emergency phone
             // *** END OF TEST DATA ***
             
             // Note: DOB format is MMDDYYYY but system only uses last 2 digits for year
             // "11091616" becomes "11/09/2016" (system interprets "16" as 2016)
 
-            _output.WriteLine($"PC1 First Name: {firstName}");
-            _output.WriteLine($"PC1 Last Name: {lastName}");
             _output.WriteLine($"DOB: {dob} (Will be interpreted as 11/09/2016 - system uses only last 2 digits for year)");
-            _output.WriteLine($"Phone: {phone}");
-            _output.WriteLine($"Emergency Phone: {emergencyPhone}");
 
-            // Fill First Name
-            var firstNameField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcfirstname"));
-            firstNameField.Click();
-            System.Threading.Thread.Sleep(200);
-            firstNameField.Clear();
-            firstNameField.SendKeys(firstName);
-            _output.WriteLine("[PASS] Filled PC1 First Name");
-
-            // Fill Last Name
-            var lastNameField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpclastname"));
-            lastNameField.Click();
-            System.Threading.Thread.Sleep(200);
-            lastNameField.Clear();
-            lastNameField.SendKeys(lastName);
-            _output.WriteLine("[PASS] Filled PC1 Last Name");
-
-            // Fill DOB
-            var dobField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcdob"));
-            dobField.Click();
-            System.Threading.Thread.Sleep(200);
-            dobField.Clear();
-            dobField.SendKeys(dob);
-            _output.WriteLine("[PASS] Filled DOB");
-
-            // Fill Phone
-            var phoneField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcphone"));
-            phoneField.Click();
-            System.Threading.Thread.Sleep(200);
-            phoneField.Clear();
-            phoneField.SendKeys(phone);
-            _output.WriteLine("[PASS] Filled Phone");
-
-            // Fill Emergency Phone
-            var emergencyPhoneField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcemergencyphone"));
-            emergencyPhoneField.Click();
-            System.Threading.Thread.Sleep(200);
-            emergencyPhoneField.Clear();
-            emergencyPhoneField.SendKeys(emergencyPhone);
-            _output.WriteLine("[PASS] Filled Emergency Phone");
-            
-            System.Threading.Thread.Sleep(500);
-
-            // Click Search button
-            _output.WriteLine("\n========================================");
-            _output.WriteLine("SEARCHING FOR PERSON");
-            _output.WriteLine("========================================");
-
-            var searchButton = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_btSearch"));
-            Assert.NotNull(searchButton);
-            _output.WriteLine($"Found search button: id='{searchButton.GetAttribute("id")}'");
-            
-            searchButton.Click();
-            driver.WaitForReady(30);
-            System.Threading.Thread.Sleep(2000);
-            _output.WriteLine("[PASS] Clicked Search button");
+            // Fill in the search form
+            FillPersonSearchForm(driver, firstName, lastName, dob, phone, emergencyPhone);
+            ClickSearchButton(driver);
 
             // Verify "No records found." message
             _output.WriteLine("\n========================================");
@@ -2729,6 +2216,219 @@ namespace AFUT.Tests.UnitTests.Referrals
             }
             
             _output.WriteLine($"\n[COMPLETE] Test finished! Final URL: {urlAfterSubmit}");
+        }
+
+        [Fact]
+        public void NewReferral_SelectExistingPerson_SubmitWithoutRequiredFields_ShowsValidationErrors()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            // Use helper methods for common operations
+            LoginAndNavigateToReferrals(driver);
+            ClickNewReferralButton(driver);
+
+            // Search for existing person
+            var firstName = "checkone";
+            var lastName = "check";
+            var dob = "11091616";
+            var phone = "1111111111";
+            var emergencyPhone = "1111111111";
+
+            FillPersonSearchForm(driver, firstName, lastName, dob, phone, emergencyPhone);
+            ClickSearchButton(driver);
+
+            // Find and click the Select link for the existing person
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("SELECTING EXISTING PERSON FROM RESULTS");
+            _output.WriteLine("========================================");
+
+            var selectLinks = driver.FindElements(OpenQA.Selenium.By.LinkText("Select"));
+            _output.WriteLine($"Found {selectLinks.Count} 'Select' link(s)");
+            
+            Assert.True(selectLinks.Count > 0, "Expected to find at least one 'Select' link for existing person");
+            
+            var firstSelectLink = selectLinks.FirstOrDefault(l => l.Displayed);
+            Assert.NotNull(firstSelectLink);
+            _output.WriteLine("Found 'Select' link for existing person");
+            
+            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", firstSelectLink);
+            System.Threading.Thread.Sleep(500);
+            firstSelectLink.Click();
+            
+            driver.WaitForReady(30);
+            System.Threading.Thread.Sleep(2000);
+            _output.WriteLine("[PASS] Clicked 'Select' link");
+            _output.WriteLine($"Current URL: {driver.Url}");
+            _output.WriteLine($"Page Title: {driver.Title}");
+
+            // Log all form fields on the referral page
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("REFERRAL FORM PAGE - LOGGING ELEMENTS");
+            _output.WriteLine("========================================");
+
+            var formFields = driver.FindElements(OpenQA.Selenium.By.CssSelector("input, select, textarea"))
+                .Where(f => f.Displayed).ToList();
+            _output.WriteLine($"Found {formFields.Count} visible form fields");
+
+            // Click Submit WITHOUT filling any required fields
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("SUBMITTING WITHOUT REQUIRED FIELDS");
+            _output.WriteLine("========================================");
+
+            var submitButtons = driver.FindElements(OpenQA.Selenium.By.CssSelector("input[type='submit'], button[type='submit'], input[value*='Submit'], button[id*='Submit'], a[id*='Submit']"));
+            _output.WriteLine($"Found {submitButtons.Count} submit button(s)");
+            
+            var submitButton = submitButtons.FirstOrDefault(b => 
+            {
+                var text = b.Text?.Trim() ?? b.GetAttribute("value") ?? "";
+                var id = b.GetAttribute("id") ?? "";
+                return (text.Contains("Submit", StringComparison.OrdinalIgnoreCase) || 
+                        id.Contains("Submit", StringComparison.OrdinalIgnoreCase)) &&
+                       b.Displayed && b.Enabled;
+            });
+
+            Assert.NotNull(submitButton);
+            _output.WriteLine($"Found Submit button: id='{submitButton.GetAttribute("id")}', text='{submitButton.Text?.Trim() ?? submitButton.GetAttribute("value")}'");
+            
+            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", submitButton);
+            System.Threading.Thread.Sleep(500);
+            submitButton.Click();
+            
+            driver.WaitForReady(30);
+            System.Threading.Thread.Sleep(2000);
+            _output.WriteLine("[PASS] Clicked Submit button");
+            _output.WriteLine($"Current URL after submit: {driver.Url}");
+
+            // Check for validation error messages
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("CHECKING FOR VALIDATION ERROR MESSAGES");
+            _output.WriteLine("========================================");
+
+            var expectedErrors = new[]
+            {
+                "Date Worker Assigned is required!",
+                "Worker is required!",
+                "Type of Referral Source is required!",
+                "Name/Organization Name of Referral Source is required!"
+            };
+
+            var foundErrors = new System.Collections.Generic.List<string>();
+            var missingErrors = new System.Collections.Generic.List<string>();
+
+            // Search for validation messages using various selectors
+            var errorSelectors = new[]
+            {
+                OpenQA.Selenium.By.CssSelector(".alert"),
+                OpenQA.Selenium.By.CssSelector(".alert-danger"),
+                OpenQA.Selenium.By.CssSelector(".alert-warning"),
+                OpenQA.Selenium.By.CssSelector("[class*='error']"),
+                OpenQA.Selenium.By.CssSelector("[class*='validation']"),
+                OpenQA.Selenium.By.CssSelector(".field-validation-error"),
+                OpenQA.Selenium.By.CssSelector(".text-danger"),
+                OpenQA.Selenium.By.CssSelector("span[style*='color: red']"),
+                OpenQA.Selenium.By.CssSelector("span[style*='color:red']"),
+                OpenQA.Selenium.By.XPath("//*[contains(text(), 'required')]")
+            };
+
+            _output.WriteLine("Searching for validation error messages...");
+            
+            var allErrorElements = new System.Collections.Generic.List<OpenQA.Selenium.IWebElement>();
+            foreach (var selector in errorSelectors)
+            {
+                try
+                {
+                    var elements = driver.FindElements(selector);
+                    foreach (var element in elements)
+                    {
+                        if (element.Displayed)
+                        {
+                            allErrorElements.Add(element);
+                        }
+                    }
+                }
+                catch
+                {
+                    // Continue with next selector
+                }
+            }
+
+            _output.WriteLine($"Found {allErrorElements.Count} error elements on the page");
+            
+            // Log all error messages found
+            var uniqueErrorMessages = new System.Collections.Generic.HashSet<string>();
+            foreach (var element in allErrorElements)
+            {
+                try
+                {
+                    var text = element.Text?.Trim() ?? "";
+                    if (!string.IsNullOrWhiteSpace(text) && text.Contains("required", StringComparison.OrdinalIgnoreCase))
+                    {
+                        uniqueErrorMessages.Add(text);
+                        _output.WriteLine($"  [FOUND] Error message: '{text}'");
+                    }
+                }
+                catch
+                {
+                    // Continue
+                }
+            }
+
+            // Check for each expected error
+            foreach (var expectedError in expectedErrors)
+            {
+                var found = uniqueErrorMessages.Any(msg => msg.Contains(expectedError, StringComparison.Ordinal));
+                if (found)
+                {
+                    foundErrors.Add(expectedError);
+                    _output.WriteLine($"[PASS] Found expected error: '{expectedError}'");
+                }
+                else
+                {
+                    missingErrors.Add(expectedError);
+                    _output.WriteLine($"[MISS] Expected error not found: '{expectedError}'");
+                }
+            }
+
+            // Check if we're still on the referral page (validation blocked submission)
+            var stillOnReferralPage = driver.Url.Contains("Referral.aspx", StringComparison.OrdinalIgnoreCase);
+            _output.WriteLine($"\nStill on Referral page: {stillOnReferralPage}");
+
+            if (stillOnReferralPage)
+            {
+                _output.WriteLine("[SUCCESS] Form submission was blocked by validation - as expected!");
+            }
+
+            // Test summary
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("TEST SUMMARY - VALIDATION ERRORS TEST");
+            _output.WriteLine("========================================");
+            _output.WriteLine("[PASS] Successfully searched for existing person");
+            _output.WriteLine("[PASS] Successfully selected existing person from results");
+            _output.WriteLine("[PASS] Successfully clicked Submit without filling required fields");
+            _output.WriteLine($"\nValidation Errors Found: {foundErrors.Count} out of {expectedErrors.Length}");
+            
+            foreach (var error in foundErrors)
+            {
+                _output.WriteLine($"  ✓ {error}");
+            }
+            
+            if (missingErrors.Count > 0)
+            {
+                _output.WriteLine($"\nExpected Errors NOT Found: {missingErrors.Count}");
+                foreach (var error in missingErrors)
+                {
+                    _output.WriteLine($"  ✗ {error}");
+                }
+            }
+
+            // Assert all expected errors were found
+            foreach (var expectedError in expectedErrors)
+            {
+                Assert.Contains(expectedError, uniqueErrorMessages, StringComparer.Ordinal);
+            }
+
+            _output.WriteLine("\n[PASS] All required validation error messages were displayed correctly!");
+            _output.WriteLine($"Final URL: {driver.Url}");
         }
     }
 }
