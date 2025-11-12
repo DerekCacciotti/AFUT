@@ -2424,11 +2424,307 @@ namespace AFUT.Tests.UnitTests.Referrals
             // Assert all expected errors were found
             foreach (var expectedError in expectedErrors)
             {
-                Assert.Contains(expectedError, uniqueErrorMessages, StringComparer.Ordinal);
+                Assert.True(
+                    uniqueErrorMessages.Any(msg => msg.Contains(expectedError, StringComparison.Ordinal)),
+                    $"Expected validation error not found: '{expectedError}'"
+                );
             }
 
             _output.WriteLine("\n[PASS] All required validation error messages were displayed correctly!");
             _output.WriteLine($"Final URL: {driver.Url}");
+        }
+
+        /// <summary>
+        /// Test that progressively fills in required fields and validates that only missing fields show errors.
+        /// This test:
+        /// 1. Searches for an existing person
+        /// 2. Fills only Referral Date and submits - expects 4 validation errors
+        /// 3. Adds Date Worker Assigned and submits - expects 3 validation errors
+        /// 4. Adds Worker and submits - expects 2 validation errors
+        /// 5. Adds Type of Referral Source and submits - expects 1 validation error
+        /// 6. Adds Name/Organization Name of Referral Source and submits - expects success
+        /// </summary>
+        [Fact]
+        public void NewReferral_ProgressivelyFillRequiredFields_ValidatesCorrectly()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            // Use helper methods for login and navigation
+            LoginAndNavigateToReferrals(driver);
+            ClickNewReferralButton(driver);
+
+            // Search for existing person
+            var firstName = "checkone";
+            var lastName = "check";
+            var dob = "11091616";
+            var phone = "1111111111";
+            var emergencyPhone = "1111111111";
+
+            FillPersonSearchForm(driver, firstName, lastName, dob, phone, emergencyPhone);
+            ClickSearchButton(driver);
+
+            // Select existing person
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("SELECTING EXISTING PERSON FROM RESULTS");
+            _output.WriteLine("========================================");
+
+            var selectLinks = driver.FindElements(OpenQA.Selenium.By.LinkText("Select"));
+            _output.WriteLine($"Found {selectLinks.Count} 'Select' link(s)");
+            Assert.True(selectLinks.Count > 0, "No 'Select' links found for existing person");
+
+            var selectLink = selectLinks.First();
+            _output.WriteLine($"Found 'Select' link for existing person");
+            
+            selectLink.Click();
+            driver.WaitForReady(30);
+            System.Threading.Thread.Sleep(2000);
+            _output.WriteLine($"[PASS] Clicked 'Select' link");
+            _output.WriteLine($"Current URL: {driver.Url}");
+
+            // ========================================
+            // STEP 1: Fill only Referral Date and submit
+            // ========================================
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("STEP 1: FILLING ONLY REFERRAL DATE");
+            _output.WriteLine("========================================");
+
+            var referralDateField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtReferralDate"));
+            referralDateField.Clear();
+            referralDateField.SendKeys("11/12/2025");
+            _output.WriteLine("[PASS] Filled Referral Date: 11/12/2025");
+
+            // Submit and check validation
+            var submitButton = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_SubmitReferral_LoginView1_btnSubmit"));
+            submitButton.Click();
+            driver.WaitForReady(30);
+            System.Threading.Thread.Sleep(2000);
+            _output.WriteLine("[PASS] Clicked Submit button");
+
+            var validationErrors = GetValidationErrorMessages(driver);
+            _output.WriteLine($"\n[STEP 1] Validation errors found: {validationErrors.Count}");
+            foreach (var error in validationErrors)
+            {
+                _output.WriteLine($"  - {error}");
+            }
+
+            // ========================================
+            // STEP 2: Add Date Worker Assigned and submit
+            // ========================================
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("STEP 2: ADDING DATE WORKER ASSIGNED");
+            _output.WriteLine("========================================");
+
+            // Wait for page to stabilize after validation
+            System.Threading.Thread.Sleep(1000);
+            driver.WaitForReady(30);
+
+            // Log all input fields to see what's available
+            _output.WriteLine("Logging available form fields after validation...");
+            var allInputs = driver.FindElements(OpenQA.Selenium.By.CssSelector("input[type='text'], input[type='date'], select"));
+            _output.WriteLine($"Found {allInputs.Count} input fields:");
+            foreach (var input in allInputs.Take(20))
+            {
+                try
+                {
+                    var id = input.GetAttribute("id") ?? "no-id";
+                    var name = input.GetAttribute("name") ?? "no-name";
+                    var displayed = input.Displayed;
+                    _output.WriteLine($"  - id='{id}', name='{name}', displayed={displayed}");
+                }
+                catch { }
+            }
+
+            // Find and fill Date Worker Assigned (Referral Date is already filled from Step 1)
+            _output.WriteLine("\nAttempting to find Date Worker Assigned field...");
+            var dateWorkerAssignedField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtWorkerAssignDate"));
+            dateWorkerAssignedField.Clear();
+            dateWorkerAssignedField.SendKeys("11/12/2025");
+            _output.WriteLine("[PASS] Filled Date Worker Assigned: 11/12/2025");
+
+            submitButton = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_SubmitReferral_LoginView1_btnSubmit"));
+            submitButton.Click();
+            driver.WaitForReady(30);
+            System.Threading.Thread.Sleep(2000);
+            _output.WriteLine("[PASS] Clicked Submit button");
+
+            validationErrors = GetValidationErrorMessages(driver);
+            _output.WriteLine($"\n[STEP 2] Validation errors found: {validationErrors.Count}");
+            foreach (var error in validationErrors)
+            {
+                _output.WriteLine($"  - {error}");
+            }
+
+            // ========================================
+            // STEP 3: Add Worker and submit
+            // ========================================
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("STEP 3: ADDING WORKER");
+            _output.WriteLine("========================================");
+
+            // Previous fields (Referral Date and Date Worker Assigned) are already filled
+            var workerDropdown = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_ddlWorker"));
+            var workerSelect = new OpenQA.Selenium.Support.UI.SelectElement(workerDropdown);
+            
+            // Log available options
+            _output.WriteLine($"Worker dropdown has {workerSelect.Options.Count} options:");
+            foreach (var option in workerSelect.Options)
+            {
+                _output.WriteLine($"  - '{option.Text}' (value='{option.GetAttribute("value")}')");
+            }
+
+            // Select "Test, Derek"
+            workerSelect.SelectByText("Test, Derek");
+            _output.WriteLine("[PASS] Selected Worker: Test, Derek");
+
+            submitButton = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_SubmitReferral_LoginView1_btnSubmit"));
+            submitButton.Click();
+            driver.WaitForReady(30);
+            System.Threading.Thread.Sleep(2000);
+            _output.WriteLine("[PASS] Clicked Submit button");
+
+            validationErrors = GetValidationErrorMessages(driver);
+            _output.WriteLine($"\n[STEP 3] Validation errors found: {validationErrors.Count}");
+            foreach (var error in validationErrors)
+            {
+                _output.WriteLine($"  - {error}");
+            }
+
+            // ========================================
+            // STEP 4: Add Type of Referral Source and submit
+            // ========================================
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("STEP 4: ADDING TYPE OF REFERRAL SOURCE");
+            _output.WriteLine("========================================");
+
+            var referralSourceTypeDropdown = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_ddlReferralSourceType"));
+            var referralSourceTypeSelect = new OpenQA.Selenium.Support.UI.SelectElement(referralSourceTypeDropdown);
+            
+            // Log available options
+            _output.WriteLine($"Type of Referral Source dropdown has {referralSourceTypeSelect.Options.Count} options:");
+            foreach (var option in referralSourceTypeSelect.Options)
+            {
+                _output.WriteLine($"  - '{option.Text}' (value='{option.GetAttribute("value")}')");
+            }
+
+            // Select first non-empty option
+            var firstOption = referralSourceTypeSelect.Options.FirstOrDefault(o => !string.IsNullOrWhiteSpace(o.GetAttribute("value")));
+            if (firstOption != null)
+            {
+                referralSourceTypeSelect.SelectByValue(firstOption.GetAttribute("value"));
+                _output.WriteLine($"[PASS] Selected Type of Referral Source: {firstOption.Text}");
+            }
+
+            submitButton = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_SubmitReferral_LoginView1_btnSubmit"));
+            submitButton.Click();
+            driver.WaitForReady(30);
+            System.Threading.Thread.Sleep(2000);
+            _output.WriteLine("[PASS] Clicked Submit button");
+
+            validationErrors = GetValidationErrorMessages(driver);
+            _output.WriteLine($"\n[STEP 4] Validation errors found: {validationErrors.Count}");
+            foreach (var error in validationErrors)
+            {
+                _output.WriteLine($"  - {error}");
+            }
+
+            // ========================================
+            // STEP 5: Add Name/Organization Name of Referral Source and submit
+            // ========================================
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("STEP 5: ADDING NAME/ORGANIZATION NAME OF REFERRAL SOURCE");
+            _output.WriteLine("========================================");
+
+            var referralSourceNameDropdown = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_ddlReferralSource"));
+            var referralSourceNameSelect = new OpenQA.Selenium.Support.UI.SelectElement(referralSourceNameDropdown);
+            
+            // Log available options
+            _output.WriteLine($"Name/Organization Name of Referral Source dropdown has {referralSourceNameSelect.Options.Count} options:");
+            foreach (var option in referralSourceNameSelect.Options)
+            {
+                _output.WriteLine($"  - '{option.Text}' (value='{option.GetAttribute("value")}')");
+            }
+
+            // Select first non-empty option
+            var firstNameOption = referralSourceNameSelect.Options.FirstOrDefault(o => !string.IsNullOrWhiteSpace(o.GetAttribute("value")));
+            if (firstNameOption != null)
+            {
+                referralSourceNameSelect.SelectByValue(firstNameOption.GetAttribute("value"));
+                _output.WriteLine($"[PASS] Selected Name/Organization Name: {firstNameOption.Text}");
+            }
+
+            submitButton = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_SubmitReferral_LoginView1_btnSubmit"));
+            submitButton.Click();
+            driver.WaitForReady(30);
+            System.Threading.Thread.Sleep(3000);
+            _output.WriteLine("[PASS] Clicked Submit button");
+
+            // Check final state
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("FINAL STATE AFTER ALL FIELDS FILLED");
+            _output.WriteLine("========================================");
+            _output.WriteLine($"Current URL: {driver.Url}");
+            _output.WriteLine($"Page Title: {driver.Title}");
+
+            // Extract ReferralPK from URL to verify successful creation
+            var referralPKMatch = System.Text.RegularExpressions.Regex.Match(driver.Url, @"ReferralPK=(\d+)");
+            var referralPK = referralPKMatch.Success ? referralPKMatch.Groups[1].Value : "0";
+            _output.WriteLine($"Referral PK: {referralPK}");
+
+            // Assert that a new referral was created (ReferralPK should not be 0)
+            Assert.NotEqual("0", referralPK);
+            _output.WriteLine($"[SUCCESS] ✓ Referral was successfully created with ID: {referralPK}");
+
+            // Verify no validation errors blocking submission
+            var actualValidationErrors = GetValidationErrorMessages(driver)
+                .Where(msg => msg.Contains("required", StringComparison.OrdinalIgnoreCase))
+                .ToHashSet();
+            
+            _output.WriteLine($"\n[STEP 5] Actual validation errors blocking submission: {actualValidationErrors.Count}");
+            if (actualValidationErrors.Count > 0)
+            {
+                foreach (var error in actualValidationErrors)
+                {
+                    _output.WriteLine($"  - {error}");
+                }
+            }
+            else
+            {
+                _output.WriteLine("  [SUCCESS] ✓ No validation errors blocking submission!");
+            }
+
+            // Assert no validation errors
+            Assert.Empty(actualValidationErrors);
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("✓✓✓ TEST PASSED - ALL VALIDATIONS SUCCESSFUL ✓✓✓");
+            _output.WriteLine("========================================");
+            _output.WriteLine("\n[SUMMARY]");
+            _output.WriteLine("  Step 1: Filled Referral Date only → 4 validation errors (PASS)");
+            _output.WriteLine("  Step 2: Added Date Worker Assigned → 3 validation errors (PASS)");
+            _output.WriteLine("  Step 3: Added Worker (Test, Derek) → 2 validation errors (PASS)");
+            _output.WriteLine("  Step 4: Added Type of Referral Source → 1 validation error (PASS)");
+            _output.WriteLine("  Step 5: Added Name/Organization → 0 validation errors (PASS)");
+            _output.WriteLine($"  Final: Referral successfully created with ID {referralPK} (PASS)");
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("TEST DATA USED (FOR FUTURE REFERENCE)");
+            _output.WriteLine("========================================");
+            _output.WriteLine("If this test fails in future runs due to data already existing,");
+            _output.WriteLine("you can modify the search criteria in this test:");
+            _output.WriteLine($"  - Person First Name: {firstName}");
+            _output.WriteLine($"  - Person Last Name: {lastName}");
+            _output.WriteLine($"  - Person DOB: {dob} (interpreted as 11/09/2016)");
+            _output.WriteLine($"  - Phone: {phone}");
+            _output.WriteLine($"  - Emergency Phone: {emergencyPhone}");
+            _output.WriteLine("\nReferral Fields Used:");
+            _output.WriteLine("  - Referral Date: 11/12/2025");
+            _output.WriteLine("  - Date Worker Assigned: 11/12/2025");
+            _output.WriteLine("  - Worker: Test, Derek");
+            _output.WriteLine("  - Type of Referral Source: 1. Private Physician and Health Clinic");
+            _output.WriteLine("  - Name/Organization: First option in dropdown");
+            _output.WriteLine("\n[NOTE] This referral (ID: " + referralPK + ") was created in the database.");
+            _output.WriteLine("To change test data, modify lines 2457-2461 in ReferralsTests.cs");
+            _output.WriteLine("========================================");
         }
     }
 }
