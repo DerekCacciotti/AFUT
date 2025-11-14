@@ -86,62 +86,16 @@ namespace AFUT.Tests.UnitTests.Referrals
 
         private OpenQA.Selenium.IWebElement FindNewReferralButton(IPookieWebDriver driver)
         {
-            var cssSelectors = new[]
+            var match = driver.FindElements(OpenQA.Selenium.By.CssSelector(".btn.btn-default.pull-right"))
+                .FirstOrDefault(el => el.Displayed && el.Enabled && ElementTextContains(el, "New Referral"));
+            
+            if (match != null)
             {
-                ".btn.btn-default.pull-right",
-                ".custom-btn-link.btn.pull-right",
-                ".btn.btn-primary.pull-right",
-                ".referrals-actions .btn",
-                ".referrals-header .btn",
-                "a[class*='referral']",
-                "button[class*='referral']",
-                "input[class*='referral']",
-                ".btn.btn-primary",
-                ".btn"
-            };
-
-            foreach (var selector in cssSelectors)
-            {
-                try
-                {
-                    var candidates = driver.FindElements(OpenQA.Selenium.By.CssSelector(selector));
-                    var match = candidates.FirstOrDefault(el => el.Displayed && el.Enabled && ElementTextContains(el, "New Referral"));
-                    if (match != null)
-                    {
-                        _output.WriteLine($"[INFO] Found New Referral button using CSS selector '{selector}' and class '{match.GetAttribute("class")}'");
-                        return match;
-                    }
-                }
-                catch (OpenQA.Selenium.InvalidSelectorException invalidSelector)
-                {
-                    _output.WriteLine($"[WARN] Invalid selector '{selector}': {invalidSelector.Message}");
-                }
-                catch (OpenQA.Selenium.WebDriverException driverException)
-                {
-                    _output.WriteLine($"[WARN] Unable to evaluate selector '{selector}': {driverException.Message}");
-                }
+                _output.WriteLine($"[INFO] Found New Referral button using CSS selector '.btn.btn-default.pull-right'");
+                return match;
             }
 
-            var textLocators = new[]
-            {
-                OpenQA.Selenium.By.XPath("//a[normalize-space()='New Referral']"),
-                OpenQA.Selenium.By.XPath("//button[normalize-space()='New Referral']"),
-                OpenQA.Selenium.By.XPath("//a[contains(normalize-space(),'New Referral')]"),
-                OpenQA.Selenium.By.XPath("//button[contains(normalize-space(),'New Referral')]"),
-                OpenQA.Selenium.By.XPath("//input[@type='button' or @type='submit'][@value='New Referral']")
-            };
-
-            foreach (var locator in textLocators)
-            {
-                var match = driver.FindElements(locator).FirstOrDefault(el => el.Displayed && el.Enabled);
-                if (match != null)
-                {
-                    _output.WriteLine("[INFO] Found New Referral button via button text match");
-                    return match;
-                }
-            }
-
-            throw new InvalidOperationException("Unable to locate the New Referral button using CSS selectors or button text.");
+            throw new InvalidOperationException("Unable to locate the New Referral button.");
         }
 
         private static bool ElementTextContains(OpenQA.Selenium.IWebElement element, string expectedValue)
@@ -159,53 +113,16 @@ namespace AFUT.Tests.UnitTests.Referrals
 
         private OpenQA.Selenium.IWebElement FindActiveReferralsTable(IPookieWebDriver driver)
         {
-            var cssSelectors = new[]
+            var match = driver.FindElements(OpenQA.Selenium.By.CssSelector(".table.table-condensed.table-responsive.dataTable.no-footer.dtr-column"))
+                .FirstOrDefault(el => el.Displayed && LooksLikeActiveReferrals(el));
+            
+            if (match != null)
             {
-                ".table.table-condensed.table-responsive.dataTable.no-footer.dtr-column",
-                ".dataTables_wrapper table.dataTable",
-                ".referrals table",
-                ".referrals-list table",
-                ".active-referrals table",
-                ".referrals-grid table",
-                "table.table"
-            };
-
-            foreach (var selector in cssSelectors)
-            {
-                try
-                {
-                    var candidates = driver.FindElements(OpenQA.Selenium.By.CssSelector(selector));
-                    var match = candidates.FirstOrDefault(el => el.Displayed && LooksLikeActiveReferrals(el));
-                    if (match != null)
-                    {
-                        _output.WriteLine($"[INFO] Found Active Referrals table using CSS selector '{selector}' (class='{match.GetAttribute("class")}')");
-                        return match;
-                    }
-                }
-                catch (OpenQA.Selenium.InvalidSelectorException invalidSelector)
-                {
-                    _output.WriteLine($"[WARN] Invalid selector '{selector}': {invalidSelector.Message}");
-                }
-                catch (OpenQA.Selenium.WebDriverException driverException)
-                {
-                    _output.WriteLine($"[WARN] Unable to evaluate selector '{selector}': {driverException.Message}");
-                }
+                _output.WriteLine($"[INFO] Found Active Referrals table using CSS selector '.table.table-condensed.table-responsive.dataTable.no-footer.dtr-column'");
+                return match;
             }
 
-            var headingMatches = driver.FindElements(OpenQA.Selenium.By.XPath(
-                "//table[.//th[contains(translate(normalize-space(.),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'active referrals')] or " +
-                ".//caption[contains(translate(normalize-space(.),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'active referrals')] or " +
-                "contains(translate(@summary,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'active referrals') or " +
-                "contains(translate(@aria-label,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'active referrals')]"));
-
-            var fallback = headingMatches.FirstOrDefault(el => el.Displayed);
-            if (fallback != null)
-            {
-                _output.WriteLine("[INFO] Found Active Referrals table via table heading text");
-                return fallback;
-            }
-
-            throw new InvalidOperationException("Unable to locate the Active Referrals table using CSS selectors or table headings.");
+            throw new InvalidOperationException("Unable to locate the Active Referrals table.");
         }
 
         private bool LooksLikeActiveReferrals(OpenQA.Selenium.IWebElement table)
@@ -229,96 +146,30 @@ namespace AFUT.Tests.UnitTests.Referrals
 
         private OpenQA.Selenium.IWebElement FindCompletedReferralYearDropdown(IPookieWebDriver driver)
         {
-            var cssSelectors = new[]
+            var match = driver.FindElements(OpenQA.Selenium.By.CssSelector("select.form-control[name$='ddlCompletedReferralYear']"))
+                .FirstOrDefault(el => el.Displayed && el.Enabled);
+            
+            if (match != null)
             {
-                "select.form-control[name$='ddlCompletedReferralYear']",
-                "select.form-control[name*='CompletedReferralYear']",
-                "select[name$='ddlCompletedReferralYear']",
-                "select[name*='CompletedReferralYear']"
-            };
-
-            foreach (var selector in cssSelectors)
-            {
-                var match = driver.FindElements(OpenQA.Selenium.By.CssSelector(selector))
-                    .FirstOrDefault(el => el.Displayed && el.Enabled);
-                if (match != null)
-                {
-                    _output.WriteLine($"[INFO] Found completed referral year dropdown via selector '{selector}'");
-                    return match;
-                }
+                _output.WriteLine("[INFO] Found completed referral year dropdown");
+                return match;
             }
 
-            var labelElement = driver.FindElements(OpenQA.Selenium.By.XPath(
-                    "//label[contains(translate(normalize-space(.),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'completed referral year')]"))
-                .FirstOrDefault();
-
-            if (labelElement != null)
-            {
-                var forAttribute = labelElement.GetAttribute("for");
-                if (!string.IsNullOrWhiteSpace(forAttribute))
-                {
-                    var input = driver.FindElements(OpenQA.Selenium.By.Id(forAttribute))
-                        .FirstOrDefault(el => el.Displayed && el.TagName.Equals("select", StringComparison.OrdinalIgnoreCase));
-                    if (input != null)
-                    {
-                        _output.WriteLine("[INFO] Found completed referral year dropdown via label association");
-                        return input;
-                    }
-                }
-            }
-
-            throw new InvalidOperationException("Unable to locate the Completed Referral Year dropdown using CSS selectors or labels.");
+            throw new InvalidOperationException("Unable to locate the Completed Referral Year dropdown.");
         }
 
         private OpenQA.Selenium.IWebElement FindCompletedReferralsTable(IPookieWebDriver driver)
         {
-            var cssSelectors = new[]
+            var match = driver.FindElements(OpenQA.Selenium.By.CssSelector(".table.table-condensed.table-responsive.dataTable.no-footer.dtr-column"))
+                .FirstOrDefault(el => el.Displayed && LooksLikeCompletedReferrals(el));
+            
+            if (match != null)
             {
-                ".table.table-condensed.table-responsive.dataTable.no-footer.dtr-column",
-                ".dataTables_wrapper table.dataTable",
-                ".referrals table",
-                ".referrals-list table",
-                ".referrals-grid table",
-                ".panel-body table",
-                "table.table"
-            };
-
-            foreach (var selector in cssSelectors)
-            {
-                try
-                {
-                    var candidates = driver.FindElements(OpenQA.Selenium.By.CssSelector(selector));
-                    var match = candidates.FirstOrDefault(el => el.Displayed && LooksLikeCompletedReferrals(el));
-                    if (match != null)
-                    {
-                        _output.WriteLine($"[INFO] Found Completed Referrals table using CSS selector '{selector}'");
-                        return match;
-                    }
-                }
-                catch (OpenQA.Selenium.InvalidSelectorException invalidSelector)
-                {
-                    _output.WriteLine($"[WARN] Invalid selector '{selector}': {invalidSelector.Message}");
-                }
-                catch (OpenQA.Selenium.WebDriverException driverException)
-                {
-                    _output.WriteLine($"[WARN] Unable to evaluate selector '{selector}': {driverException.Message}");
-                }
+                _output.WriteLine("[INFO] Found Completed Referrals table using CSS selector '.table.table-condensed.table-responsive.dataTable.no-footer.dtr-column'");
+                return match;
             }
 
-            var headingMatches = driver.FindElements(OpenQA.Selenium.By.XPath(
-                "//table[.//th[contains(translate(normalize-space(.),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'completed referrals')] or " +
-                ".//caption[contains(translate(normalize-space(.),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'completed referrals')] or " +
-                "contains(translate(@summary,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'completed referrals') or " +
-                "contains(translate(@aria-label,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'completed referrals')]"));
-
-            var fallback = headingMatches.FirstOrDefault(el => el.Displayed);
-            if (fallback != null)
-            {
-                _output.WriteLine("[INFO] Found Completed Referrals table via table heading text");
-                return fallback;
-            }
-
-            throw new InvalidOperationException("Unable to locate the Completed Referrals table using CSS selectors or table headings.");
+            throw new InvalidOperationException("Unable to locate the Completed Referrals table.");
         }
 
         private bool LooksLikeCompletedReferrals(OpenQA.Selenium.IWebElement table)
@@ -347,45 +198,16 @@ namespace AFUT.Tests.UnitTests.Referrals
                 throw new ArgumentNullException(nameof(tableRow));
             }
 
-            var primarySelectors = new[]
+            var match = tableRow.FindElements(OpenQA.Selenium.By.CssSelector("a.btn.btn-default"))
+                .FirstOrDefault(el => el.Displayed &&
+                                      el.Enabled &&
+                                      (ElementTextContains(el, "Edit") ||
+                                       ElementHasIcon(el, "glyphicon-pencil")));
+            
+            if (match != null)
             {
-                "a.btn.btn-default",
-                "button.btn.btn-default",
-                "a.btn",
-                "button.btn"
-            };
-
-            foreach (var selector in primarySelectors)
-            {
-                var match = tableRow.FindElements(OpenQA.Selenium.By.CssSelector(selector))
-                    .FirstOrDefault(el => el.Displayed &&
-                                          el.Enabled &&
-                                          (ElementTextContains(el, "Edit") ||
-                                           ElementHasIcon(el, "glyphicon-pencil")));
-                if (match != null)
-                {
-                    _output.WriteLine($"[INFO] Found edit button via selector '{selector}'");
-                    return match;
-                }
-            }
-
-            var fallback = tableRow
-                .FindElements(OpenQA.Selenium.By.CssSelector("a, button, input[type='button'], input[type='submit'], input[type='image']"))
-                .FirstOrDefault(el =>
-                {
-                    var text = el.Text?.Trim() ?? el.GetAttribute("value") ?? "";
-                    var id = el.GetAttribute("id") ?? "";
-                    var title = el.GetAttribute("title") ?? "";
-                    return el.Enabled &&
-                           (text.Equals("Edit", StringComparison.OrdinalIgnoreCase) ||
-                            id.Contains("Edit", StringComparison.OrdinalIgnoreCase) ||
-                            title.Contains("Edit", StringComparison.OrdinalIgnoreCase));
-                });
-
-            if (fallback != null)
-            {
-                _output.WriteLine("[INFO] Found edit button via fallback element search");
-                return fallback;
+                _output.WriteLine("[INFO] Found edit button via selector 'a.btn.btn-default'");
+                return match;
             }
 
             throw new InvalidOperationException("Unable to locate the edit button within the referral row.");
@@ -410,27 +232,27 @@ namespace AFUT.Tests.UnitTests.Referrals
 
         private OpenQA.Selenium.IWebElement FindReferralSearchResultsGrid(IPookieWebDriver driver)
         {
-            var cssSelectors = new[]
+            // Try table with grResults ID first (most specific)
+            var match = driver.FindElements(OpenQA.Selenium.By.CssSelector("table[id*='grResults']"))
+                .FirstOrDefault(el => el.Displayed);
+            
+            if (match != null)
             {
-                "div[id*='SearchResults'] table.dataTable",
-                "div[id*='SearchResults'] table.table",
-                ".dataTables_wrapper table.dataTable",
-                ".table.table-condensed.table-responsive.dataTable",
-                "table.table"
-            };
-
-            foreach (var selector in cssSelectors)
-            {
-                var candidates = driver.FindElements(OpenQA.Selenium.By.CssSelector(selector));
-                var match = candidates.FirstOrDefault(el => el.Displayed && LooksLikeSearchResults(el));
-                if (match != null)
-                {
-                    _output.WriteLine($"[INFO] Found referral search results grid via selector '{selector}'");
-                    return match;
-                }
+                _output.WriteLine("[INFO] Found referral search results grid");
+                return match;
             }
 
-            throw new InvalidOperationException("Unable to locate the referral search results grid using CSS selectors.");
+            // Fallback to wrapper div approach
+            match = driver.FindElements(OpenQA.Selenium.By.CssSelector("div[id*='grResults'] table.dataTable"))
+                .FirstOrDefault(el => el.Displayed && LooksLikeSearchResults(el));
+            
+            if (match != null)
+            {
+                _output.WriteLine("[INFO] Found referral search results grid");
+                return match;
+            }
+
+            throw new InvalidOperationException("Unable to locate the referral search results grid.");
         }
 
         private bool LooksLikeSearchResults(OpenQA.Selenium.IWebElement table)
@@ -456,75 +278,37 @@ namespace AFUT.Tests.UnitTests.Referrals
         {
             optionText = optionText?.Trim() ?? throw new ArgumentNullException(nameof(optionText));
 
-            var containerSelectors = new[]
+            var chosenContainer = driver.FindElements(OpenQA.Selenium.By.CssSelector($".chosen-container[id$='{selectSuffix}_chosen']"))
+                .FirstOrDefault(el => el.Displayed);
+            
+            if (chosenContainer == null)
             {
-                $".chosen-container[id$='{selectSuffix}_chosen']",
-                $".chosen-container[id*='{selectSuffix}_chosen']",
-                $"#{selectSuffix}_chosen",
-                ".chosen-container"
-            };
-
-            OpenQA.Selenium.IWebElement LocateContainer()
-            {
-                foreach (var selector in containerSelectors)
-                {
-                    var containerCandidate = driver.FindElements(OpenQA.Selenium.By.CssSelector(selector))
-                        .FirstOrDefault(el => el.Displayed || selector == ".chosen-container");
-                    if (containerCandidate != null)
-                    {
-                        return containerCandidate;
-                    }
-                }
-
                 throw new InvalidOperationException($"Unable to locate Chosen container for suffix '{selectSuffix}'.");
             }
 
-            for (var attempt = 0; attempt < 3; attempt++)
+            var js = (OpenQA.Selenium.IJavaScriptExecutor)driver;
+            js.ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", chosenContainer);
+            System.Threading.Thread.Sleep(200);
+
+            var trigger = chosenContainer.FindElement(OpenQA.Selenium.By.CssSelector(".chosen-choices"));
+            js.ExecuteScript("arguments[0].click();", trigger);
+            System.Threading.Thread.Sleep(300);
+
+            var options = chosenContainer
+                .FindElements(OpenQA.Selenium.By.CssSelector(".chosen-drop .chosen-results li.active-result"))
+                .Where(li => !string.IsNullOrWhiteSpace(li.Text));
+
+            var optionElement = options.FirstOrDefault(li =>
+                li.Text.Trim().Equals(optionText, StringComparison.OrdinalIgnoreCase));
+
+            if (optionElement == null)
             {
-                try
-                {
-                    var chosenContainer = LocateContainer();
-                    var js = (OpenQA.Selenium.IJavaScriptExecutor)driver;
-                    js.ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", chosenContainer);
-                    System.Threading.Thread.Sleep(200);
-
-                    var trigger = chosenContainer.FindElement(OpenQA.Selenium.By.CssSelector(".chosen-choices"));
-                    js.ExecuteScript("arguments[0].click();", trigger);
-                    System.Threading.Thread.Sleep(300);
-
-                    OpenQA.Selenium.IWebElement? optionElement = null;
-                    for (var searchAttempt = 0; searchAttempt < 5 && optionElement == null; searchAttempt++)
-                    {
-                        var options = chosenContainer
-                            .FindElements(OpenQA.Selenium.By.CssSelector(".chosen-drop .chosen-results li.active-result"))
-                            .Where(li => !string.IsNullOrWhiteSpace(li.Text));
-
-                        optionElement = options.FirstOrDefault(li =>
-                            li.Text.Trim().Equals(optionText, StringComparison.OrdinalIgnoreCase));
-
-                        if (optionElement == null)
-                        {
-                            System.Threading.Thread.Sleep(200);
-                        }
-                    }
-
-                    if (optionElement == null)
-                    {
-                        throw new InvalidOperationException($"Unable to locate Chosen option '{optionText}'.");
-                    }
-
-                    js.ExecuteScript("arguments[0].scrollIntoView(true);", optionElement);
-                    js.ExecuteScript("arguments[0].click();", optionElement);
-                    System.Threading.Thread.Sleep(200);
-                    return;
-                }
-                catch (OpenQA.Selenium.StaleElementReferenceException)
-                {
-                    System.Threading.Thread.Sleep(250);
-                }
+                throw new InvalidOperationException($"Unable to locate Chosen option '{optionText}'.");
             }
 
-            throw new InvalidOperationException($"Unable to select Chosen option '{optionText}' after multiple attempts.");
+            js.ExecuteScript("arguments[0].scrollIntoView(true);", optionElement);
+            js.ExecuteScript("arguments[0].click();", optionElement);
+            System.Threading.Thread.Sleep(200);
         }
 
         private void SelectChosenOptionViaScript(IPookieWebDriver driver, string selectSuffix, string optionText, string? optionValue = null)
@@ -582,162 +366,35 @@ namespace AFUT.Tests.UnitTests.Referrals
 
         private OpenQA.Selenium.IWebElement FindContactAttemptForm(IPookieWebDriver driver)
         {
-            var selectors = new[]
-            {
-                "div.panel",
-                "div.modal-body",
-                "div"
-            };
-
-            return FindElementBySuffix(driver, selectors, new[] { "divAddEditContactAttempt", "ContactAttempt" }, "contact attempt form");
+            return FindElementBySuffix(driver, "div.panel", new[] { "divAddEditContactAttempt", "ContactAttempt" }, "contact attempt form");
         }
 
         private OpenQA.Selenium.IWebElement FindContactAttemptsTable(IPookieWebDriver driver)
         {
-            var selectors = new[]
-            {
-                "table.table",
-                ".table",
-                "table"
-            };
-
-            return FindElementBySuffix(driver, selectors, new[] { "tblContactAttempts", "ContactAttempt" }, "contact attempts table");
+            return FindElementBySuffix(driver, "table.table", new[] { "tblContactAttempts", "ContactAttempt" }, "contact attempts table");
         }
 
         private OpenQA.Selenium.IWebElement FindValidationSummaryBySuffix(IPookieWebDriver driver, params string[] suffixes)
         {
-            var selectors = new[]
-            {
-                ".validation-summary-errors",
-                ".alert",
-                "div",
-                "span"
-            };
-
-            return FindElementBySuffix(driver, selectors, suffixes, "validation summary");
+            return FindElementBySuffix(driver, ".validation-summary-errors", suffixes, "validation summary");
         }
 
         private OpenQA.Selenium.IWebElement FindTextInputBySuffix(IPookieWebDriver driver, params string[] suffixes)
         {
-            var selectors = new[]
-            {
-                "input.form-control",
-                "input.form-control.input-sm",
-                "input[type='text']",
-                "input[type='search']",
-                "input"
-            };
-
-            return FindElementBySuffix(driver, selectors, suffixes, "text input");
+            return FindElementBySuffix(driver, "input.form-control", suffixes, "text input");
         }
 
         private OpenQA.Selenium.IWebElement FindSelectBySuffix(IPookieWebDriver driver, params string[] suffixes)
         {
-            var selectors = new[]
-            {
-                "select.form-control",
-                "select"
-            };
-
-            return FindElementBySuffix(driver, selectors, suffixes, "select input");
+            return FindElementBySuffixIncludingHidden(driver, "select", suffixes, "select input");
         }
 
-        private OpenQA.Selenium.IWebElement FindCheckboxBySuffix(IPookieWebDriver driver, params string[] suffixes)
-        {
-            var selectors = new[]
-            {
-                "input[type='checkbox']",
-                "input"
-            };
-
-            return FindElementBySuffix(driver, selectors, suffixes, "checkbox input");
-        }
-
-        private OpenQA.Selenium.IWebElement FindTextAreaBySuffix(IPookieWebDriver driver, params string[] suffixes)
-        {
-            var selectors = new[]
-            {
-                "textarea.form-control",
-                "textarea"
-            };
-
-            return FindElementBySuffix(driver, selectors, suffixes, "text area");
-        }
-
-        private OpenQA.Selenium.IWebElement FindButtonBySuffix(IPookieWebDriver driver, params string[] suffixes)
-        {
-            var selectors = new[]
-            {
-                "button.btn",
-                "button",
-                "input.btn",
-                "input[type='button']",
-                "input[type='submit']",
-                "a.btn"
-            };
-
-            return FindElementBySuffix(driver, selectors, suffixes, "button");
-        }
-
-        private OpenQA.Selenium.IWebElement FindElementBySuffix(
+        private OpenQA.Selenium.IWebElement FindElementBySuffixIncludingHidden(
             IPookieWebDriver driver,
-            System.Collections.Generic.IEnumerable<string> baseSelectors,
+            string baseSelector,
             System.Collections.Generic.IEnumerable<string> suffixes,
             string description)
         {
-            var attributes = new[] { "name", "id" };
-            var suffixVariants = ExpandSuffixVariants(suffixes);
-
-            foreach (var baseSelector in baseSelectors)
-            {
-                foreach (var suffix in suffixVariants)
-                {
-                    foreach (var attribute in attributes)
-                    {
-                        var endsWithSelector = $"{baseSelector}[{attribute}$='{suffix}']";
-                        var match = driver.FindElements(OpenQA.Selenium.By.CssSelector(endsWithSelector))
-                            .FirstOrDefault(el => el.Displayed);
-                        if (match != null)
-                        {
-                            _output.WriteLine($"[INFO] Found {description} via selector '{endsWithSelector}'");
-                            return match;
-                        }
-
-                        match = driver.FindElements(OpenQA.Selenium.By.CssSelector(endsWithSelector))
-                            .FirstOrDefault();
-                        if (match != null)
-                        {
-                            _output.WriteLine($"[INFO] Found (hidden) {description} via selector '{endsWithSelector}'");
-                            return match;
-                        }
-
-                        var containsSelector = $"{baseSelector}[{attribute}*='{suffix}']";
-                        match = driver.FindElements(OpenQA.Selenium.By.CssSelector(containsSelector))
-                            .FirstOrDefault(el => el.Displayed);
-                        if (match != null)
-                        {
-                            _output.WriteLine($"[INFO] Found {description} via selector '{containsSelector}'");
-                            return match;
-                        }
-
-                        match = driver.FindElements(OpenQA.Selenium.By.CssSelector(containsSelector))
-                            .FirstOrDefault();
-                        if (match != null)
-                        {
-                            _output.WriteLine($"[INFO] Found (hidden) {description} via selector '{containsSelector}'");
-                            return match;
-                        }
-                    }
-                }
-            }
-
-            throw new InvalidOperationException($"Unable to locate {description} using suffixes: {string.Join(", ", suffixVariants)}");
-        }
-
-        private static System.Collections.Generic.IEnumerable<string> ExpandSuffixVariants(System.Collections.Generic.IEnumerable<string> suffixes)
-        {
-            var variants = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
             foreach (var suffix in suffixes ?? System.Linq.Enumerable.Empty<string>())
             {
                 if (string.IsNullOrWhiteSpace(suffix))
@@ -745,13 +402,89 @@ namespace AFUT.Tests.UnitTests.Referrals
                     continue;
                 }
 
-                variants.Add(suffix);
-                variants.Add(suffix.ToLowerInvariant());
-                variants.Add(suffix.ToUpperInvariant());
-                variants.Add(System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(suffix.ToLowerInvariant()));
+                // Try name attribute first
+                var endsWithSelector = $"{baseSelector}[name$='{suffix}']";
+                var match = driver.FindElements(OpenQA.Selenium.By.CssSelector(endsWithSelector))
+                    .FirstOrDefault(); // Don't filter by Displayed (for Chosen.js hidden selects)
+                if (match != null)
+                {
+                    _output.WriteLine($"[INFO] Found {description} via selector '{endsWithSelector}'");
+                    return match;
+                }
+
+                // Try id attribute
+                endsWithSelector = $"{baseSelector}[id$='{suffix}']";
+                match = driver.FindElements(OpenQA.Selenium.By.CssSelector(endsWithSelector))
+                    .FirstOrDefault(); // Don't filter by Displayed (for Chosen.js hidden selects)
+                if (match != null)
+                {
+                    _output.WriteLine($"[INFO] Found {description} via selector '{endsWithSelector}'");
+                    return match;
+                }
             }
 
-            return variants.Count > 0 ? variants : new[] { string.Empty };
+            throw new InvalidOperationException($"Unable to locate {description} using suffixes: {string.Join(", ", suffixes)}");
+        }
+
+        private OpenQA.Selenium.IWebElement FindCheckboxBySuffix(IPookieWebDriver driver, params string[] suffixes)
+        {
+            return FindElementBySuffix(driver, "input[type='checkbox']", suffixes, "checkbox input");
+        }
+
+        private OpenQA.Selenium.IWebElement FindTextAreaBySuffix(IPookieWebDriver driver, params string[] suffixes)
+        {
+            return FindElementBySuffix(driver, "textarea.form-control", suffixes, "text area");
+        }
+
+        private OpenQA.Selenium.IWebElement FindButtonBySuffix(IPookieWebDriver driver, params string[] suffixes)
+        {
+            // Try button.btn first
+            try
+            {
+                return FindElementBySuffix(driver, "button.btn", suffixes, "button");
+            }
+            catch (InvalidOperationException)
+            {
+                // Fallback to a.btn for anchor tags styled as buttons
+                return FindElementBySuffix(driver, "a.btn", suffixes, "button");
+            }
+        }
+
+        private OpenQA.Selenium.IWebElement FindElementBySuffix(
+            IPookieWebDriver driver,
+            string baseSelector,
+            System.Collections.Generic.IEnumerable<string> suffixes,
+            string description)
+        {
+            foreach (var suffix in suffixes ?? System.Linq.Enumerable.Empty<string>())
+            {
+                if (string.IsNullOrWhiteSpace(suffix))
+                {
+                    continue;
+                }
+
+                // Try name attribute first
+                var endsWithSelector = $"{baseSelector}[name$='{suffix}']";
+                var match = driver.FindElements(OpenQA.Selenium.By.CssSelector(endsWithSelector))
+                    .FirstOrDefault(el => el.Displayed);
+                if (match != null)
+                {
+                    _output.WriteLine($"[INFO] Found {description} via selector '{endsWithSelector}'");
+                    return match;
+                }
+
+                // Try id attribute as fallback
+                endsWithSelector = $"{baseSelector}[id$='{suffix}']";
+                match = driver.FindElements(OpenQA.Selenium.By.CssSelector(endsWithSelector))
+                    .FirstOrDefault(el => el.Displayed);
+                if (match != null)
+                {
+                    _output.WriteLine($"[INFO] Found {description} via selector '{endsWithSelector}'");
+                    return match;
+                }
+            }
+
+            throw new InvalidOperationException($"Unable to locate {description} using suffixes: {string.Join(", ", suffixes)}");
         }
 
         private OpenQA.Selenium.IWebElement FindLinkByTextFragments(IPookieWebDriver driver, params string[] textFragments)
@@ -779,32 +512,34 @@ namespace AFUT.Tests.UnitTests.Referrals
 
         private OpenQA.Selenium.IWebElement FindButtonByText(IPookieWebDriver driver, string buttonText)
         {
-            var selectors = new[]
+            // Try button tag first
+            var match = driver.FindElements(OpenQA.Selenium.By.CssSelector("button"))
+                .FirstOrDefault(el => el.Displayed && ElementTextContains(el, buttonText));
+            
+            if (match != null)
             {
-                "button",
-                "input[type='button']",
-                "input[type='submit']",
-                "a.btn",
-                ".btn"
-            };
-
-            foreach (var selector in selectors)
-            {
-                var match = driver.FindElements(OpenQA.Selenium.By.CssSelector(selector))
-                    .FirstOrDefault(el => el.Displayed && ElementTextContains(el, buttonText));
-                if (match != null)
-                {
-                    _output.WriteLine($"[INFO] Found button '{buttonText}' via selector '{selector}'");
-                    return match;
-                }
+                _output.WriteLine($"[INFO] Found button '{buttonText}'");
+                return match;
             }
 
-            var xpathMatch = driver.FindElements(OpenQA.Selenium.By.XPath($"//button[normalize-space()='{buttonText}'] | //a[normalize-space()='{buttonText}'] | //input[@value='{buttonText}']"))
-                .FirstOrDefault(el => el.Displayed);
-            if (xpathMatch != null)
+            // Try input[type='submit'] and input[type='button'] as fallback
+            match = driver.FindElements(OpenQA.Selenium.By.CssSelector("input[type='submit'], input[type='button']"))
+                .FirstOrDefault(el => el.Displayed && ElementTextContains(el, buttonText));
+            
+            if (match != null)
             {
-                _output.WriteLine($"[INFO] Found button '{buttonText}' via XPath text match");
-                return xpathMatch;
+                _output.WriteLine($"[INFO] Found button '{buttonText}' (input element)");
+                return match;
+            }
+
+            // Try anchor tags with button classes (e.g., <a class="btn btn-primary">)
+            match = driver.FindElements(OpenQA.Selenium.By.CssSelector("a.btn"))
+                .FirstOrDefault(el => el.Displayed && ElementTextContains(el, buttonText));
+            
+            if (match != null)
+            {
+                _output.WriteLine($"[INFO] Found button '{buttonText}' (anchor element)");
+                return match;
             }
 
             throw new InvalidOperationException($"Unable to locate button with text '{buttonText}'.");
@@ -910,6 +645,68 @@ namespace AFUT.Tests.UnitTests.Referrals
             driver.WaitForReady(30);
             System.Threading.Thread.Sleep(2000);
             _output.WriteLine("[PASS] Clicked Search button");
+        }
+
+        /// <summary>
+        /// Fills a referral text field and logs the action
+        /// </summary>
+        private void FillReferralTextField(IPookieWebDriver driver, string suffix, string value, string fieldName)
+        {
+            var field = FindTextInputBySuffix(driver, suffix);
+            field.Clear();
+            field.SendKeys(value);
+            _output.WriteLine($"[PASS] Filled {fieldName}: {value}");
+        }
+
+        /// <summary>
+        /// Selects a dropdown option by text and logs the action
+        /// </summary>
+        private void SelectReferralDropdownByText(IPookieWebDriver driver, string suffix, string optionText, string fieldName)
+        {
+            var dropdown = FindSelectBySuffix(driver, suffix);
+            var select = new OpenQA.Selenium.Support.UI.SelectElement(dropdown);
+            select.SelectByText(optionText);
+            _output.WriteLine($"[PASS] Selected {fieldName}: {optionText}");
+        }
+
+        /// <summary>
+        /// Selects the first non-empty option from a dropdown and logs the action
+        /// </summary>
+        private void SelectReferralDropdownByFirstNonEmpty(IPookieWebDriver driver, string suffix, string fieldName)
+        {
+            var dropdown = FindSelectBySuffix(driver, suffix);
+            var select = new OpenQA.Selenium.Support.UI.SelectElement(dropdown);
+            var firstOption = select.Options.FirstOrDefault(o => !string.IsNullOrWhiteSpace(o.GetAttribute("value")));
+            if (firstOption != null)
+            {
+                select.SelectByValue(firstOption.GetAttribute("value"));
+                _output.WriteLine($"[PASS] Selected {fieldName}: {firstOption.Text}");
+            }
+        }
+
+        /// <summary>
+        /// Submits the referral form and returns validation errors
+        /// </summary>
+        private System.Collections.Generic.HashSet<string> SubmitReferralFormAndGetErrors(IPookieWebDriver driver)
+        {
+            var submitButton = FindButtonBySuffix(driver, "SubmitReferral_LoginView1_btnSubmit");
+            submitButton.Click();
+            driver.WaitForReady(30);
+            System.Threading.Thread.Sleep(2000);
+            _output.WriteLine("[PASS] Clicked Submit button");
+            return GetValidationErrorMessages(driver);
+        }
+
+        /// <summary>
+        /// Logs validation errors for a step
+        /// </summary>
+        private void LogStepValidationErrors(int stepNumber, System.Collections.Generic.HashSet<string> validationErrors)
+        {
+            _output.WriteLine($"\n[STEP {stepNumber}] Validation errors found: {validationErrors.Count}");
+            foreach (var error in validationErrors)
+            {
+                _output.WriteLine($"  - {error}");
+            }
         }
 
         /// <summary>
@@ -3211,24 +3008,9 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("STEP 1: FILLING ONLY REFERRAL DATE");
             _output.WriteLine("========================================");
 
-            var referralDateField = FindTextInputBySuffix(driver, "txtReferralDate");
-            referralDateField.Clear();
-            referralDateField.SendKeys("11/12/2025");
-            _output.WriteLine("[PASS] Filled Referral Date: 11/12/2025");
-
-            // Submit and check validation
-            var submitButton = FindButtonBySuffix(driver, "SubmitReferral_LoginView1_btnSubmit");
-            submitButton.Click();
-            driver.WaitForReady(30);
-            System.Threading.Thread.Sleep(2000);
-            _output.WriteLine("[PASS] Clicked Submit button");
-
-            var validationErrors = GetValidationErrorMessages(driver);
-            _output.WriteLine($"\n[STEP 1] Validation errors found: {validationErrors.Count}");
-            foreach (var error in validationErrors)
-            {
-                _output.WriteLine($"  - {error}");
-            }
+            FillReferralTextField(driver, "txtReferralDate", "11/12/2025", "Referral Date");
+            var validationErrors = SubmitReferralFormAndGetErrors(driver);
+            LogStepValidationErrors(1, validationErrors);
 
             // ========================================
             // STEP 2: Add Date Worker Assigned and submit
@@ -3237,45 +3019,11 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("STEP 2: ADDING DATE WORKER ASSIGNED");
             _output.WriteLine("========================================");
 
-            // Wait for page to stabilize after validation
             System.Threading.Thread.Sleep(1000);
             driver.WaitForReady(30);
-
-            // Log all input fields to see what's available
-            _output.WriteLine("Logging available form fields after validation...");
-            var allInputs = driver.FindElements(OpenQA.Selenium.By.CssSelector("input[type='text'], input[type='date'], select"));
-            _output.WriteLine($"Found {allInputs.Count} input fields:");
-            foreach (var input in allInputs.Take(20))
-            {
-                try
-                {
-                    var id = input.GetAttribute("id") ?? "no-id";
-                    var name = input.GetAttribute("name") ?? "no-name";
-                    var displayed = input.Displayed;
-                    _output.WriteLine($"  - id='{id}', name='{name}', displayed={displayed}");
-                }
-                catch { }
-            }
-
-            // Find and fill Date Worker Assigned (Referral Date is already filled from Step 1)
-            _output.WriteLine("\nAttempting to find Date Worker Assigned field...");
-            var dateWorkerAssignedField = FindTextInputBySuffix(driver, "txtWorkerAssignDate");
-            dateWorkerAssignedField.Clear();
-            dateWorkerAssignedField.SendKeys("11/12/2025");
-            _output.WriteLine("[PASS] Filled Date Worker Assigned: 11/12/2025");
-
-            submitButton = FindButtonBySuffix(driver, "SubmitReferral_LoginView1_btnSubmit");
-            submitButton.Click();
-            driver.WaitForReady(30);
-            System.Threading.Thread.Sleep(2000);
-            _output.WriteLine("[PASS] Clicked Submit button");
-
-            validationErrors = GetValidationErrorMessages(driver);
-            _output.WriteLine($"\n[STEP 2] Validation errors found: {validationErrors.Count}");
-            foreach (var error in validationErrors)
-            {
-                _output.WriteLine($"  - {error}");
-            }
+            FillReferralTextField(driver, "txtWorkerAssignDate", "11/12/2025", "Date Worker Assigned");
+            validationErrors = SubmitReferralFormAndGetErrors(driver);
+            LogStepValidationErrors(2, validationErrors);
 
             // ========================================
             // STEP 3: Add Worker and submit
@@ -3284,33 +3032,9 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("STEP 3: ADDING WORKER");
             _output.WriteLine("========================================");
 
-            // Previous fields (Referral Date and Date Worker Assigned) are already filled
-            var workerDropdown = FindSelectBySuffix(driver, "ddlWorker");
-            var workerSelect = new OpenQA.Selenium.Support.UI.SelectElement(workerDropdown);
-            
-            // Log available options
-            _output.WriteLine($"Worker dropdown has {workerSelect.Options.Count} options:");
-            foreach (var option in workerSelect.Options)
-            {
-                _output.WriteLine($"  - '{option.Text}' (value='{option.GetAttribute("value")}')");
-            }
-
-            // Select "Test, Derek"
-            workerSelect.SelectByText("Test, Derek");
-            _output.WriteLine("[PASS] Selected Worker: Test, Derek");
-
-            submitButton = FindButtonBySuffix(driver, "SubmitReferral_LoginView1_btnSubmit");
-            submitButton.Click();
-            driver.WaitForReady(30);
-            System.Threading.Thread.Sleep(2000);
-            _output.WriteLine("[PASS] Clicked Submit button");
-
-            validationErrors = GetValidationErrorMessages(driver);
-            _output.WriteLine($"\n[STEP 3] Validation errors found: {validationErrors.Count}");
-            foreach (var error in validationErrors)
-            {
-                _output.WriteLine($"  - {error}");
-            }
+            SelectReferralDropdownByText(driver, "ddlWorker", "Test, Derek", "Worker");
+            validationErrors = SubmitReferralFormAndGetErrors(driver);
+            LogStepValidationErrors(3, validationErrors);
 
             // ========================================
             // STEP 4: Add Type of Referral Source and submit
@@ -3319,36 +3043,9 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("STEP 4: ADDING TYPE OF REFERRAL SOURCE");
             _output.WriteLine("========================================");
 
-            var referralSourceTypeDropdown = FindSelectBySuffix(driver, "ddlReferralSourceType");
-            var referralSourceTypeSelect = new OpenQA.Selenium.Support.UI.SelectElement(referralSourceTypeDropdown);
-            
-            // Log available options
-            _output.WriteLine($"Type of Referral Source dropdown has {referralSourceTypeSelect.Options.Count} options:");
-            foreach (var option in referralSourceTypeSelect.Options)
-            {
-                _output.WriteLine($"  - '{option.Text}' (value='{option.GetAttribute("value")}')");
-            }
-
-            // Select first non-empty option
-            var firstOption = referralSourceTypeSelect.Options.FirstOrDefault(o => !string.IsNullOrWhiteSpace(o.GetAttribute("value")));
-            if (firstOption != null)
-            {
-                referralSourceTypeSelect.SelectByValue(firstOption.GetAttribute("value"));
-                _output.WriteLine($"[PASS] Selected Type of Referral Source: {firstOption.Text}");
-            }
-
-            submitButton = FindButtonBySuffix(driver, "SubmitReferral_LoginView1_btnSubmit");
-            submitButton.Click();
-            driver.WaitForReady(30);
-            System.Threading.Thread.Sleep(2000);
-            _output.WriteLine("[PASS] Clicked Submit button");
-
-            validationErrors = GetValidationErrorMessages(driver);
-            _output.WriteLine($"\n[STEP 4] Validation errors found: {validationErrors.Count}");
-            foreach (var error in validationErrors)
-            {
-                _output.WriteLine($"  - {error}");
-            }
+            SelectReferralDropdownByFirstNonEmpty(driver, "ddlReferralSourceType", "Type of Referral Source");
+            validationErrors = SubmitReferralFormAndGetErrors(driver);
+            LogStepValidationErrors(4, validationErrors);
 
             // ========================================
             // STEP 5: Add Name/Organization Name of Referral Source and submit
@@ -3357,25 +3054,9 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("STEP 5: ADDING NAME/ORGANIZATION NAME OF REFERRAL SOURCE");
             _output.WriteLine("========================================");
 
-            var referralSourceNameDropdown = FindSelectBySuffix(driver, "ddlReferralSource");
-            var referralSourceNameSelect = new OpenQA.Selenium.Support.UI.SelectElement(referralSourceNameDropdown);
-            
-            // Log available options
-            _output.WriteLine($"Name/Organization Name of Referral Source dropdown has {referralSourceNameSelect.Options.Count} options:");
-            foreach (var option in referralSourceNameSelect.Options)
-            {
-                _output.WriteLine($"  - '{option.Text}' (value='{option.GetAttribute("value")}')");
-            }
-
-            // Select first non-empty option
-            var firstNameOption = referralSourceNameSelect.Options.FirstOrDefault(o => !string.IsNullOrWhiteSpace(o.GetAttribute("value")));
-            if (firstNameOption != null)
-            {
-                referralSourceNameSelect.SelectByValue(firstNameOption.GetAttribute("value"));
-                _output.WriteLine($"[PASS] Selected Name/Organization Name: {firstNameOption.Text}");
-            }
-
-            submitButton = FindButtonBySuffix(driver, "SubmitReferral_LoginView1_btnSubmit");
+            SelectReferralDropdownByFirstNonEmpty(driver, "ddlReferralSource", "Name/Organization Name");
+            System.Threading.Thread.Sleep(1000); // Extra wait before final submit
+            var submitButton = FindButtonBySuffix(driver, "SubmitReferral_LoginView1_btnSubmit");
             submitButton.Click();
             driver.WaitForReady(30);
             System.Threading.Thread.Sleep(3000);
@@ -3739,7 +3420,9 @@ namespace AFUT.Tests.UnitTests.Referrals
             System.Threading.Thread.Sleep(200);
             _output.WriteLine("[PASS] Filled Contact Date via JavaScript: 11/12/2025");
 
-            // Select Worker
+            // IMPORTANT: Re-find the worker dropdown AFTER the postback
+            // The postback may have refreshed the dropdown, making the old reference stale
+            _output.WriteLine("[INFO] Re-finding worker dropdown after postback...");
             var workerDropdown = FindSelectBySuffix(driver, "ddlContactAttemptWorker");
             ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true);", workerDropdown);
             System.Threading.Thread.Sleep(300);
@@ -3825,9 +3508,14 @@ namespace AFUT.Tests.UnitTests.Referrals
                     }
                 }
             }
+            catch (InvalidOperationException)
+            {
+                // Form was removed from DOM after successful submission
+                _output.WriteLine("[PASS] Contact attempt form removed from DOM (submission successful)");
+            }
             catch (OpenQA.Selenium.NoSuchElementException)
             {
-                _output.WriteLine("[INFO] Contact attempt form element not found in DOM");
+                _output.WriteLine("[PASS] Contact attempt form element not found in DOM (submission successful)");
             }
 
             // Verify the contact attempt appears in the table
