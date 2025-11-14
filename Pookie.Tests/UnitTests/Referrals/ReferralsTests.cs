@@ -3449,10 +3449,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("To change test data, modify lines 2457-2461 in ReferralsTests.cs");
             _output.WriteLine("========================================");
         }
-    }
-}
 
-        
         [Fact]
         public void ReferralsPage_NewContactAttempt_ValidationRequired()
         {
