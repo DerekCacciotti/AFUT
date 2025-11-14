@@ -3653,9 +3653,6 @@ namespace AFUT.Tests.UnitTests.Referrals
             // Scroll the button into view and use JavaScript click to avoid navbar interference
             ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -200);", newContactAttemptButton);
             System.Threading.Thread.Sleep(500);
-            
-            // Use JavaScript click to avoid element click intercepted error from fixed navbar
-            _output.WriteLine("[INFO] Using JavaScript click to avoid navbar interference");
             ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", newContactAttemptButton);
             _output.WriteLine("[PASS] Clicked New Contact Attempt button");
             
@@ -3672,51 +3669,14 @@ namespace AFUT.Tests.UnitTests.Referrals
             Assert.True(contactAttemptForm.Displayed, "Contact attempt form should be visible after clicking New Contact Attempt button");
             _output.WriteLine("[PASS] Contact attempt form is now visible");
 
-            // Log all visible form fields in the contact attempt form
-            _output.WriteLine("\n[INFO] Inspecting contact attempt form fields:");
-            try
-            {
-                var formFields = contactAttemptForm.FindElements(OpenQA.Selenium.By.CssSelector("input, select, textarea"));
-                _output.WriteLine($"[INFO] Found {formFields.Count} form fields");
-                
-                int visibleCount = 0;
-                foreach (var field in formFields)
-                {
-                    try
-                    {
-                        if (field.Displayed)
-                        {
-                            visibleCount++;
-                            var fieldId = field.GetAttribute("id") ?? "no-id";
-                            var fieldName = field.GetAttribute("name") ?? "no-name";
-                            var fieldType = field.TagName;
-                            var fieldClass = field.GetAttribute("class") ?? "";
-                            _output.WriteLine($"  Field {visibleCount}: Type={fieldType}, ID={fieldId}, Class={fieldClass}");
-                        }
-                    }
-                    catch { }
-                }
-                _output.WriteLine($"[INFO] Total visible fields: {visibleCount}");
-            }
-            catch (Exception ex)
-            {
-                _output.WriteLine($"[WARN] Could not inspect form fields: {ex.Message}");
-            }
-
             _output.WriteLine("\n========================================");
             _output.WriteLine("FILLING OUT CONTACT ATTEMPT FORM");
             _output.WriteLine("========================================");
 
-            // Fill Contact Date - use JavaScript to avoid click interception
+            // Fill Contact Date using JavaScript
             var contactDateField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtContactAttemptDate"));
-            _output.WriteLine($"[INFO] Found Contact Date field, Displayed={contactDateField.Displayed}, Enabled={contactDateField.Enabled}");
-            
-            // Scroll to the form (not just the field) to ensure proper visibility
             ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView({block: 'center'});", contactAttemptForm);
             System.Threading.Thread.Sleep(500);
-            
-            // Use JavaScript to focus and set value
-            _output.WriteLine("[INFO] Using JavaScript to fill Contact Date field");
             ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript(
                 "arguments[0].value = ''; arguments[0].focus(); arguments[0].value = arguments[1];", 
                 contactDateField, "11/12/2025");
@@ -3733,52 +3693,20 @@ namespace AFUT.Tests.UnitTests.Referrals
             workerSelectElement.SelectByValue("3489");
             _output.WriteLine("[PASS] Selected Worker: Test, Derek");
 
-            // Select Contact Attempt Type using Chosen.js multi-select
-            _output.WriteLine("[INFO] Selecting Contact Attempt Type(s)...");
+            // Select Contact Attempt Type using Chosen.js - use JavaScript to set value directly
             var contactTypesDropdown = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_ddlContactAttemptTypes"));
-            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true);", contactTypesDropdown);
-            System.Threading.Thread.Sleep(300);
-            
-            try
-            {
-                // Method 1: Try clicking on the Chosen container to open it, then click the option
-                _output.WriteLine("[INFO] Attempting to interact with Chosen.js dropdown UI...");
-                
-                // Find the Chosen container
-                var chosenContainer = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_ddlContactAttemptTypes_chosen"));
-                
-                // Click to open the dropdown
-                ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true);", chosenContainer);
-                System.Threading.Thread.Sleep(300);
-                chosenContainer.Click();
-                System.Threading.Thread.Sleep(500);
-                _output.WriteLine("[INFO] Opened Chosen dropdown");
-                
-                // Find and click the option "Phone Call Made to Parent" (data-option-array-index="10")
-                var chosenOption = driver.FindElement(OpenQA.Selenium.By.CssSelector("#ctl00_ContentPlaceHolder1_ddlContactAttemptTypes_chosen .chosen-results li[data-option-array-index='10']"));
-                chosenOption.Click();
-                System.Threading.Thread.Sleep(500);
-                _output.WriteLine("[PASS] Selected Contact Attempt Type: Phone Call Made to Parent via Chosen UI");
-            }
-            catch (Exception ex)
-            {
-                _output.WriteLine($"[WARN] Could not interact with Chosen UI: {ex.Message}");
-                _output.WriteLine("[INFO] Falling back to JavaScript method...");
-                
-                // Method 2: Fallback - Use JavaScript to set the value directly
-                var jsScript = @"
-                    var select = arguments[0];
-                    var option = select.querySelector('option[value=""1469""]');
-                    if (option) {
-                        option.selected = true;
-                        $(select).trigger('change');
-                        $(select).trigger('chosen:updated');
-                    }
-                ";
-                ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript(jsScript, contactTypesDropdown);
-                System.Threading.Thread.Sleep(500);
-                _output.WriteLine("[PASS] Selected Contact Attempt Type via JavaScript fallback");
-            }
+            var jsScript = @"
+                var select = arguments[0];
+                var option = select.querySelector('option[value=""1469""]'); // Phone Call Made to Parent
+                if (option) {
+                    option.selected = true;
+                    $(select).trigger('change');
+                    $(select).trigger('chosen:updated');
+                }
+            ";
+            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript(jsScript, contactTypesDropdown);
+            System.Threading.Thread.Sleep(500);
+            _output.WriteLine("[PASS] Selected Contact Attempt Type: Phone Call Made to Parent");
 
             // Select "Was the Family Successfully Contacted?"
             var successfulContactDropdown = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_ddlContactAttemptSuccessful"));
@@ -3789,12 +3717,8 @@ namespace AFUT.Tests.UnitTests.Referrals
             successfulSelectElement.SelectByValue("True"); // Yes
             _output.WriteLine("[PASS] Selected Was Family Successfully Contacted: Yes");
 
-            // Fill Notes - use JavaScript to avoid click interception
+            // Fill Notes using JavaScript
             var notesField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtContactAttemptNotes"));
-            _output.WriteLine($"[INFO] Found Notes field, Displayed={notesField.Displayed}, Enabled={notesField.Enabled}");
-            
-            // Use JavaScript to focus and set value
-            _output.WriteLine("[INFO] Using JavaScript to fill Notes field");
             var notesText = "Test contact attempt - spoke with parent about upcoming program activities.";
             ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript(
                 "arguments[0].value = ''; arguments[0].focus(); arguments[0].value = arguments[1];", 
