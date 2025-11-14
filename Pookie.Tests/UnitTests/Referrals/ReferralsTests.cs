@@ -72,8 +72,7 @@ namespace AFUT.Tests.UnitTests.Referrals
         private void ClickNewReferralButton(IPookieWebDriver driver)
         {
             _output.WriteLine("\nClicking New Referral button...");
-            var newReferralButton = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_lnkNewReferral"));
-            Assert.NotNull(newReferralButton);
+            var newReferralButton = FindNewReferralButton(driver);
             
             ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", newReferralButton);
             System.Threading.Thread.Sleep(500);
@@ -83,6 +82,747 @@ namespace AFUT.Tests.UnitTests.Referrals
             System.Threading.Thread.Sleep(1000);
             _output.WriteLine("[PASS] Clicked New Referral button");
             _output.WriteLine($"Current URL: {driver.Url}");
+        }
+
+        private OpenQA.Selenium.IWebElement FindNewReferralButton(IPookieWebDriver driver)
+        {
+            var cssSelectors = new[]
+            {
+                ".btn.btn-default.pull-right",
+                ".custom-btn-link.btn.pull-right",
+                ".btn.btn-primary.pull-right",
+                ".referrals-actions .btn",
+                ".referrals-header .btn",
+                "a[class*='referral']",
+                "button[class*='referral']",
+                "input[class*='referral']",
+                ".btn.btn-primary",
+                ".btn"
+            };
+
+            foreach (var selector in cssSelectors)
+            {
+                try
+                {
+                    var candidates = driver.FindElements(OpenQA.Selenium.By.CssSelector(selector));
+                    var match = candidates.FirstOrDefault(el => el.Displayed && el.Enabled && ElementTextContains(el, "New Referral"));
+                    if (match != null)
+                    {
+                        _output.WriteLine($"[INFO] Found New Referral button using CSS selector '{selector}' and class '{match.GetAttribute("class")}'");
+                        return match;
+                    }
+                }
+                catch (OpenQA.Selenium.InvalidSelectorException invalidSelector)
+                {
+                    _output.WriteLine($"[WARN] Invalid selector '{selector}': {invalidSelector.Message}");
+                }
+                catch (OpenQA.Selenium.WebDriverException driverException)
+                {
+                    _output.WriteLine($"[WARN] Unable to evaluate selector '{selector}': {driverException.Message}");
+                }
+            }
+
+            var textLocators = new[]
+            {
+                OpenQA.Selenium.By.XPath("//a[normalize-space()='New Referral']"),
+                OpenQA.Selenium.By.XPath("//button[normalize-space()='New Referral']"),
+                OpenQA.Selenium.By.XPath("//a[contains(normalize-space(),'New Referral')]"),
+                OpenQA.Selenium.By.XPath("//button[contains(normalize-space(),'New Referral')]"),
+                OpenQA.Selenium.By.XPath("//input[@type='button' or @type='submit'][@value='New Referral']")
+            };
+
+            foreach (var locator in textLocators)
+            {
+                var match = driver.FindElements(locator).FirstOrDefault(el => el.Displayed && el.Enabled);
+                if (match != null)
+                {
+                    _output.WriteLine("[INFO] Found New Referral button via button text match");
+                    return match;
+                }
+            }
+
+            throw new InvalidOperationException("Unable to locate the New Referral button using CSS selectors or button text.");
+        }
+
+        private static bool ElementTextContains(OpenQA.Selenium.IWebElement element, string expectedValue)
+        {
+            var text = element.Text?.Trim() ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(text) && text.IndexOf(expectedValue, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+
+            var valueAttribute = element.GetAttribute("value")?.Trim() ?? string.Empty;
+            return !string.IsNullOrWhiteSpace(valueAttribute) &&
+                   valueAttribute.IndexOf(expectedValue, StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private OpenQA.Selenium.IWebElement FindActiveReferralsTable(IPookieWebDriver driver)
+        {
+            var cssSelectors = new[]
+            {
+                ".table.table-condensed.table-responsive.dataTable.no-footer.dtr-column",
+                ".dataTables_wrapper table.dataTable",
+                ".referrals table",
+                ".referrals-list table",
+                ".active-referrals table",
+                ".referrals-grid table",
+                "table.table"
+            };
+
+            foreach (var selector in cssSelectors)
+            {
+                try
+                {
+                    var candidates = driver.FindElements(OpenQA.Selenium.By.CssSelector(selector));
+                    var match = candidates.FirstOrDefault(el => el.Displayed && LooksLikeActiveReferrals(el));
+                    if (match != null)
+                    {
+                        _output.WriteLine($"[INFO] Found Active Referrals table using CSS selector '{selector}' (class='{match.GetAttribute("class")}')");
+                        return match;
+                    }
+                }
+                catch (OpenQA.Selenium.InvalidSelectorException invalidSelector)
+                {
+                    _output.WriteLine($"[WARN] Invalid selector '{selector}': {invalidSelector.Message}");
+                }
+                catch (OpenQA.Selenium.WebDriverException driverException)
+                {
+                    _output.WriteLine($"[WARN] Unable to evaluate selector '{selector}': {driverException.Message}");
+                }
+            }
+
+            var headingMatches = driver.FindElements(OpenQA.Selenium.By.XPath(
+                "//table[.//th[contains(translate(normalize-space(.),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'active referrals')] or " +
+                ".//caption[contains(translate(normalize-space(.),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'active referrals')] or " +
+                "contains(translate(@summary,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'active referrals') or " +
+                "contains(translate(@aria-label,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'active referrals')]"));
+
+            var fallback = headingMatches.FirstOrDefault(el => el.Displayed);
+            if (fallback != null)
+            {
+                _output.WriteLine("[INFO] Found Active Referrals table via table heading text");
+                return fallback;
+            }
+
+            throw new InvalidOperationException("Unable to locate the Active Referrals table using CSS selectors or table headings.");
+        }
+
+        private bool LooksLikeActiveReferrals(OpenQA.Selenium.IWebElement table)
+        {
+            var id = table.GetAttribute("id") ?? string.Empty;
+            var className = table.GetAttribute("class") ?? string.Empty;
+
+            if (className.IndexOf("active", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                className.IndexOf("referral", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+
+            if (id.IndexOf("ActiveReferral", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+
+            return ElementTextContains(table, "Active Referrals");
+        }
+
+        private OpenQA.Selenium.IWebElement FindCompletedReferralYearDropdown(IPookieWebDriver driver)
+        {
+            var cssSelectors = new[]
+            {
+                "select.form-control[name$='ddlCompletedReferralYear']",
+                "select.form-control[name*='CompletedReferralYear']",
+                "select[name$='ddlCompletedReferralYear']",
+                "select[name*='CompletedReferralYear']"
+            };
+
+            foreach (var selector in cssSelectors)
+            {
+                var match = driver.FindElements(OpenQA.Selenium.By.CssSelector(selector))
+                    .FirstOrDefault(el => el.Displayed && el.Enabled);
+                if (match != null)
+                {
+                    _output.WriteLine($"[INFO] Found completed referral year dropdown via selector '{selector}'");
+                    return match;
+                }
+            }
+
+            var labelElement = driver.FindElements(OpenQA.Selenium.By.XPath(
+                    "//label[contains(translate(normalize-space(.),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'completed referral year')]"))
+                .FirstOrDefault();
+
+            if (labelElement != null)
+            {
+                var forAttribute = labelElement.GetAttribute("for");
+                if (!string.IsNullOrWhiteSpace(forAttribute))
+                {
+                    var input = driver.FindElements(OpenQA.Selenium.By.Id(forAttribute))
+                        .FirstOrDefault(el => el.Displayed && el.TagName.Equals("select", StringComparison.OrdinalIgnoreCase));
+                    if (input != null)
+                    {
+                        _output.WriteLine("[INFO] Found completed referral year dropdown via label association");
+                        return input;
+                    }
+                }
+            }
+
+            throw new InvalidOperationException("Unable to locate the Completed Referral Year dropdown using CSS selectors or labels.");
+        }
+
+        private OpenQA.Selenium.IWebElement FindCompletedReferralsTable(IPookieWebDriver driver)
+        {
+            var cssSelectors = new[]
+            {
+                ".table.table-condensed.table-responsive.dataTable.no-footer.dtr-column",
+                ".dataTables_wrapper table.dataTable",
+                ".referrals table",
+                ".referrals-list table",
+                ".referrals-grid table",
+                ".panel-body table",
+                "table.table"
+            };
+
+            foreach (var selector in cssSelectors)
+            {
+                try
+                {
+                    var candidates = driver.FindElements(OpenQA.Selenium.By.CssSelector(selector));
+                    var match = candidates.FirstOrDefault(el => el.Displayed && LooksLikeCompletedReferrals(el));
+                    if (match != null)
+                    {
+                        _output.WriteLine($"[INFO] Found Completed Referrals table using CSS selector '{selector}'");
+                        return match;
+                    }
+                }
+                catch (OpenQA.Selenium.InvalidSelectorException invalidSelector)
+                {
+                    _output.WriteLine($"[WARN] Invalid selector '{selector}': {invalidSelector.Message}");
+                }
+                catch (OpenQA.Selenium.WebDriverException driverException)
+                {
+                    _output.WriteLine($"[WARN] Unable to evaluate selector '{selector}': {driverException.Message}");
+                }
+            }
+
+            var headingMatches = driver.FindElements(OpenQA.Selenium.By.XPath(
+                "//table[.//th[contains(translate(normalize-space(.),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'completed referrals')] or " +
+                ".//caption[contains(translate(normalize-space(.),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'completed referrals')] or " +
+                "contains(translate(@summary,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'completed referrals') or " +
+                "contains(translate(@aria-label,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'completed referrals')]"));
+
+            var fallback = headingMatches.FirstOrDefault(el => el.Displayed);
+            if (fallback != null)
+            {
+                _output.WriteLine("[INFO] Found Completed Referrals table via table heading text");
+                return fallback;
+            }
+
+            throw new InvalidOperationException("Unable to locate the Completed Referrals table using CSS selectors or table headings.");
+        }
+
+        private bool LooksLikeCompletedReferrals(OpenQA.Selenium.IWebElement table)
+        {
+            var id = table.GetAttribute("id") ?? string.Empty;
+            var className = table.GetAttribute("class") ?? string.Empty;
+
+            if (className.IndexOf("completed", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                className.IndexOf("referral", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+
+            if (id.IndexOf("CompletedReferral", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+
+            return ElementTextContains(table, "Completed Referrals");
+        }
+
+        private OpenQA.Selenium.IWebElement FindReferralEditButton(OpenQA.Selenium.IWebElement tableRow)
+        {
+            if (tableRow == null)
+            {
+                throw new ArgumentNullException(nameof(tableRow));
+            }
+
+            var primarySelectors = new[]
+            {
+                "a.btn.btn-default",
+                "button.btn.btn-default",
+                "a.btn",
+                "button.btn"
+            };
+
+            foreach (var selector in primarySelectors)
+            {
+                var match = tableRow.FindElements(OpenQA.Selenium.By.CssSelector(selector))
+                    .FirstOrDefault(el => el.Displayed &&
+                                          el.Enabled &&
+                                          (ElementTextContains(el, "Edit") ||
+                                           ElementHasIcon(el, "glyphicon-pencil")));
+                if (match != null)
+                {
+                    _output.WriteLine($"[INFO] Found edit button via selector '{selector}'");
+                    return match;
+                }
+            }
+
+            var fallback = tableRow
+                .FindElements(OpenQA.Selenium.By.CssSelector("a, button, input[type='button'], input[type='submit'], input[type='image']"))
+                .FirstOrDefault(el =>
+                {
+                    var text = el.Text?.Trim() ?? el.GetAttribute("value") ?? "";
+                    var id = el.GetAttribute("id") ?? "";
+                    var title = el.GetAttribute("title") ?? "";
+                    return el.Enabled &&
+                           (text.Equals("Edit", StringComparison.OrdinalIgnoreCase) ||
+                            id.Contains("Edit", StringComparison.OrdinalIgnoreCase) ||
+                            title.Contains("Edit", StringComparison.OrdinalIgnoreCase));
+                });
+
+            if (fallback != null)
+            {
+                _output.WriteLine("[INFO] Found edit button via fallback element search");
+                return fallback;
+            }
+
+            throw new InvalidOperationException("Unable to locate the edit button within the referral row.");
+        }
+
+        private static bool ElementHasIcon(OpenQA.Selenium.IWebElement element, string iconClass)
+        {
+            if (element == null)
+            {
+                return false;
+            }
+
+            var elementClass = element.GetAttribute("class") ?? string.Empty;
+            if (elementClass.IndexOf(iconClass, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+
+            var iconSelector = "." + iconClass.TrimStart('.');
+            return element.FindElements(OpenQA.Selenium.By.CssSelector(iconSelector)).Any(icon => icon.Displayed);
+        }
+
+        private OpenQA.Selenium.IWebElement FindReferralSearchResultsGrid(IPookieWebDriver driver)
+        {
+            var cssSelectors = new[]
+            {
+                "div[id*='SearchResults'] table.dataTable",
+                "div[id*='SearchResults'] table.table",
+                ".dataTables_wrapper table.dataTable",
+                ".table.table-condensed.table-responsive.dataTable",
+                "table.table"
+            };
+
+            foreach (var selector in cssSelectors)
+            {
+                var candidates = driver.FindElements(OpenQA.Selenium.By.CssSelector(selector));
+                var match = candidates.FirstOrDefault(el => el.Displayed && LooksLikeSearchResults(el));
+                if (match != null)
+                {
+                    _output.WriteLine($"[INFO] Found referral search results grid via selector '{selector}'");
+                    return match;
+                }
+            }
+
+            throw new InvalidOperationException("Unable to locate the referral search results grid using CSS selectors.");
+        }
+
+        private bool LooksLikeSearchResults(OpenQA.Selenium.IWebElement table)
+        {
+            var id = table.GetAttribute("id") ?? string.Empty;
+            var className = table.GetAttribute("class") ?? string.Empty;
+
+            if (id.IndexOf("grResults", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+
+            if (className.IndexOf("results", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+
+            return ElementTextContains(table, "Search Results") ||
+                   ElementTextContains(table, "No records found");
+        }
+
+        private void SelectChosenOption(IPookieWebDriver driver, string selectSuffix, string optionText)
+        {
+            optionText = optionText?.Trim() ?? throw new ArgumentNullException(nameof(optionText));
+
+            var containerSelectors = new[]
+            {
+                $".chosen-container[id$='{selectSuffix}_chosen']",
+                $".chosen-container[id*='{selectSuffix}_chosen']",
+                $"#{selectSuffix}_chosen",
+                ".chosen-container"
+            };
+
+            OpenQA.Selenium.IWebElement LocateContainer()
+            {
+                foreach (var selector in containerSelectors)
+                {
+                    var containerCandidate = driver.FindElements(OpenQA.Selenium.By.CssSelector(selector))
+                        .FirstOrDefault(el => el.Displayed || selector == ".chosen-container");
+                    if (containerCandidate != null)
+                    {
+                        return containerCandidate;
+                    }
+                }
+
+                throw new InvalidOperationException($"Unable to locate Chosen container for suffix '{selectSuffix}'.");
+            }
+
+            for (var attempt = 0; attempt < 3; attempt++)
+            {
+                try
+                {
+                    var chosenContainer = LocateContainer();
+                    var js = (OpenQA.Selenium.IJavaScriptExecutor)driver;
+                    js.ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", chosenContainer);
+                    System.Threading.Thread.Sleep(200);
+
+                    var trigger = chosenContainer.FindElement(OpenQA.Selenium.By.CssSelector(".chosen-choices"));
+                    js.ExecuteScript("arguments[0].click();", trigger);
+                    System.Threading.Thread.Sleep(300);
+
+                    OpenQA.Selenium.IWebElement? optionElement = null;
+                    for (var searchAttempt = 0; searchAttempt < 5 && optionElement == null; searchAttempt++)
+                    {
+                        var options = chosenContainer
+                            .FindElements(OpenQA.Selenium.By.CssSelector(".chosen-drop .chosen-results li.active-result"))
+                            .Where(li => !string.IsNullOrWhiteSpace(li.Text));
+
+                        optionElement = options.FirstOrDefault(li =>
+                            li.Text.Trim().Equals(optionText, StringComparison.OrdinalIgnoreCase));
+
+                        if (optionElement == null)
+                        {
+                            System.Threading.Thread.Sleep(200);
+                        }
+                    }
+
+                    if (optionElement == null)
+                    {
+                        throw new InvalidOperationException($"Unable to locate Chosen option '{optionText}'.");
+                    }
+
+                    js.ExecuteScript("arguments[0].scrollIntoView(true);", optionElement);
+                    js.ExecuteScript("arguments[0].click();", optionElement);
+                    System.Threading.Thread.Sleep(200);
+                    return;
+                }
+                catch (OpenQA.Selenium.StaleElementReferenceException)
+                {
+                    System.Threading.Thread.Sleep(250);
+                }
+            }
+
+            throw new InvalidOperationException($"Unable to select Chosen option '{optionText}' after multiple attempts.");
+        }
+
+        private void SelectChosenOptionViaScript(IPookieWebDriver driver, string selectSuffix, string optionText, string? optionValue = null)
+        {
+            optionText = optionText?.Trim() ?? throw new ArgumentNullException(nameof(optionText));
+
+            var selectElement = FindSelectBySuffix(driver, selectSuffix);
+            var js = (OpenQA.Selenium.IJavaScriptExecutor)driver;
+
+            js.ExecuteScript(@"
+                var select = arguments[0];
+                var targetText = (arguments[1] || '').trim().toLowerCase();
+                var targetValue = (arguments[2] || '').trim();
+                var option = Array.from(select.options).find(function(opt) {
+                    if (targetValue && opt.value === targetValue) {
+                        return true;
+                    }
+                    return opt.text && opt.text.trim().toLowerCase() === targetText;
+                });
+
+                if (!option) {
+                    throw new Error('Option not found: ' + targetText || targetValue);
+                }
+
+                option.selected = true;
+                if (!select.multiple) {
+                    Array.from(select.options).forEach(function(opt) {
+                        if (opt !== option) {
+                            opt.selected = false;
+                        }
+                    });
+                }
+
+                var changeEvent = new Event('change', { bubbles: true });
+                select.dispatchEvent(changeEvent);
+                var inputEvent = new Event('input', { bubbles: true });
+                select.dispatchEvent(inputEvent);
+
+                if (window.jQuery) {
+                    window.jQuery(select).trigger('change');
+                    window.jQuery(select).trigger('chosen:updated');
+                }
+            ", selectElement, optionText, optionValue ?? string.Empty);
+
+            System.Threading.Thread.Sleep(200);
+        }
+
+        private static System.Collections.Generic.List<OpenQA.Selenium.IWebElement> GetContactAttemptDataRows(OpenQA.Selenium.IWebElement contactAttemptsTable)
+        {
+            return contactAttemptsTable
+                .FindElements(OpenQA.Selenium.By.CssSelector("tbody tr"))
+                .Where(row => !row.Text.Contains("No data available", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
+        private OpenQA.Selenium.IWebElement FindContactAttemptForm(IPookieWebDriver driver)
+        {
+            var selectors = new[]
+            {
+                "div.panel",
+                "div.modal-body",
+                "div"
+            };
+
+            return FindElementBySuffix(driver, selectors, new[] { "divAddEditContactAttempt", "ContactAttempt" }, "contact attempt form");
+        }
+
+        private OpenQA.Selenium.IWebElement FindContactAttemptsTable(IPookieWebDriver driver)
+        {
+            var selectors = new[]
+            {
+                "table.table",
+                ".table",
+                "table"
+            };
+
+            return FindElementBySuffix(driver, selectors, new[] { "tblContactAttempts", "ContactAttempt" }, "contact attempts table");
+        }
+
+        private OpenQA.Selenium.IWebElement FindValidationSummaryBySuffix(IPookieWebDriver driver, params string[] suffixes)
+        {
+            var selectors = new[]
+            {
+                ".validation-summary-errors",
+                ".alert",
+                "div",
+                "span"
+            };
+
+            return FindElementBySuffix(driver, selectors, suffixes, "validation summary");
+        }
+
+        private OpenQA.Selenium.IWebElement FindTextInputBySuffix(IPookieWebDriver driver, params string[] suffixes)
+        {
+            var selectors = new[]
+            {
+                "input.form-control",
+                "input.form-control.input-sm",
+                "input[type='text']",
+                "input[type='search']",
+                "input"
+            };
+
+            return FindElementBySuffix(driver, selectors, suffixes, "text input");
+        }
+
+        private OpenQA.Selenium.IWebElement FindSelectBySuffix(IPookieWebDriver driver, params string[] suffixes)
+        {
+            var selectors = new[]
+            {
+                "select.form-control",
+                "select"
+            };
+
+            return FindElementBySuffix(driver, selectors, suffixes, "select input");
+        }
+
+        private OpenQA.Selenium.IWebElement FindCheckboxBySuffix(IPookieWebDriver driver, params string[] suffixes)
+        {
+            var selectors = new[]
+            {
+                "input[type='checkbox']",
+                "input"
+            };
+
+            return FindElementBySuffix(driver, selectors, suffixes, "checkbox input");
+        }
+
+        private OpenQA.Selenium.IWebElement FindTextAreaBySuffix(IPookieWebDriver driver, params string[] suffixes)
+        {
+            var selectors = new[]
+            {
+                "textarea.form-control",
+                "textarea"
+            };
+
+            return FindElementBySuffix(driver, selectors, suffixes, "text area");
+        }
+
+        private OpenQA.Selenium.IWebElement FindButtonBySuffix(IPookieWebDriver driver, params string[] suffixes)
+        {
+            var selectors = new[]
+            {
+                "button.btn",
+                "button",
+                "input.btn",
+                "input[type='button']",
+                "input[type='submit']",
+                "a.btn"
+            };
+
+            return FindElementBySuffix(driver, selectors, suffixes, "button");
+        }
+
+        private OpenQA.Selenium.IWebElement FindElementBySuffix(
+            IPookieWebDriver driver,
+            System.Collections.Generic.IEnumerable<string> baseSelectors,
+            System.Collections.Generic.IEnumerable<string> suffixes,
+            string description)
+        {
+            var attributes = new[] { "name", "id" };
+            var suffixVariants = ExpandSuffixVariants(suffixes);
+
+            foreach (var baseSelector in baseSelectors)
+            {
+                foreach (var suffix in suffixVariants)
+                {
+                    foreach (var attribute in attributes)
+                    {
+                        var endsWithSelector = $"{baseSelector}[{attribute}$='{suffix}']";
+                        var match = driver.FindElements(OpenQA.Selenium.By.CssSelector(endsWithSelector))
+                            .FirstOrDefault(el => el.Displayed);
+                        if (match != null)
+                        {
+                            _output.WriteLine($"[INFO] Found {description} via selector '{endsWithSelector}'");
+                            return match;
+                        }
+
+                        match = driver.FindElements(OpenQA.Selenium.By.CssSelector(endsWithSelector))
+                            .FirstOrDefault();
+                        if (match != null)
+                        {
+                            _output.WriteLine($"[INFO] Found (hidden) {description} via selector '{endsWithSelector}'");
+                            return match;
+                        }
+
+                        var containsSelector = $"{baseSelector}[{attribute}*='{suffix}']";
+                        match = driver.FindElements(OpenQA.Selenium.By.CssSelector(containsSelector))
+                            .FirstOrDefault(el => el.Displayed);
+                        if (match != null)
+                        {
+                            _output.WriteLine($"[INFO] Found {description} via selector '{containsSelector}'");
+                            return match;
+                        }
+
+                        match = driver.FindElements(OpenQA.Selenium.By.CssSelector(containsSelector))
+                            .FirstOrDefault();
+                        if (match != null)
+                        {
+                            _output.WriteLine($"[INFO] Found (hidden) {description} via selector '{containsSelector}'");
+                            return match;
+                        }
+                    }
+                }
+            }
+
+            throw new InvalidOperationException($"Unable to locate {description} using suffixes: {string.Join(", ", suffixVariants)}");
+        }
+
+        private static System.Collections.Generic.IEnumerable<string> ExpandSuffixVariants(System.Collections.Generic.IEnumerable<string> suffixes)
+        {
+            var variants = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var suffix in suffixes ?? System.Linq.Enumerable.Empty<string>())
+            {
+                if (string.IsNullOrWhiteSpace(suffix))
+                {
+                    continue;
+                }
+
+                variants.Add(suffix);
+                variants.Add(suffix.ToLowerInvariant());
+                variants.Add(suffix.ToUpperInvariant());
+                variants.Add(System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(suffix.ToLowerInvariant()));
+            }
+
+            return variants.Count > 0 ? variants : new[] { string.Empty };
+        }
+
+        private OpenQA.Selenium.IWebElement FindLinkByTextFragments(IPookieWebDriver driver, params string[] textFragments)
+        {
+            textFragments ??= Array.Empty<string>();
+            var links = driver.FindElements(OpenQA.Selenium.By.CssSelector("a, .btn"));
+
+            foreach (var link in links)
+            {
+                if (!link.Displayed)
+                {
+                    continue;
+                }
+
+                var text = link.Text?.Trim() ?? string.Empty;
+                if (textFragments.All(fragment => text.IndexOf(fragment, StringComparison.OrdinalIgnoreCase) >= 0))
+                {
+                    _output.WriteLine($"[INFO] Found link containing text '{string.Join(" ", textFragments)}'");
+                    return link;
+                }
+            }
+
+            throw new InvalidOperationException($"Unable to locate link containing text fragments: {string.Join(", ", textFragments)}");
+        }
+
+        private OpenQA.Selenium.IWebElement FindButtonByText(IPookieWebDriver driver, string buttonText)
+        {
+            var selectors = new[]
+            {
+                "button",
+                "input[type='button']",
+                "input[type='submit']",
+                "a.btn",
+                ".btn"
+            };
+
+            foreach (var selector in selectors)
+            {
+                var match = driver.FindElements(OpenQA.Selenium.By.CssSelector(selector))
+                    .FirstOrDefault(el => el.Displayed && ElementTextContains(el, buttonText));
+                if (match != null)
+                {
+                    _output.WriteLine($"[INFO] Found button '{buttonText}' via selector '{selector}'");
+                    return match;
+                }
+            }
+
+            var xpathMatch = driver.FindElements(OpenQA.Selenium.By.XPath($"//button[normalize-space()='{buttonText}'] | //a[normalize-space()='{buttonText}'] | //input[@value='{buttonText}']"))
+                .FirstOrDefault(el => el.Displayed);
+            if (xpathMatch != null)
+            {
+                _output.WriteLine($"[INFO] Found button '{buttonText}' via XPath text match");
+                return xpathMatch;
+            }
+
+            throw new InvalidOperationException($"Unable to locate button with text '{buttonText}'.");
+        }
+
+        private void LogElementClasses(string label, Func<OpenQA.Selenium.IWebElement> elementProvider)
+        {
+            try
+            {
+                var element = elementProvider();
+                var classAttr = element?.GetAttribute("class")?.Trim();
+                var formatted = string.IsNullOrWhiteSpace(classAttr) ? "(no class attribute)" : classAttr;
+                _output.WriteLine($"[INFO] {label} classes: '{formatted}'");
+            }
+            catch (Exception ex)
+            {
+                _output.WriteLine($"[WARN] Unable to log classes for {label}: {ex.Message}");
+            }
         }
 
         /// <summary>
@@ -100,35 +840,35 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine($"Phone: {phone}");
             _output.WriteLine($"Emergency Phone: {emergencyPhone}");
 
-            var firstNameField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcfirstname"));
+            var firstNameField = FindTextInputBySuffix(driver, "txtpcfirstname");
             firstNameField.Click();
             System.Threading.Thread.Sleep(200);
             firstNameField.Clear();
             firstNameField.SendKeys(firstName);
             _output.WriteLine("[PASS] Filled PC1 First Name");
 
-            var lastNameField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpclastname"));
+            var lastNameField = FindTextInputBySuffix(driver, "txtpclastname");
             lastNameField.Click();
             System.Threading.Thread.Sleep(200);
             lastNameField.Clear();
             lastNameField.SendKeys(lastName);
             _output.WriteLine("[PASS] Filled PC1 Last Name");
 
-            var dobField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcdob"));
+            var dobField = FindTextInputBySuffix(driver, "txtpcdob");
             dobField.Click();
             System.Threading.Thread.Sleep(200);
             dobField.Clear();
             dobField.SendKeys(dob);
             _output.WriteLine("[PASS] Filled DOB");
 
-            var phoneField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcphone"));
+            var phoneField = FindTextInputBySuffix(driver, "txtpcphone");
             phoneField.Click();
             System.Threading.Thread.Sleep(200);
             phoneField.Clear();
             phoneField.SendKeys(phone);
             _output.WriteLine("[PASS] Filled Phone");
 
-            var emergencyPhoneField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcemergencyphone"));
+            var emergencyPhoneField = FindTextInputBySuffix(driver, "txtpcemergencyphone");
             emergencyPhoneField.Click();
             System.Threading.Thread.Sleep(200);
             emergencyPhoneField.Clear();
@@ -147,9 +887,24 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("SEARCHING FOR PERSON");
             _output.WriteLine("========================================");
 
-            var searchButton = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_btSearch"));
+            OpenQA.Selenium.IWebElement? searchButton = null;
+            try
+            {
+                searchButton = FindButtonBySuffix(driver, "btSearch", "btnSearch");
+                _output.WriteLine("[INFO] Found search button via suffix-based selector");
+            }
+            catch (InvalidOperationException)
+            {
+                _output.WriteLine("[INFO] Search button not found via suffix helpers, falling back to text lookup");
+            }
+
+            if (searchButton == null)
+            {
+                searchButton = FindButtonByText(driver, "Search");
+            }
+
             Assert.NotNull(searchButton);
-            _output.WriteLine($"Found search button: id='{searchButton.GetAttribute("id")}'");
+            _output.WriteLine($"Found search button: id='{searchButton.GetAttribute("id")}', class='{searchButton.GetAttribute("class")}'");
             
             searchButton.Click();
             driver.WaitForReady(30);
@@ -414,8 +1169,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             // Find and click the New Referral button
             try
             {
-                var newReferralButton = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_lnkNewReferral"));
-                Assert.NotNull(newReferralButton);
+                var newReferralButton = FindNewReferralButton(driver);
                 _output.WriteLine($"Found New Referral button: id='{newReferralButton.GetAttribute("id")}', text='{newReferralButton.Text?.Trim()}'");
                 
                 newReferralButton.Click();
@@ -576,7 +1330,7 @@ namespace AFUT.Tests.UnitTests.Referrals
                 try
                 {
                     // Fill First Name
-                    var firstNameField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcfirstname"));
+                    var firstNameField = FindTextInputBySuffix(driver, "txtpcfirstname");
                     firstNameField.Click();
                     System.Threading.Thread.Sleep(200);
                     firstNameField.Clear();
@@ -584,7 +1338,7 @@ namespace AFUT.Tests.UnitTests.Referrals
                     _output.WriteLine("[PASS] Filled PC1 First Name");
 
                     // Fill Last Name
-                    var lastNameField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpclastname"));
+                    var lastNameField = FindTextInputBySuffix(driver, "txtpclastname");
                     lastNameField.Click();
                     System.Threading.Thread.Sleep(200);
                     lastNameField.Clear();
@@ -592,7 +1346,7 @@ namespace AFUT.Tests.UnitTests.Referrals
                     _output.WriteLine("[PASS] Filled PC1 Last Name");
 
                     // Fill DOB
-                    var dobField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcdob"));
+                    var dobField = FindTextInputBySuffix(driver, "txtpcdob");
                     dobField.Click();
                     System.Threading.Thread.Sleep(200);
                     dobField.Clear();
@@ -600,7 +1354,7 @@ namespace AFUT.Tests.UnitTests.Referrals
                     _output.WriteLine("[PASS] Filled DOB");
 
                     // Fill Phone
-                    var phoneField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcphone"));
+                    var phoneField = FindTextInputBySuffix(driver, "txtpcphone");
                     phoneField.Click();
                     System.Threading.Thread.Sleep(200);
                     phoneField.Clear();
@@ -608,7 +1362,7 @@ namespace AFUT.Tests.UnitTests.Referrals
                     _output.WriteLine("[PASS] Filled Phone");
 
                     // Fill Emergency Phone
-                    var emergencyPhoneField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtpcemergencyphone"));
+                    var emergencyPhoneField = FindTextInputBySuffix(driver, "txtpcemergencyphone");
                     emergencyPhoneField.Click();
                     System.Threading.Thread.Sleep(200);
                     emergencyPhoneField.Clear();
@@ -617,35 +1371,8 @@ namespace AFUT.Tests.UnitTests.Referrals
                     
                     System.Threading.Thread.Sleep(500);
 
-                    // Find and click Search button
                     _output.WriteLine("\n--- Searching for user ---");
-                    var allButtons2 = driver.FindElements(OpenQA.Selenium.By.CssSelector("button, input[type='button'], input[type='submit'], input[type='image'], a[id*='btn'], [id*='Button'], [id*='search'], [id*='Search']"));
-                    
-                    var searchButton = allButtons2
-                        .Where(b => b.Displayed && b.Enabled)
-                        .FirstOrDefault(b => 
-                        {
-                            var text = b.Text?.Trim() ?? b.GetAttribute("value") ?? "";
-                            var id = b.GetAttribute("id") ?? "";
-                            return text.Equals("Search", StringComparison.OrdinalIgnoreCase) && 
-                                   !id.Contains("SearchCases", StringComparison.OrdinalIgnoreCase) &&
-                                   !text.Contains("Cases", StringComparison.OrdinalIgnoreCase);
-                        });
-
-                    if (searchButton == null)
-                    {
-                        searchButton = allButtons2
-                            .FirstOrDefault(b =>
-                            {
-                                var id = b.GetAttribute("id") ?? "";
-                                var text = b.Text?.Trim() ?? b.GetAttribute("value") ?? "";
-                                return id.Contains("ContentPlaceHolder", StringComparison.OrdinalIgnoreCase) &&
-                                       id.Contains("btn", StringComparison.OrdinalIgnoreCase) &&
-                                       text.Contains("Search", StringComparison.OrdinalIgnoreCase);
-                            });
-                    }
-
-                    Assert.NotNull(searchButton);
+                    var searchButton = FindButtonByText(driver, "Search");
                     var buttonId = searchButton.GetAttribute("id") ?? "no-id";
                     var buttonText = searchButton.Text?.Trim() ?? searchButton.GetAttribute("value") ?? "";
                     _output.WriteLine($"Found search button: id='{buttonId}', text='{buttonText}'");
@@ -950,19 +1677,15 @@ namespace AFUT.Tests.UnitTests.Referrals
             LoginAndNavigateToReferrals(driver);
 
             // Find the active referrals table and the first edit button within it
-            var activeReferralsTable = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_grActiveReferrals"));
+            var activeReferralsTable = FindActiveReferralsTable(driver);
             Assert.NotNull(activeReferralsTable);
 
-            var editButton = activeReferralsTable
-                .FindElements(OpenQA.Selenium.By.CssSelector("a, button, input[type='button'], input[type='submit'], input[type='image']"))
-                .FirstOrDefault(el =>
-                {
-                    var text = el.Text?.Trim() ?? el.GetAttribute("value") ?? "";
-                    var id = el.GetAttribute("id") ?? "";
-                    return el.Enabled &&
-                           (text.Equals("Edit", StringComparison.OrdinalIgnoreCase) ||
-                            id.Contains("Edit", StringComparison.OrdinalIgnoreCase));
-                });
+            var firstRow = activeReferralsTable
+                .FindElements(OpenQA.Selenium.By.CssSelector("tbody tr"))
+                .FirstOrDefault(row => row.Displayed);
+            Assert.NotNull(firstRow);
+
+            var editButton = FindReferralEditButton(firstRow);
 
             Assert.NotNull(editButton);
             _output.WriteLine($"[PASS] Found edit button: id='{editButton.GetAttribute("id")}'");
@@ -1002,7 +1725,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             LoginAndNavigateToReferrals(driver);
 
             // Find the year dropdown
-            var yearDropdown = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_ddlCompletedReferralYear"));
+            var yearDropdown = FindCompletedReferralYearDropdown(driver);
             Assert.NotNull(yearDropdown);
             _output.WriteLine($"Found year dropdown");
 
@@ -1030,7 +1753,7 @@ namespace AFUT.Tests.UnitTests.Referrals
                 try
                 {
                     // Re-find the dropdown to avoid stale element references
-                    yearDropdown = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_ddlCompletedReferralYear"));
+                    yearDropdown = FindCompletedReferralYearDropdown(driver);
                     selectElement = new OpenQA.Selenium.Support.UI.SelectElement(yearDropdown);
 
                     // Select the year
@@ -1103,7 +1826,7 @@ namespace AFUT.Tests.UnitTests.Referrals
                     System.Threading.Thread.Sleep(1500); // Wait for any JavaScript updates
 
                     // Re-find the dropdown and verify it shows the selected year
-                    yearDropdown = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_ddlCompletedReferralYear"));
+                    yearDropdown = FindCompletedReferralYearDropdown(driver);
                     selectElement = new OpenQA.Selenium.Support.UI.SelectElement(yearDropdown);
                     var currentlySelectedYear = selectElement.SelectedOption.Text;
 
@@ -1119,7 +1842,7 @@ namespace AFUT.Tests.UnitTests.Referrals
                     }
 
                     // Re-find the table
-                    var completedReferralsTable = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_grCompletedReferrals"));
+                    var completedReferralsTable = FindCompletedReferralsTable(driver);
                     Assert.NotNull(completedReferralsTable);
 
                     // Get the rows
@@ -1237,7 +1960,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("========================================");
 
             // Find the year dropdown
-            var yearDropdown = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_ddlCompletedReferralYear"));
+            var yearDropdown = FindCompletedReferralYearDropdown(driver);
             Assert.NotNull(yearDropdown);
 
             var yearSelectElement = new OpenQA.Selenium.Support.UI.SelectElement(yearDropdown);
@@ -1298,7 +2021,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("========================================");
 
             // Get initial table info
-            var completedReferralsTable = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_grCompletedReferrals"));
+            var completedReferralsTable = FindCompletedReferralsTable(driver);
             var initialRows = completedReferralsTable.FindElements(OpenQA.Selenium.By.CssSelector("tbody tr")).ToList();
             _output.WriteLine($"Initial rows displayed with '{defaultEntries}' entries: {initialRows.Count}");
 
@@ -1347,7 +2070,7 @@ namespace AFUT.Tests.UnitTests.Referrals
                     }
 
                     // Get updated row count
-                    completedReferralsTable = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_grCompletedReferrals"));
+                    completedReferralsTable = FindCompletedReferralsTable(driver);
                     var updatedRows = completedReferralsTable.FindElements(OpenQA.Selenium.By.CssSelector("tbody tr")).ToList();
                     var rowCount = updatedRows.Count;
 
@@ -1415,14 +2138,14 @@ namespace AFUT.Tests.UnitTests.Referrals
                 _output.WriteLine("========================================");
 
                 // Look for the results grid
-                var resultsGrid = driver.FindElements(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_grResults"));
+                var resultsGrid = FindReferralSearchResultsGrid(driver);
                 
-                if (resultsGrid.Count > 0 && resultsGrid[0].Displayed)
+                if (resultsGrid != null)
                 {
                     _output.WriteLine("[PASS] Found results grid");
                     
                     // Count the rows in the grid (excluding header)
-                    var gridRows = resultsGrid[0].FindElements(OpenQA.Selenium.By.CssSelector("tbody tr")).ToList();
+                    var gridRows = resultsGrid.FindElements(OpenQA.Selenium.By.CssSelector("tbody tr")).ToList();
                     _output.WriteLine($"Found {gridRows.Count} rows in results grid");
                     
                     // Check if there are actual data rows (not just "no records" message)
@@ -1455,7 +2178,7 @@ namespace AFUT.Tests.UnitTests.Referrals
                     }
 
                     // Check for "Select" buttons/links in the grid
-                    var selectLinks = resultsGrid[0].FindElements(OpenQA.Selenium.By.LinkText("Select"));
+                    var selectLinks = resultsGrid.FindElements(OpenQA.Selenium.By.LinkText("Select"));
                     _output.WriteLine($"\nFound {selectLinks.Count} 'Select' links in the grid");
                     Assert.True(selectLinks.Count > 0, "Expected to find 'Select' links in the results grid");
                     _output.WriteLine($"[PASS] Found {selectLinks.Count} 'Select' links for matching records");
@@ -1713,7 +2436,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("CLICKING 'ADD NEW' LINK");
             _output.WriteLine("=====DONT GO ON LOGS, AS THE DETAILS MAY BE CHANGED , BUT NOT IN THE LOGS===================================");
 
-            var addNewLink = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_lbAddNew"));
+            var addNewLink = FindLinkByTextFragments(driver, "create", "new", "Person Profile");
             Assert.NotNull(addNewLink);
             _output.WriteLine($"Found 'add new' link: '{addNewLink.Text?.Trim()}'");
             
@@ -1735,11 +2458,11 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("VERIFYING PRE-FILLED DATA");
             _output.WriteLine("========================================");
 
-            var pcFirstName = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtPCFirstName"));
-            var pcLastName = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtPCLastName"));
-            var pcDOB = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtPCDOB"));
-            var pcPhone = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtPCPrimaryPhone"));
-            var pcEmergencyPhone = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtPCEmergencyPhone"));
+            var pcFirstName = FindTextInputBySuffix(driver, "txtPCFirstName");
+            var pcLastName = FindTextInputBySuffix(driver, "txtPCLastName");
+            var pcDOB = FindTextInputBySuffix(driver, "txtPCDOB");
+            var pcPhone = FindTextInputBySuffix(driver, "txtPCPrimaryPhone");
+            var pcEmergencyPhone = FindTextInputBySuffix(driver, "txtPCEmergencyPhone");
 
             _output.WriteLine($"First Name field value: {pcFirstName.GetAttribute("value")}");
             _output.WriteLine($"Last Name field value: {pcLastName.GetAttribute("value")}");
@@ -1756,7 +2479,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("FILLING ADDITIONAL REQUIRED FIELDS");
             _output.WriteLine("========================================");
 
-            var asianCheckbox = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_chkRace_Asian"));
+            var asianCheckbox = FindCheckboxBySuffix(driver, "chkRace_Asian");
             if (!asianCheckbox.Selected)
             {
                 asianCheckbox.Click();
@@ -1766,7 +2489,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("[PASS] Selected Race: Asian");
 
             // Fill in Gender (Male from dropdown)
-            var genderDropdown = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_ddlGender"));
+            var genderDropdown = FindSelectBySuffix(driver, "ddlGender");
             var genderSelect = new OpenQA.Selenium.Support.UI.SelectElement(genderDropdown);
             
             // Log available gender options
@@ -1785,7 +2508,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("SUBMITTING PERSON PROFILE");
             _output.WriteLine("========================================");
 
-            var submitButton = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_btnSubmit"));
+            var submitButton = FindButtonBySuffix(driver, "btnSubmit");
             Assert.NotNull(submitButton);
             _output.WriteLine($"Found Submit button: text='{submitButton.Text?.Trim()}'");
             
@@ -1993,7 +2716,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("CLICKING 'ADD NEW' LINK");
             _output.WriteLine("========================================");
 
-            var addNewLink = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_lbAddNew"));
+            var addNewLink = FindLinkByTextFragments(driver, "create", "new", "Person Profile");
             Assert.NotNull(addNewLink);
             _output.WriteLine($"Found 'add new' link: '{addNewLink.Text?.Trim()}'");
             
@@ -2015,11 +2738,11 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("VERIFYING PRE-FILLED DATA");
             _output.WriteLine("========================================");
 
-            var pcFirstName = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtPCFirstName"));
-            var pcLastName = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtPCLastName"));
-            var pcDOB = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtPCDOB"));
-            var pcPhone = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtPCPrimaryPhone"));
-            var pcEmergencyPhone = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtPCEmergencyPhone"));
+            var pcFirstName = FindTextInputBySuffix(driver, "txtPCFirstName");
+            var pcLastName = FindTextInputBySuffix(driver, "txtPCLastName");
+            var pcDOB = FindTextInputBySuffix(driver, "txtPCDOB");
+            var pcPhone = FindTextInputBySuffix(driver, "txtPCPrimaryPhone");
+            var pcEmergencyPhone = FindTextInputBySuffix(driver, "txtPCEmergencyPhone");
 
             // Capture values before they become stale
             var firstNameValue = pcFirstName.GetAttribute("value");
@@ -2043,7 +2766,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("FILLING ADDITIONAL REQUIRED FIELDS");
             _output.WriteLine("========================================");
 
-            var asianCheckbox = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_chkRace_Asian"));
+            var asianCheckbox = FindCheckboxBySuffix(driver, "chkRace_Asian");
             if (!asianCheckbox.Selected)
             {
                 asianCheckbox.Click();
@@ -2053,7 +2776,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("[PASS] Selected Race: Asian");
 
             // Fill in Gender (Male from dropdown)
-            var genderDropdown = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_ddlGender"));
+            var genderDropdown = FindSelectBySuffix(driver, "ddlGender");
             var genderSelect = new OpenQA.Selenium.Support.UI.SelectElement(genderDropdown);
             
             // Log available gender options
@@ -2072,7 +2795,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("SUBMITTING PERSON PROFILE");
             _output.WriteLine("========================================");
 
-            var submitButton = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_btnSubmit"));
+            var submitButton = FindButtonBySuffix(driver, "btnSubmit");
             Assert.NotNull(submitButton);
             _output.WriteLine($"Found Submit button: text='{submitButton.Text?.Trim()}'");
             
@@ -2488,13 +3211,13 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("STEP 1: FILLING ONLY REFERRAL DATE");
             _output.WriteLine("========================================");
 
-            var referralDateField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtReferralDate"));
+            var referralDateField = FindTextInputBySuffix(driver, "txtReferralDate");
             referralDateField.Clear();
             referralDateField.SendKeys("11/12/2025");
             _output.WriteLine("[PASS] Filled Referral Date: 11/12/2025");
 
             // Submit and check validation
-            var submitButton = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_SubmitReferral_LoginView1_btnSubmit"));
+            var submitButton = FindButtonBySuffix(driver, "SubmitReferral_LoginView1_btnSubmit");
             submitButton.Click();
             driver.WaitForReady(30);
             System.Threading.Thread.Sleep(2000);
@@ -2536,12 +3259,12 @@ namespace AFUT.Tests.UnitTests.Referrals
 
             // Find and fill Date Worker Assigned (Referral Date is already filled from Step 1)
             _output.WriteLine("\nAttempting to find Date Worker Assigned field...");
-            var dateWorkerAssignedField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtWorkerAssignDate"));
+            var dateWorkerAssignedField = FindTextInputBySuffix(driver, "txtWorkerAssignDate");
             dateWorkerAssignedField.Clear();
             dateWorkerAssignedField.SendKeys("11/12/2025");
             _output.WriteLine("[PASS] Filled Date Worker Assigned: 11/12/2025");
 
-            submitButton = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_SubmitReferral_LoginView1_btnSubmit"));
+            submitButton = FindButtonBySuffix(driver, "SubmitReferral_LoginView1_btnSubmit");
             submitButton.Click();
             driver.WaitForReady(30);
             System.Threading.Thread.Sleep(2000);
@@ -2562,7 +3285,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("========================================");
 
             // Previous fields (Referral Date and Date Worker Assigned) are already filled
-            var workerDropdown = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_ddlWorker"));
+            var workerDropdown = FindSelectBySuffix(driver, "ddlWorker");
             var workerSelect = new OpenQA.Selenium.Support.UI.SelectElement(workerDropdown);
             
             // Log available options
@@ -2576,7 +3299,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             workerSelect.SelectByText("Test, Derek");
             _output.WriteLine("[PASS] Selected Worker: Test, Derek");
 
-            submitButton = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_SubmitReferral_LoginView1_btnSubmit"));
+            submitButton = FindButtonBySuffix(driver, "SubmitReferral_LoginView1_btnSubmit");
             submitButton.Click();
             driver.WaitForReady(30);
             System.Threading.Thread.Sleep(2000);
@@ -2596,7 +3319,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("STEP 4: ADDING TYPE OF REFERRAL SOURCE");
             _output.WriteLine("========================================");
 
-            var referralSourceTypeDropdown = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_ddlReferralSourceType"));
+            var referralSourceTypeDropdown = FindSelectBySuffix(driver, "ddlReferralSourceType");
             var referralSourceTypeSelect = new OpenQA.Selenium.Support.UI.SelectElement(referralSourceTypeDropdown);
             
             // Log available options
@@ -2614,7 +3337,7 @@ namespace AFUT.Tests.UnitTests.Referrals
                 _output.WriteLine($"[PASS] Selected Type of Referral Source: {firstOption.Text}");
             }
 
-            submitButton = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_SubmitReferral_LoginView1_btnSubmit"));
+            submitButton = FindButtonBySuffix(driver, "SubmitReferral_LoginView1_btnSubmit");
             submitButton.Click();
             driver.WaitForReady(30);
             System.Threading.Thread.Sleep(2000);
@@ -2634,7 +3357,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("STEP 5: ADDING NAME/ORGANIZATION NAME OF REFERRAL SOURCE");
             _output.WriteLine("========================================");
 
-            var referralSourceNameDropdown = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_ddlReferralSource"));
+            var referralSourceNameDropdown = FindSelectBySuffix(driver, "ddlReferralSource");
             var referralSourceNameSelect = new OpenQA.Selenium.Support.UI.SelectElement(referralSourceNameDropdown);
             
             // Log available options
@@ -2652,7 +3375,7 @@ namespace AFUT.Tests.UnitTests.Referrals
                 _output.WriteLine($"[PASS] Selected Name/Organization Name: {firstNameOption.Text}");
             }
 
-            submitButton = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_SubmitReferral_LoginView1_btnSubmit"));
+            submitButton = FindButtonBySuffix(driver, "SubmitReferral_LoginView1_btnSubmit");
             submitButton.Click();
             driver.WaitForReady(30);
             System.Threading.Thread.Sleep(3000);
@@ -2728,4 +3451,862 @@ namespace AFUT.Tests.UnitTests.Referrals
         }
     }
 }
+
+        
+        [Fact]
+        public void ReferralsPage_NewContactAttempt_ValidationRequired()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("TEST: NEW CONTACT ATTEMPT - VALIDATION");
+            _output.WriteLine("========================================");
+
+            // Login and navigate
+            LoginAndNavigateToReferrals(driver);
+
+            // Find and click edit on first referral
+            var activeReferralsTable = FindActiveReferralsTable(driver);
+            var tableRows = activeReferralsTable.FindElements(OpenQA.Selenium.By.CssSelector("tbody tr"));
+            var firstRow = tableRows.FirstOrDefault();
+            Assert.NotNull(firstRow);
+
+            var editButton = firstRow.FindElement(OpenQA.Selenium.By.CssSelector("a[id*='lnkEditReferral']"));
+            editButton.Click();
+            driver.WaitForReady(30);
+            System.Threading.Thread.Sleep(2000);
+            _output.WriteLine($"[PASS] Opened referral edit page: {driver.Url}");
+
+            // Click "New Contact Attempt"
+            var newContactBtn = FindButtonBySuffix(driver, "lbNewContactAttempt");
+            newContactBtn.Click();
+            System.Threading.Thread.Sleep(2000);
+            _output.WriteLine("[PASS] Clicked 'New Contact Attempt'");
+
+            // Fill Contact Date
+            _output.WriteLine("\n[INFO] ========== FILLING CONTACT DATE ==========");
+            var contactDateField = FindTextInputBySuffix(driver, "txtContactAttemptDate");
+            _output.WriteLine($"[INFO] Found Contact Date field: ID={contactDateField.GetAttribute("id")}");
+            
+            var todayDate = DateTime.Now.ToString("MM/dd/yyyy");
+            contactDateField.Clear();
+            contactDateField.SendKeys(todayDate);
+            System.Threading.Thread.Sleep(300);
+            
+            var enteredValue = contactDateField.GetAttribute("value");
+            _output.WriteLine($"[PASS] Filled Contact Date: {todayDate}");
+            _output.WriteLine($"[INFO] Field now contains: {enteredValue}");
+
+            // Fill Worker dropdown
+            _output.WriteLine("\n[INFO] ========== FILLING WORKER DROPDOWN ==========");
+            var workerDropdown = FindSelectBySuffix(driver, "ddlContactAttemptWorker");
+            _output.WriteLine($"[INFO] Found Worker dropdown: ID={workerDropdown.GetAttribute("id")}");
+            
+            var workerSelect = new OpenQA.Selenium.Support.UI.SelectElement(workerDropdown);
+            var workerOptions = workerSelect.Options;
+            _output.WriteLine($"[INFO] Worker dropdown has {workerOptions.Count} options:");
+            for (int i = 0; i < Math.Min(3, workerOptions.Count); i++)
+            {
+                _output.WriteLine($"  [{i}] Text: '{workerOptions[i].Text}', Value: '{workerOptions[i].GetAttribute("value")}'");
+            }
+            
+            var validWorkerOptions = workerOptions.Where(o => !string.IsNullOrWhiteSpace(o.Text) && o.Text != "--Select--").ToList();
+            if (validWorkerOptions.Any())
+            {
+                var selectedWorkerText = workerOptions[1].Text; // Store before selecting
+                workerSelect.SelectByIndex(1); // Select first real option
+                _output.WriteLine($"[PASS] Selected worker at index 1: {selectedWorkerText}");
+                System.Threading.Thread.Sleep(1000); // Wait for any page updates
+            }
+
+            // Fill Was Family Successfully Contacted
+            _output.WriteLine("\n[INFO] ========== FILLING 'WAS FAMILY SUCCESSFULLY CONTACTED?' ==========");
+            var contactedDropdown = FindSelectBySuffix(driver, "ddlContactAttemptSuccessful");
+            _output.WriteLine($"[INFO] Found 'Successfully Contacted' dropdown: ID={contactedDropdown.GetAttribute("id")}");
+            
+            var contactedSelect = new OpenQA.Selenium.Support.UI.SelectElement(contactedDropdown);
+            var contactedOptions = contactedSelect.Options;
+            _output.WriteLine($"[INFO] 'Successfully Contacted' dropdown has {contactedOptions.Count} options:");
+            for (int i = 0; i < contactedOptions.Count; i++)
+            {
+                _output.WriteLine($"  [{i}] Text: '{contactedOptions[i].Text}', Value: '{contactedOptions[i].GetAttribute("value")}'");
+            }
+            
+            var yesOption = contactedOptions.FirstOrDefault(o => o.Text.Contains("Yes", StringComparison.OrdinalIgnoreCase));
+            if (yesOption != null)
+            {
+                var yesOptionText = yesOption.Text; // Store before selecting
+                var yesOptionValue = yesOption.GetAttribute("value");
+                _output.WriteLine($"[INFO] Found 'Yes' option: Text='{yesOptionText}', Value='{yesOptionValue}'");
+                
+                contactedSelect.SelectByText(yesOptionText);
+                _output.WriteLine($"[PASS] Selected: {yesOptionText}");
+                System.Threading.Thread.Sleep(1000); // Wait for any page updates
+            }
+            else
+            {
+                _output.WriteLine("[ERROR] Could not find 'Yes' option!");
+            }
+
+            System.Threading.Thread.Sleep(500);
+
+            // NOTE: NOT filling Contact Attempt Type(s) - this should trigger validation!
+            _output.WriteLine("\n[INFO] ========== SKIPPING CONTACT ATTEMPT TYPE(S) ==========");
+            _output.WriteLine("[INFO] Intentionally NOT filling Contact Attempt Type(s) to trigger validation");
+
+            // Try to submit WITHOUT filling Contact Attempt Type(s)
+            _output.WriteLine("\n[INFO] ========== CLICKING SUBMIT BUTTON ==========");
+            var submitBtn = FindButtonBySuffix(driver, "lbSubmitContactAttempt");
+            _output.WriteLine($"[INFO] Found Submit button: ID={submitBtn.GetAttribute("id")}, Text='{submitBtn.Text}'");
+            _output.WriteLine($"[INFO] Submit button enabled: {submitBtn.Enabled}");
+            
+            submitBtn.Click();
+            _output.WriteLine("[PASS] Clicked Submit button");
+            System.Threading.Thread.Sleep(3000);
+            _output.WriteLine("[INFO] Waited 3 seconds for validation to appear");
+
+            // Check for validation messages
+            _output.WriteLine("\n[INFO] ========== CHECKING FOR VALIDATION MESSAGES ==========");
+            
+            var validationMessages = GetValidationErrorMessages(driver);
+            
+            if (validationMessages.Any())
+            {
+                _output.WriteLine($"[PASS] Found {validationMessages.Count} validation messages:");
+                foreach (var msg in validationMessages)
+                {
+                    _output.WriteLine($"  ✓ {msg}");
+                }
+            }
+            else
+            {
+                _output.WriteLine("[INFO] No validation messages found in standard locations");
+            }
+            
+            // Also check for toast notifications
+            try
+            {
+                var toastElements = driver.FindElements(OpenQA.Selenium.By.CssSelector(".toast, .alert, [class*='notification'], [class*='message'], [role='alert'], [class*='toast']"));
+                var visibleToasts = toastElements.Where(t => t.Displayed).ToList();
+                
+                if (visibleToasts.Any())
+                {
+                    _output.WriteLine($"\n[INFO] Found {visibleToasts.Count} toast/alert messages:");
+                    foreach (var toast in visibleToasts)
+                    {
+                        var toastText = toast.Text?.Trim();
+                        if (!string.IsNullOrWhiteSpace(toastText))
+                        {
+                            _output.WriteLine($"  ✓ {toastText}");
+                            validationMessages.Add(toastText);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _output.WriteLine($"[INFO] Could not find toast notifications: {ex.Message}");
+            }
+
+            _output.WriteLine("[INFO] ========== END VALIDATION CHECK ==========\n");
+
+            // Verify that validation toast appeared
+            var hasContactAttemptValidation = validationMessages.Any(m => 
+                m.Contains("Contact Attempt Validation Failed", StringComparison.OrdinalIgnoreCase) ||
+                m.Contains("contact attempt is invalid", StringComparison.OrdinalIgnoreCase) ||
+                m.Contains("validation summary", StringComparison.OrdinalIgnoreCase));
+            
+            Assert.True(hasContactAttemptValidation, 
+                "Expected 'Contact Attempt Validation Failed' toast notification, but it was not found!");
+            
+            _output.WriteLine($"[PASS] ✓ Validation test passed! 'Contact Attempt Validation Failed' toast appeared!");
+            _output.WriteLine($"[PASS] ✓ Total validation messages found: {validationMessages.Count}");
+            _output.WriteLine("========================================");
+        }
+
+        [Fact]
+        public void ReferralsPage_AddContactAttempt_FillsFormAndSubmits()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("TEST: ADD NEW CONTACT ATTEMPT");
+            _output.WriteLine("========================================");
+
+            // Use helper method for login and navigation
+            LoginAndNavigateToReferrals(driver);
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("FINDING REFERRAL TO EDIT");
+            _output.WriteLine("========================================");
+
+            // Find the active referrals table
+            var activeReferralsTable = FindActiveReferralsTable(driver);
+            Assert.NotNull(activeReferralsTable);
+            _output.WriteLine("[PASS] Found active referrals table");
+
+            // Get all rows from the table
+            var tableRows = activeReferralsTable.FindElements(OpenQA.Selenium.By.CssSelector("tbody tr"));
+            _output.WriteLine($"[INFO] Found {tableRows.Count} rows in active referrals table");
+
+            // Select the first available row
+            Assert.True(tableRows.Count > 0, "No referrals found in the active referrals table!");
+            var targetRow = tableRows[0];
+            _output.WriteLine($"[PASS] Selected row 0 for editing");
+            _output.WriteLine($"[INFO] Row text: {targetRow.Text}");
+
+            // Find the edit button in the target row
+            var editButton = FindReferralEditButton(targetRow);
+
+            Assert.NotNull(editButton);
+            _output.WriteLine($"[PASS] Found edit button: id='{editButton.GetAttribute("id")}', text='{editButton.Text}'");
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("CLICKING EDIT BUTTON");
+            _output.WriteLine("========================================");
+
+            // Scroll into view and click
+            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", editButton);
+            System.Threading.Thread.Sleep(500);
+
+            if (!editButton.Displayed)
+            {
+                _output.WriteLine("[INFO] Edit button not visible, using JavaScript click");
+                ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", editButton);
+            }
+            else
+            {
+                _output.WriteLine("[INFO] Edit button visible, using regular click");
+                editButton.Click();
+            }
+
+            _output.WriteLine("[PASS] Clicked edit button successfully");
+
+            // Wait for navigation
+            driver.WaitForReady(30);
+            System.Threading.Thread.Sleep(2000);
+
+            // Verify we're on the Referral edit page
+            Assert.Contains("Referral.aspx", driver.Url, StringComparison.OrdinalIgnoreCase);
+            _output.WriteLine($"[PASS] Successfully navigated to Referral edit page: {driver.Url}");
+
+            // Capture existing contact attempts before adding a new one
+            var contactAttemptsTable = FindContactAttemptsTable(driver);
+            Assert.NotNull(contactAttemptsTable);
+            _output.WriteLine("[PASS] Found contact attempts table");
+
+            var initialContactAttemptRows = GetContactAttemptDataRows(contactAttemptsTable);
+            var initialRowCount = initialContactAttemptRows.Count;
+            _output.WriteLine($"[INFO] Initial contact attempt count: {initialRowCount}");
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("CLICKING NEW CONTACT ATTEMPT BUTTON");
+            _output.WriteLine("========================================");
+
+            // Find and click the New Contact Attempt button
+            var newContactAttemptButton = FindButtonBySuffix(driver, "lbNewContactAttempt");
+            Assert.NotNull(newContactAttemptButton);
+            _output.WriteLine($"[PASS] Found New Contact Attempt button: '{newContactAttemptButton.Text}'");
+
+            // Scroll the button into view and use JavaScript click to avoid navbar interference
+            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -200);", newContactAttemptButton);
+            System.Threading.Thread.Sleep(500);
+            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", newContactAttemptButton);
+            _output.WriteLine("[PASS] Clicked New Contact Attempt button");
+            
+            driver.WaitForReady(10);
+            System.Threading.Thread.Sleep(1000);
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("VERIFYING CONTACT ATTEMPT FORM IS VISIBLE");
+            _output.WriteLine("========================================");
+
+            // Verify the contact attempt form is now visible
+            var contactAttemptForm = FindContactAttemptForm(driver);
+            Assert.NotNull(contactAttemptForm);
+            Assert.True(contactAttemptForm.Displayed, "Contact attempt form should be visible after clicking New Contact Attempt button");
+            _output.WriteLine("[PASS] Contact attempt form is now visible");
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("FILLING OUT CONTACT ATTEMPT FORM");
+            _output.WriteLine("========================================");
+
+            // Fill Contact Date using JavaScript to ensure value + events are set
+            var contactDateField = FindTextInputBySuffix(driver, "txtContactAttemptDate");
+            var contactDateJs = (OpenQA.Selenium.IJavaScriptExecutor)driver;
+            contactDateJs.ExecuteScript("arguments[0].scrollIntoView({block: 'center'});", contactAttemptForm);
+            System.Threading.Thread.Sleep(300);
+            contactDateJs.ExecuteScript(
+                "arguments[0].value = ''; arguments[0].focus(); arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('change', { bubbles: true }));",
+                contactDateField, "11/12/2025");
+            System.Threading.Thread.Sleep(200);
+            _output.WriteLine("[PASS] Filled Contact Date via JavaScript: 11/12/2025");
+
+            // Select Worker
+            var workerDropdown = FindSelectBySuffix(driver, "ddlContactAttemptWorker");
+            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true);", workerDropdown);
+            System.Threading.Thread.Sleep(300);
+            
+            var workerSelectElement = new OpenQA.Selenium.Support.UI.SelectElement(workerDropdown);
+            // Select the "Test, Derek" option (value="3489" from the HTML)
+            workerSelectElement.SelectByValue("3489");
+            _output.WriteLine("[PASS] Selected Worker: Test, Derek");
+
+            // Select Contact Attempt Type using JS fallback (Chosen.js control)
+            SelectChosenOptionViaScript(driver, "ddlContactAttemptTypes", "Phone Call Made to Parent", "1469");
+            System.Threading.Thread.Sleep(300);
+            _output.WriteLine("[PASS] Selected Contact Attempt Type via JavaScript: Phone Call Made to Parent");
+
+            // Select "Was the Family Successfully Contacted?"
+            var successfulContactDropdown = FindSelectBySuffix(driver, "ddlContactAttemptSuccessful");
+            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true);", successfulContactDropdown);
+            System.Threading.Thread.Sleep(300);
+            
+            var successfulSelectElement = new OpenQA.Selenium.Support.UI.SelectElement(successfulContactDropdown);
+            successfulSelectElement.SelectByValue("True"); // Yes
+            _output.WriteLine("[PASS] Selected Was Family Successfully Contacted: Yes");
+
+            // Fill Notes using JavaScript (avoids navbar intercept + triggers events)
+            var notesField = FindTextAreaBySuffix(driver, "txtContactAttemptNotes");
+            var notesText = "Test contact attempt - spoke with parent about upcoming program activities.";
+            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript(
+                "arguments[0].value = ''; arguments[0].focus(); arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('change', { bubbles: true }));", 
+                notesField, notesText);
+            System.Threading.Thread.Sleep(300);
+            _output.WriteLine("[PASS] Filled Notes field via JavaScript");
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("SUBMITTING CONTACT ATTEMPT FORM");
+            _output.WriteLine("========================================");
+
+            // Find and click Submit button
+            var submitButton = FindButtonBySuffix(driver, "lbSubmitContactAttempt");
+            Assert.NotNull(submitButton);
+            _output.WriteLine($"[PASS] Found Submit button");
+
+            // Scroll to submit button and click
+            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", submitButton);
+            System.Threading.Thread.Sleep(500);
+            
+            submitButton.Click();
+            _output.WriteLine("[PASS] Clicked Submit button");
+
+            // Wait for the submission to process
+            driver.WaitForReady(10);
+            System.Threading.Thread.Sleep(2000);
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("VERIFYING CONTACT ATTEMPT WAS ADDED");
+            _output.WriteLine("========================================");
+
+            // Check if the form closed (it should hide after successful submission)
+            try
+            {
+                var formAfterSubmit = FindContactAttemptForm(driver);
+                var isFormVisible = formAfterSubmit.Displayed;
+                
+                if (!isFormVisible)
+                {
+                    _output.WriteLine("[PASS] Contact attempt form is now hidden (submission successful)");
+                }
+                else
+                {
+                    _output.WriteLine("[INFO] Contact attempt form is still visible - checking for validation errors");
+                    
+                    // Check for validation errors
+                    try
+                    {
+                        var validationSummary = FindValidationSummaryBySuffix(driver, "vsContactAttempt");
+                        if (validationSummary.Displayed)
+                        {
+                            _output.WriteLine($"[WARN] Validation error found: {validationSummary.Text}");
+                        }
+                    }
+                    catch
+                    {
+                        _output.WriteLine("[INFO] No validation summary found");
+                    }
+                }
+            }
+            catch (OpenQA.Selenium.NoSuchElementException)
+            {
+                _output.WriteLine("[INFO] Contact attempt form element not found in DOM");
+            }
+
+            // Verify the contact attempt appears in the table
+            try
+            {
+                contactAttemptsTable = FindContactAttemptsTable(driver);
+                var updatedRows = GetContactAttemptDataRows(contactAttemptsTable);
+                _output.WriteLine($"[INFO] Updated contact attempt count: {updatedRows.Count}");
+
+                Assert.True(updatedRows.Count > initialRowCount,
+                    $"Expected contact attempts to increase (before={initialRowCount}, after={updatedRows.Count}).");
+
+                var expectedSnippets = new[]
+                {
+                    "11/12/2025",
+                    "Test, Derek",
+                    "Phone Call Made to Parent",
+                    notesText
+                };
+
+                var matchingRow = updatedRows.FirstOrDefault(row =>
+                    expectedSnippets.Where(snippet => !string.IsNullOrWhiteSpace(snippet))
+                        .Count(snippet => row.Text?.IndexOf(snippet, StringComparison.OrdinalIgnoreCase) >= 0) >= 2);
+
+                if (matchingRow != null)
+                {
+                    _output.WriteLine($"[PASS] ✓ Found newly added contact attempt row: {matchingRow.Text}");
+                }
+                else
+                {
+                    _output.WriteLine("[WARN] Could not find a row containing all expected snippets. Available rows:");
+                    foreach (var row in updatedRows)
+                    {
+                        _output.WriteLine($"  · {row.Text}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _output.WriteLine($"[WARN] Could not verify contact attempts table: {ex.Message}");
+                throw;
+            }
+
+            // Check for success messages or toasts
+            try
+            {
+                var toastElements = driver.FindElements(OpenQA.Selenium.By.CssSelector(".toast, .alert-success, [class*='success'], [role='alert']"));
+                var visibleToasts = toastElements.Where(t => t.Displayed && !string.IsNullOrWhiteSpace(t.Text)).ToList();
+                
+                if (visibleToasts.Any())
+                {
+                    _output.WriteLine($"\n[INFO] Found {visibleToasts.Count} success message(s):");
+                    foreach (var toast in visibleToasts)
+                    {
+                        _output.WriteLine($"  ✓ {toast.Text?.Trim()}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _output.WriteLine($"[INFO] Could not check for success messages: {ex.Message}");
+            }
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("TEST SUMMARY");
+            _output.WriteLine("========================================");
+            _output.WriteLine("[PASS] Successfully navigated to referral edit page");
+            _output.WriteLine("[PASS] Successfully opened contact attempt form");
+            _output.WriteLine("[PASS] Successfully filled all required fields");
+            _output.WriteLine("[PASS] Successfully submitted contact attempt");
+            _output.WriteLine("========================================");
+        }
+
+        [Fact]
+        public void ReferralsPage_DeleteContactAttempt_CancelsAndConfirmsDelete()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("TEST: DELETE CONTACT ATTEMPT");
+            _output.WriteLine("========================================");
+
+            // Use helper method for login and navigation
+            LoginAndNavigateToReferrals(driver);
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("FINDING REFERRAL TO EDIT");
+            _output.WriteLine("========================================");
+
+            // Find the active referrals table
+            var activeReferralsTable = FindActiveReferralsTable(driver);
+            Assert.NotNull(activeReferralsTable);
+            _output.WriteLine("[PASS] Found active referrals table");
+
+            // Get all rows from the table
+            var tableRows = activeReferralsTable.FindElements(OpenQA.Selenium.By.CssSelector("tbody tr"));
+            _output.WriteLine($"[INFO] Found {tableRows.Count} rows in active referrals table");
+
+            // Select the first available row
+            Assert.True(tableRows.Count > 0, "No referrals found in the active referrals table!");
+            var targetRow = tableRows[0];
+            _output.WriteLine($"[PASS] Selected row 0 for editing");
+            _output.WriteLine($"[INFO] Row text: {targetRow.Text}");
+
+            // Find the edit button in the target row
+            var editButton = FindReferralEditButton(targetRow);
+
+            Assert.NotNull(editButton);
+            _output.WriteLine($"[PASS] Found edit button: id='{editButton.GetAttribute("id")}', text='{editButton.Text}'");
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("CLICKING EDIT BUTTON");
+            _output.WriteLine("========================================");
+
+            // Scroll into view and click
+            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", editButton);
+            System.Threading.Thread.Sleep(500);
+
+            if (!editButton.Displayed)
+            {
+                _output.WriteLine("[INFO] Edit button not visible, using JavaScript click");
+                ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", editButton);
+            }
+            else
+            {
+                _output.WriteLine("[INFO] Edit button visible, using regular click");
+                editButton.Click();
+            }
+
+            _output.WriteLine("[PASS] Clicked edit button successfully");
+
+            // Wait for navigation
+            driver.WaitForReady(30);
+            System.Threading.Thread.Sleep(2000);
+
+            // Verify we're on the Referral edit page
+            Assert.Contains("Referral.aspx", driver.Url, StringComparison.OrdinalIgnoreCase);
+            _output.WriteLine($"[PASS] Successfully navigated to Referral edit page: {driver.Url}");
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("CHECKING FOR CONTACT ATTEMPTS");
+            _output.WriteLine("========================================");
+
+            // Find the contact attempts table
+            var contactAttemptsTable = FindContactAttemptsTable(driver);
+            Assert.NotNull(contactAttemptsTable);
+            _output.WriteLine("[PASS] Found contact attempts table");
+
+            var initialContactAttemptRows = GetContactAttemptDataRows(contactAttemptsTable);
+            var initialRowCount = initialContactAttemptRows.Count;
+            _output.WriteLine($"[INFO] Initial contact attempt count: {initialRowCount}");
+
+            // Scroll to the table
+            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", contactAttemptsTable);
+            System.Threading.Thread.Sleep(500);
+
+            // Get initial rows
+            var initialRows = contactAttemptsTable.FindElements(OpenQA.Selenium.By.CssSelector("tbody tr"));
+            var initialRowsWithData = initialRows.Where(row => 
+                !row.Text.Contains("No data available in table", StringComparison.OrdinalIgnoreCase)).ToList();
+
+            _output.WriteLine($"[INFO] Found {initialRowsWithData.Count} contact attempt(s) in table");
+
+            // If no contact attempts exist, create one first
+            if (initialRowsWithData.Count == 0)
+            {
+                _output.WriteLine("\n[INFO] No contact attempts found, creating one first...");
+                
+                // Click New Contact Attempt button
+                var newContactAttemptButton = FindButtonBySuffix(driver, "lbNewContactAttempt");
+                ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -200);", newContactAttemptButton);
+                System.Threading.Thread.Sleep(500);
+                ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", newContactAttemptButton);
+                driver.WaitForReady(10);
+                System.Threading.Thread.Sleep(1000);
+
+                // Fill the form
+                var contactDateField = FindTextInputBySuffix(driver, "txtContactAttemptDate");
+                ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript(
+                    "arguments[0].value = ''; arguments[0].focus(); arguments[0].value = arguments[1];", 
+                    contactDateField, "11/14/2025");
+                System.Threading.Thread.Sleep(300);
+
+                var workerDropdown = FindSelectBySuffix(driver, "ddlContactAttemptWorker");
+                var workerSelectElement = new OpenQA.Selenium.Support.UI.SelectElement(workerDropdown);
+                workerSelectElement.SelectByValue("3489");
+
+                var contactTypesDropdown = FindSelectBySuffix(driver, "ddlContactAttemptTypes");
+                var jsScript = @"
+                    var select = arguments[0];
+                    var option = select.querySelector('option[value=""1469""]');
+                    if (option) {
+                        option.selected = true;
+                        $(select).trigger('change');
+                        $(select).trigger('chosen:updated');
+                    }
+                ";
+                ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript(jsScript, contactTypesDropdown);
+                System.Threading.Thread.Sleep(500);
+
+                var successfulContactDropdown = FindSelectBySuffix(driver, "ddlContactAttemptSuccessful");
+                var successfulSelectElement = new OpenQA.Selenium.Support.UI.SelectElement(successfulContactDropdown);
+                successfulSelectElement.SelectByValue("True");
+
+                var notesField = FindTextAreaBySuffix(driver, "txtContactAttemptNotes");
+                ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript(
+                    "arguments[0].value = ''; arguments[0].focus(); arguments[0].value = arguments[1];", 
+                    notesField, "Test contact attempt for delete test");
+                System.Threading.Thread.Sleep(300);
+
+                // Submit
+                var submitButton = FindButtonBySuffix(driver, "lbSubmitContactAttempt");
+                ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", submitButton);
+                System.Threading.Thread.Sleep(500);
+                submitButton.Click();
+                
+                driver.WaitForReady(10);
+                System.Threading.Thread.Sleep(2000);
+                _output.WriteLine("[PASS] Created test contact attempt");
+
+                // Refresh the rows list
+                initialRows = contactAttemptsTable.FindElements(OpenQA.Selenium.By.CssSelector("tbody tr"));
+                initialRowsWithData = initialRows.Where(row => 
+                    !row.Text.Contains("No data available in table", StringComparison.OrdinalIgnoreCase)).ToList();
+            }
+
+            Assert.True(initialRowsWithData.Count > 0, "No contact attempts available to delete!");
+            _output.WriteLine($"[PASS] Found contact attempt to delete");
+
+            var targetContactRow = initialRowsWithData[0];
+            var initialRowText = targetContactRow.Text;
+            _output.WriteLine($"[INFO] Target contact attempt row: {initialRowText}");
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("FIRST DELETE ATTEMPT - CANCEL");
+            _output.WriteLine("========================================");
+
+            // Find the delete button in the first row
+            var deleteButton = targetContactRow
+                .FindElements(OpenQA.Selenium.By.CssSelector("a, button, input[type='button'], input[type='submit']"))
+                .FirstOrDefault(el =>
+                {
+                    var text = el.Text?.Trim() ?? el.GetAttribute("value") ?? "";
+                    var id = el.GetAttribute("id") ?? "";
+                    var title = el.GetAttribute("title") ?? "";
+                    return el.Enabled &&
+                           (text.Equals("Delete", StringComparison.OrdinalIgnoreCase) ||
+                            id.Contains("Delete", StringComparison.OrdinalIgnoreCase) ||
+                            title.Contains("Delete", StringComparison.OrdinalIgnoreCase));
+                });
+
+            Assert.NotNull(deleteButton);
+            _output.WriteLine($"[PASS] Found delete button: id='{deleteButton.GetAttribute("id")}', text='{deleteButton.Text}'");
+
+            // Scroll to delete button and click
+            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", deleteButton);
+            System.Threading.Thread.Sleep(500);
+            deleteButton.Click();
+            _output.WriteLine("[PASS] Clicked delete button");
+
+            System.Threading.Thread.Sleep(1000);
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("HANDLING CONFIRMATION DIALOG - CLICK NO");
+            _output.WriteLine("========================================");
+
+            // Handle the confirmation dialog - Click "No" / "Cancel"
+            try
+            {
+                // Try to find and click the "No" or "Cancel" button in the confirmation dialog
+                var cancelButton = driver.FindElements(OpenQA.Selenium.By.XPath("//button[contains(text(), 'No')] | //button[contains(text(), 'Cancel')] | //a[contains(text(), 'No')] | //a[contains(text(), 'Cancel')]"))
+                    .FirstOrDefault(btn => btn.Displayed && btn.Enabled);
+
+                if (cancelButton != null)
+                {
+                    _output.WriteLine($"[INFO] Found cancel button: text='{cancelButton.Text}'");
+                    cancelButton.Click();
+                    _output.WriteLine("[PASS] Clicked 'No' button on confirmation dialog");
+                }
+                else
+                {
+                    // Try dismissing browser alert if it's a JavaScript confirm
+                    try
+                    {
+                        var alert = driver.SwitchTo().Alert();
+                        _output.WriteLine($"[INFO] Browser alert detected: {alert.Text}");
+                        alert.Dismiss();
+                        _output.WriteLine("[PASS] Dismissed browser alert (clicked Cancel)");
+                    }
+                    catch
+                    {
+                        _output.WriteLine("[WARN] No confirmation dialog found - trying to continue");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _output.WriteLine($"[WARN] Error handling confirmation dialog: {ex.Message}");
+            }
+
+            driver.WaitForReady(10);
+            System.Threading.Thread.Sleep(1000);
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("VERIFYING CONTACT ATTEMPT STILL EXISTS");
+            _output.WriteLine("========================================");
+
+            // Refresh and verify the row still exists
+            contactAttemptsTable = FindContactAttemptsTable(driver);
+            var rowsAfterCancel = contactAttemptsTable.FindElements(OpenQA.Selenium.By.CssSelector("tbody tr"));
+            var rowsWithDataAfterCancel = rowsAfterCancel.Where(row => 
+                !row.Text.Contains("No data available in table", StringComparison.OrdinalIgnoreCase)).ToList();
+
+            _output.WriteLine($"[INFO] Rows after cancel: {rowsWithDataAfterCancel.Count}");
+            Assert.Equal(initialRowsWithData.Count, rowsWithDataAfterCancel.Count);
+            _output.WriteLine("[PASS] ✓ Contact attempt was NOT deleted (cancel worked correctly)");
+
+            // Verify the specific row still exists
+            var rowStillExists = rowsWithDataAfterCancel.Any(row => row.Text.Contains(initialRowText.Split(new[] { " Edit " }, StringSplitOptions.None)[0]));
+            if (rowStillExists)
+            {
+                _output.WriteLine("[PASS] ✓ Original contact attempt row is still present");
+            }
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("SECOND DELETE ATTEMPT - CONFIRM");
+            _output.WriteLine("========================================");
+
+            // Find the delete button again (we need to re-find it after page refresh)
+            targetContactRow = rowsWithDataAfterCancel[0];
+            deleteButton = targetContactRow
+                .FindElements(OpenQA.Selenium.By.CssSelector("a, button, input[type='button'], input[type='submit']"))
+                .FirstOrDefault(el =>
+                {
+                    var text = el.Text?.Trim() ?? el.GetAttribute("value") ?? "";
+                    var id = el.GetAttribute("id") ?? "";
+                    var title = el.GetAttribute("title") ?? "";
+                    return el.Enabled &&
+                           (text.Equals("Delete", StringComparison.OrdinalIgnoreCase) ||
+                            id.Contains("Delete", StringComparison.OrdinalIgnoreCase) ||
+                            title.Contains("Delete", StringComparison.OrdinalIgnoreCase));
+                });
+
+            Assert.NotNull(deleteButton);
+            _output.WriteLine($"[PASS] Found delete button again: id='{deleteButton.GetAttribute("id")}', text='{deleteButton.Text}'");
+
+            // Scroll to delete button and click
+            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", deleteButton);
+            System.Threading.Thread.Sleep(500);
+            deleteButton.Click();
+            _output.WriteLine("[PASS] Clicked delete button again");
+
+            System.Threading.Thread.Sleep(1000);
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("HANDLING CONFIRMATION DIALOG - CLICK YES");
+            _output.WriteLine("========================================");
+
+            // Handle the confirmation dialog - Click "Yes" 
+            try
+            {
+                // Try to find and click the "Yes"button in the confirmation dialog
+                var confirmButton = driver.FindElements(OpenQA.Selenium.By.XPath("//button[contains(text(), 'Yes')] | //button[contains(text(), 'OK')] | //button[contains(text(), 'Confirm')] | //a[contains(text(), 'Yes')] | //a[contains(text(), 'OK')]"))
+                    .FirstOrDefault(btn => btn.Displayed && btn.Enabled);
+
+                if (confirmButton != null)
+                {
+                    _output.WriteLine($"[INFO] Found confirm button: text='{confirmButton.Text}'");
+                    confirmButton.Click();
+                    _output.WriteLine("[PASS] Clicked 'Yes' button on confirmation dialog");
+                }
+                else
+                {
+                    // Try accepting browser alert if it's a JavaScript confirm
+                    try
+                    {
+                        var alert = driver.SwitchTo().Alert();
+                        _output.WriteLine($"[INFO] Browser alert detected: {alert.Text}");
+                        alert.Accept();
+                        _output.WriteLine("[PASS] Accepted browser alert (clicked OK)");
+                    }
+                    catch
+                    {
+                        _output.WriteLine("[WARN] No confirmation dialog found - deletion may have proceeded automatically");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _output.WriteLine($"[WARN] Error handling confirmation dialog: {ex.Message}");
+            }
+
+            // Wait for the deletion to process
+            driver.WaitForReady(10);
+            System.Threading.Thread.Sleep(2000);
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("VERIFYING CONTACT ATTEMPT WAS DELETED");
+            _output.WriteLine("========================================");
+
+            // Refresh and verify the row was deleted
+            contactAttemptsTable = FindContactAttemptsTable(driver);
+            contactAttemptsTable = FindContactAttemptsTable(driver);
+            var rowsAfterDelete = contactAttemptsTable.FindElements(OpenQA.Selenium.By.CssSelector("tbody tr"));
+            var rowsWithDataAfterDelete = rowsAfterDelete.Where(row => 
+                !row.Text.Contains("No data available in table", StringComparison.OrdinalIgnoreCase)).ToList();
+
+            _output.WriteLine($"[INFO] Rows after delete: {rowsWithDataAfterDelete.Count}");
+            _output.WriteLine($"[INFO] Expected rows: {initialRowsWithData.Count - 1}");
+            
+            Assert.Equal(initialRowsWithData.Count - 1, rowsWithDataAfterDelete.Count);
+            _output.WriteLine("[PASS] ✓ Contact attempt count decreased by 1");
+
+            // Verify the specific row no longer exists
+            if (rowsWithDataAfterDelete.Count > 0)
+            {
+                var deletedRowStillExists = rowsWithDataAfterDelete.Any(row => row.Text == initialRowText);
+                Assert.False(deletedRowStillExists, "The deleted contact attempt row should no longer exist!");
+                _output.WriteLine("[PASS] ✓ Original contact attempt row was removed");
+            }
+            else
+            {
+                _output.WriteLine("[PASS] ✓ Contact attempts table is now empty (all rows deleted)");
+            }
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("CHECKING FOR SUCCESS NOTIFICATION");
+            _output.WriteLine("========================================");
+
+            // Check for success toast notification
+            try
+            {
+                var toastElements = driver.FindElements(OpenQA.Selenium.By.CssSelector(".toast, .alert-success, [class*='success'], [role='alert']"));
+                var visibleToasts = toastElements.Where(t => t.Displayed && !string.IsNullOrWhiteSpace(t.Text)).ToList();
+                
+                if (visibleToasts.Any())
+                {
+                    _output.WriteLine($"[INFO] Found {visibleToasts.Count} success notification(s):");
+                    foreach (var toast in visibleToasts)
+                    {
+                        var toastText = toast.Text?.Trim();
+                        _output.WriteLine($"  ✓ {toastText}");
+                        
+                        // Check if toast contains delete-related success message
+                        if (toastText != null && 
+                            (toastText.Contains("deleted", StringComparison.OrdinalIgnoreCase) ||
+                             toastText.Contains("removed", StringComparison.OrdinalIgnoreCase) ||
+                             toastText.Contains("success", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            _output.WriteLine("[PASS]  Success notification confirms deletion");
+                        }
+                    }
+                }
+                else
+                {
+                    _output.WriteLine("[INFO] No visible toast notifications found");
+                }
+            }
+            catch (Exception ex)
+            {
+                _output.WriteLine($"[INFO] Could not check for success notifications: {ex.Message}");
+            }
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("TEST SUMMARY");
+            _output.WriteLine("========================================");
+            _output.WriteLine("[PASS] Successfully navigated to referral edit page");
+            _output.WriteLine("[PASS] Successfully found contact attempt to delete");
+            _output.WriteLine("[PASS] Successfully cancelled first delete attempt");
+            _output.WriteLine("[PASS] Verified contact attempt was NOT deleted after cancel");
+            _output.WriteLine("[PASS] Successfully confirmed second delete attempt");
+            _output.WriteLine("[PASS] Verified contact attempt WAS deleted successfully");
+            _output.WriteLine("========================================");
+        }
+
+    }
+}
+
 
