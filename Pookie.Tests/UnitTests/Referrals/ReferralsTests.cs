@@ -3857,6 +3857,414 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("========================================");
         }
 
+        [Fact]
+        public void ReferralsPage_DeleteContactAttempt_CancelsAndConfirmsDelete()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("TEST: DELETE CONTACT ATTEMPT");
+            _output.WriteLine("========================================");
+
+            // Use helper method for login and navigation
+            LoginAndNavigateToReferrals(driver);
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("FINDING REFERRAL TO EDIT");
+            _output.WriteLine("========================================");
+
+            // Find the active referrals table
+            var activeReferralsTable = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_grActiveReferrals"));
+            Assert.NotNull(activeReferralsTable);
+            _output.WriteLine("[PASS] Found active referrals table");
+
+            // Get all rows from the table
+            var tableRows = activeReferralsTable.FindElements(OpenQA.Selenium.By.CssSelector("tbody tr"));
+            _output.WriteLine($"[INFO] Found {tableRows.Count} rows in active referrals table");
+
+            // Select the first available row
+            Assert.True(tableRows.Count > 0, "No referrals found in the active referrals table!");
+            var targetRow = tableRows[0];
+            _output.WriteLine($"[PASS] Selected row 0 for editing");
+            _output.WriteLine($"[INFO] Row text: {targetRow.Text}");
+
+            // Find the edit button in the target row
+            var editButton = targetRow
+                .FindElements(OpenQA.Selenium.By.CssSelector("a, button, input[type='button'], input[type='submit'], input[type='image']"))
+                .FirstOrDefault(el =>
+                {
+                    var text = el.Text?.Trim() ?? el.GetAttribute("value") ?? "";
+                    var id = el.GetAttribute("id") ?? "";
+                    var title = el.GetAttribute("title") ?? "";
+                    return el.Enabled &&
+                           (text.Equals("Edit", StringComparison.OrdinalIgnoreCase) ||
+                            id.Contains("Edit", StringComparison.OrdinalIgnoreCase) ||
+                            title.Contains("Edit", StringComparison.OrdinalIgnoreCase));
+                });
+
+            Assert.NotNull(editButton);
+            _output.WriteLine($"[PASS] Found edit button: id='{editButton.GetAttribute("id")}', text='{editButton.Text}'");
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("CLICKING EDIT BUTTON");
+            _output.WriteLine("========================================");
+
+            // Scroll into view and click
+            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", editButton);
+            System.Threading.Thread.Sleep(500);
+
+            if (!editButton.Displayed)
+            {
+                _output.WriteLine("[INFO] Edit button not visible, using JavaScript click");
+                ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", editButton);
+            }
+            else
+            {
+                _output.WriteLine("[INFO] Edit button visible, using regular click");
+                editButton.Click();
+            }
+
+            _output.WriteLine("[PASS] Clicked edit button successfully");
+
+            // Wait for navigation
+            driver.WaitForReady(30);
+            System.Threading.Thread.Sleep(2000);
+
+            // Verify we're on the Referral edit page
+            Assert.Contains("Referral.aspx", driver.Url, StringComparison.OrdinalIgnoreCase);
+            _output.WriteLine($"[PASS] Successfully navigated to Referral edit page: {driver.Url}");
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("CHECKING FOR CONTACT ATTEMPTS");
+            _output.WriteLine("========================================");
+
+            // Find the contact attempts table
+            var contactAttemptsTable = driver.FindElement(OpenQA.Selenium.By.Id("tblContactAttempts"));
+            Assert.NotNull(contactAttemptsTable);
+            _output.WriteLine("[PASS] Found contact attempts table");
+
+            // Scroll to the table
+            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", contactAttemptsTable);
+            System.Threading.Thread.Sleep(500);
+
+            // Get initial rows
+            var initialRows = contactAttemptsTable.FindElements(OpenQA.Selenium.By.CssSelector("tbody tr"));
+            var initialRowsWithData = initialRows.Where(row => 
+                !row.Text.Contains("No data available in table", StringComparison.OrdinalIgnoreCase)).ToList();
+
+            _output.WriteLine($"[INFO] Found {initialRowsWithData.Count} contact attempt(s) in table");
+
+            // If no contact attempts exist, create one first
+            if (initialRowsWithData.Count == 0)
+            {
+                _output.WriteLine("\n[INFO] No contact attempts found, creating one first...");
+                
+                // Click New Contact Attempt button
+                var newContactAttemptButton = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_lbNewContactAttempt"));
+                ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -200);", newContactAttemptButton);
+                System.Threading.Thread.Sleep(500);
+                ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", newContactAttemptButton);
+                driver.WaitForReady(10);
+                System.Threading.Thread.Sleep(1000);
+
+                // Fill the form
+                var contactDateField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtContactAttemptDate"));
+                ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript(
+                    "arguments[0].value = ''; arguments[0].focus(); arguments[0].value = arguments[1];", 
+                    contactDateField, "11/14/2025");
+                System.Threading.Thread.Sleep(300);
+
+                var workerDropdown = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_ddlContactAttemptWorker"));
+                var workerSelectElement = new OpenQA.Selenium.Support.UI.SelectElement(workerDropdown);
+                workerSelectElement.SelectByValue("3489");
+
+                var contactTypesDropdown = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_ddlContactAttemptTypes"));
+                var jsScript = @"
+                    var select = arguments[0];
+                    var option = select.querySelector('option[value=""1469""]');
+                    if (option) {
+                        option.selected = true;
+                        $(select).trigger('change');
+                        $(select).trigger('chosen:updated');
+                    }
+                ";
+                ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript(jsScript, contactTypesDropdown);
+                System.Threading.Thread.Sleep(500);
+
+                var successfulContactDropdown = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_ddlContactAttemptSuccessful"));
+                var successfulSelectElement = new OpenQA.Selenium.Support.UI.SelectElement(successfulContactDropdown);
+                successfulSelectElement.SelectByValue("True");
+
+                var notesField = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_txtContactAttemptNotes"));
+                ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript(
+                    "arguments[0].value = ''; arguments[0].focus(); arguments[0].value = arguments[1];", 
+                    notesField, "Test contact attempt for delete test");
+                System.Threading.Thread.Sleep(300);
+
+                // Submit
+                var submitButton = driver.FindElement(OpenQA.Selenium.By.Id("ctl00_ContentPlaceHolder1_lbSubmitContactAttempt"));
+                ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", submitButton);
+                System.Threading.Thread.Sleep(500);
+                submitButton.Click();
+                
+                driver.WaitForReady(10);
+                System.Threading.Thread.Sleep(2000);
+                _output.WriteLine("[PASS] Created test contact attempt");
+
+                // Refresh the rows list
+                initialRows = contactAttemptsTable.FindElements(OpenQA.Selenium.By.CssSelector("tbody tr"));
+                initialRowsWithData = initialRows.Where(row => 
+                    !row.Text.Contains("No data available in table", StringComparison.OrdinalIgnoreCase)).ToList();
+            }
+
+            Assert.True(initialRowsWithData.Count > 0, "No contact attempts available to delete!");
+            _output.WriteLine($"[PASS] Found contact attempt to delete");
+
+            var targetContactRow = initialRowsWithData[0];
+            var initialRowText = targetContactRow.Text;
+            _output.WriteLine($"[INFO] Target contact attempt row: {initialRowText}");
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("FIRST DELETE ATTEMPT - CANCEL");
+            _output.WriteLine("========================================");
+
+            // Find the delete button in the first row
+            var deleteButton = targetContactRow
+                .FindElements(OpenQA.Selenium.By.CssSelector("a, button, input[type='button'], input[type='submit']"))
+                .FirstOrDefault(el =>
+                {
+                    var text = el.Text?.Trim() ?? el.GetAttribute("value") ?? "";
+                    var id = el.GetAttribute("id") ?? "";
+                    var title = el.GetAttribute("title") ?? "";
+                    return el.Enabled &&
+                           (text.Equals("Delete", StringComparison.OrdinalIgnoreCase) ||
+                            id.Contains("Delete", StringComparison.OrdinalIgnoreCase) ||
+                            title.Contains("Delete", StringComparison.OrdinalIgnoreCase));
+                });
+
+            Assert.NotNull(deleteButton);
+            _output.WriteLine($"[PASS] Found delete button: id='{deleteButton.GetAttribute("id")}', text='{deleteButton.Text}'");
+
+            // Scroll to delete button and click
+            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", deleteButton);
+            System.Threading.Thread.Sleep(500);
+            deleteButton.Click();
+            _output.WriteLine("[PASS] Clicked delete button");
+
+            System.Threading.Thread.Sleep(1000);
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("HANDLING CONFIRMATION DIALOG - CLICK NO");
+            _output.WriteLine("========================================");
+
+            // Handle the confirmation dialog - Click "No" / "Cancel"
+            try
+            {
+                // Try to find and click the "No" or "Cancel" button in the confirmation dialog
+                var cancelButton = driver.FindElements(OpenQA.Selenium.By.XPath("//button[contains(text(), 'No')] | //button[contains(text(), 'Cancel')] | //a[contains(text(), 'No')] | //a[contains(text(), 'Cancel')]"))
+                    .FirstOrDefault(btn => btn.Displayed && btn.Enabled);
+
+                if (cancelButton != null)
+                {
+                    _output.WriteLine($"[INFO] Found cancel button: text='{cancelButton.Text}'");
+                    cancelButton.Click();
+                    _output.WriteLine("[PASS] Clicked 'No' button on confirmation dialog");
+                }
+                else
+                {
+                    // Try dismissing browser alert if it's a JavaScript confirm
+                    try
+                    {
+                        var alert = driver.SwitchTo().Alert();
+                        _output.WriteLine($"[INFO] Browser alert detected: {alert.Text}");
+                        alert.Dismiss();
+                        _output.WriteLine("[PASS] Dismissed browser alert (clicked Cancel)");
+                    }
+                    catch
+                    {
+                        _output.WriteLine("[WARN] No confirmation dialog found - trying to continue");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _output.WriteLine($"[WARN] Error handling confirmation dialog: {ex.Message}");
+            }
+
+            driver.WaitForReady(10);
+            System.Threading.Thread.Sleep(1000);
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("VERIFYING CONTACT ATTEMPT STILL EXISTS");
+            _output.WriteLine("========================================");
+
+            // Refresh and verify the row still exists
+            contactAttemptsTable = driver.FindElement(OpenQA.Selenium.By.Id("tblContactAttempts"));
+            var rowsAfterCancel = contactAttemptsTable.FindElements(OpenQA.Selenium.By.CssSelector("tbody tr"));
+            var rowsWithDataAfterCancel = rowsAfterCancel.Where(row => 
+                !row.Text.Contains("No data available in table", StringComparison.OrdinalIgnoreCase)).ToList();
+
+            _output.WriteLine($"[INFO] Rows after cancel: {rowsWithDataAfterCancel.Count}");
+            Assert.Equal(initialRowsWithData.Count, rowsWithDataAfterCancel.Count);
+            _output.WriteLine("[PASS] ✓ Contact attempt was NOT deleted (cancel worked correctly)");
+
+            // Verify the specific row still exists
+            var rowStillExists = rowsWithDataAfterCancel.Any(row => row.Text.Contains(initialRowText.Split(new[] { " Edit " }, StringSplitOptions.None)[0]));
+            if (rowStillExists)
+            {
+                _output.WriteLine("[PASS] ✓ Original contact attempt row is still present");
+            }
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("SECOND DELETE ATTEMPT - CONFIRM");
+            _output.WriteLine("========================================");
+
+            // Find the delete button again (we need to re-find it after page refresh)
+            targetContactRow = rowsWithDataAfterCancel[0];
+            deleteButton = targetContactRow
+                .FindElements(OpenQA.Selenium.By.CssSelector("a, button, input[type='button'], input[type='submit']"))
+                .FirstOrDefault(el =>
+                {
+                    var text = el.Text?.Trim() ?? el.GetAttribute("value") ?? "";
+                    var id = el.GetAttribute("id") ?? "";
+                    var title = el.GetAttribute("title") ?? "";
+                    return el.Enabled &&
+                           (text.Equals("Delete", StringComparison.OrdinalIgnoreCase) ||
+                            id.Contains("Delete", StringComparison.OrdinalIgnoreCase) ||
+                            title.Contains("Delete", StringComparison.OrdinalIgnoreCase));
+                });
+
+            Assert.NotNull(deleteButton);
+            _output.WriteLine($"[PASS] Found delete button again: id='{deleteButton.GetAttribute("id")}', text='{deleteButton.Text}'");
+
+            // Scroll to delete button and click
+            ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", deleteButton);
+            System.Threading.Thread.Sleep(500);
+            deleteButton.Click();
+            _output.WriteLine("[PASS] Clicked delete button again");
+
+            System.Threading.Thread.Sleep(1000);
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("HANDLING CONFIRMATION DIALOG - CLICK YES");
+            _output.WriteLine("========================================");
+
+            // Handle the confirmation dialog - Click "Yes" / "OK" / "Confirm"
+            try
+            {
+                // Try to find and click the "Yes" or "OK" button in the confirmation dialog
+                var confirmButton = driver.FindElements(OpenQA.Selenium.By.XPath("//button[contains(text(), 'Yes')] | //button[contains(text(), 'OK')] | //button[contains(text(), 'Confirm')] | //a[contains(text(), 'Yes')] | //a[contains(text(), 'OK')]"))
+                    .FirstOrDefault(btn => btn.Displayed && btn.Enabled);
+
+                if (confirmButton != null)
+                {
+                    _output.WriteLine($"[INFO] Found confirm button: text='{confirmButton.Text}'");
+                    confirmButton.Click();
+                    _output.WriteLine("[PASS] Clicked 'Yes' button on confirmation dialog");
+                }
+                else
+                {
+                    // Try accepting browser alert if it's a JavaScript confirm
+                    try
+                    {
+                        var alert = driver.SwitchTo().Alert();
+                        _output.WriteLine($"[INFO] Browser alert detected: {alert.Text}");
+                        alert.Accept();
+                        _output.WriteLine("[PASS] Accepted browser alert (clicked OK)");
+                    }
+                    catch
+                    {
+                        _output.WriteLine("[WARN] No confirmation dialog found - deletion may have proceeded automatically");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _output.WriteLine($"[WARN] Error handling confirmation dialog: {ex.Message}");
+            }
+
+            // Wait for the deletion to process
+            driver.WaitForReady(10);
+            System.Threading.Thread.Sleep(2000);
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("VERIFYING CONTACT ATTEMPT WAS DELETED");
+            _output.WriteLine("========================================");
+
+            // Refresh and verify the row was deleted
+            contactAttemptsTable = driver.FindElement(OpenQA.Selenium.By.Id("tblContactAttempts"));
+            var rowsAfterDelete = contactAttemptsTable.FindElements(OpenQA.Selenium.By.CssSelector("tbody tr"));
+            var rowsWithDataAfterDelete = rowsAfterDelete.Where(row => 
+                !row.Text.Contains("No data available in table", StringComparison.OrdinalIgnoreCase)).ToList();
+
+            _output.WriteLine($"[INFO] Rows after delete: {rowsWithDataAfterDelete.Count}");
+            _output.WriteLine($"[INFO] Expected rows: {initialRowsWithData.Count - 1}");
+            
+            Assert.Equal(initialRowsWithData.Count - 1, rowsWithDataAfterDelete.Count);
+            _output.WriteLine("[PASS] ✓ Contact attempt count decreased by 1");
+
+            // Verify the specific row no longer exists
+            if (rowsWithDataAfterDelete.Count > 0)
+            {
+                var deletedRowStillExists = rowsWithDataAfterDelete.Any(row => row.Text == initialRowText);
+                Assert.False(deletedRowStillExists, "The deleted contact attempt row should no longer exist!");
+                _output.WriteLine("[PASS] ✓ Original contact attempt row was removed");
+            }
+            else
+            {
+                _output.WriteLine("[PASS] ✓ Contact attempts table is now empty (all rows deleted)");
+            }
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("CHECKING FOR SUCCESS NOTIFICATION");
+            _output.WriteLine("========================================");
+
+            // Check for success toast notification
+            try
+            {
+                var toastElements = driver.FindElements(OpenQA.Selenium.By.CssSelector(".toast, .alert-success, [class*='success'], [role='alert']"));
+                var visibleToasts = toastElements.Where(t => t.Displayed && !string.IsNullOrWhiteSpace(t.Text)).ToList();
+                
+                if (visibleToasts.Any())
+                {
+                    _output.WriteLine($"[INFO] Found {visibleToasts.Count} success notification(s):");
+                    foreach (var toast in visibleToasts)
+                    {
+                        var toastText = toast.Text?.Trim();
+                        _output.WriteLine($"  ✓ {toastText}");
+                        
+                        // Check if toast contains delete-related success message
+                        if (toastText != null && 
+                            (toastText.Contains("deleted", StringComparison.OrdinalIgnoreCase) ||
+                             toastText.Contains("removed", StringComparison.OrdinalIgnoreCase) ||
+                             toastText.Contains("success", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            _output.WriteLine("[PASS] ✓ Success notification confirms deletion");
+                        }
+                    }
+                }
+                else
+                {
+                    _output.WriteLine("[INFO] No visible toast notifications found");
+                }
+            }
+            catch (Exception ex)
+            {
+                _output.WriteLine($"[INFO] Could not check for success notifications: {ex.Message}");
+            }
+
+            _output.WriteLine("\n========================================");
+            _output.WriteLine("TEST SUMMARY");
+            _output.WriteLine("========================================");
+            _output.WriteLine("[PASS] Successfully navigated to referral edit page");
+            _output.WriteLine("[PASS] Successfully found contact attempt to delete");
+            _output.WriteLine("[PASS] Successfully cancelled first delete attempt");
+            _output.WriteLine("[PASS] Verified contact attempt was NOT deleted after cancel");
+            _output.WriteLine("[PASS] Successfully confirmed second delete attempt");
+            _output.WriteLine("[PASS] Verified contact attempt WAS deleted successfully");
+            _output.WriteLine("========================================");
+        }
+
     }
 }
 
