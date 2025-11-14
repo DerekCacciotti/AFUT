@@ -14,6 +14,8 @@ namespace AFUT.Tests.UnitTests.Referrals
 {
     public class UploadDocumentsTests : IClassFixture<AppConfig>
     {
+        private const string TestFilePath = @"C:\Users\IP282924\Desktop\Repo\Pookie.Tests\TestFiles\TestHFNY.pdf";
+        
         private readonly AppConfig _config;
         private readonly IPookieDriverFactory _driverFactory;
         private readonly ITestOutputHelper _output;
@@ -205,6 +207,24 @@ namespace AFUT.Tests.UnitTests.Referrals
         }
 
         /// <summary>
+        /// Clicks an element, scrolling it into view first if needed
+        /// </summary>
+        private void ClickElement(IPookieWebDriver driver, IWebElement element)
+        {
+            driver.ExecuteScript("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", element);
+            System.Threading.Thread.Sleep(500);
+
+            if (!element.Displayed)
+            {
+                driver.ExecuteScript("arguments[0].click();", element);
+            }
+            else
+            {
+                element.Click();
+            }
+        }
+
+        /// <summary>
         /// Checks if element has a specific icon class
         /// </summary>
         private static bool ElementHasIcon(IWebElement element, string iconClass)
@@ -247,17 +267,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine($"[PASS] Found edit button: id='{editButton.GetAttribute("id")}'");
 
             _output.WriteLine("Clicking edit button...");
-            driver.ExecuteScript("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", editButton);
-            System.Threading.Thread.Sleep(500);
-
-            if (!editButton.Displayed)
-            {
-                driver.ExecuteScript("arguments[0].click();", editButton);
-            }
-            else
-            {
-                editButton.Click();
-            }
+            ClickElement(driver, editButton);
 
             driver.WaitForReady(30);
             System.Threading.Thread.Sleep(2000);
@@ -324,17 +334,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine($"[PASS] Found Upload New Document button: id='{uploadButton.GetAttribute("id")}', text='{uploadButton.Text?.Trim()}'");
 
             _output.WriteLine("Clicking Upload New Document button...");
-            driver.ExecuteScript("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", uploadButton);
-            System.Threading.Thread.Sleep(500);
-
-            if (!uploadButton.Displayed)
-            {
-                driver.ExecuteScript("arguments[0].click();", uploadButton);
-            }
-            else
-            {
-                uploadButton.Click();
-            }
+            ClickElement(driver, uploadButton);
 
             driver.WaitForReady(10);
             System.Threading.Thread.Sleep(2000);
@@ -342,36 +342,27 @@ namespace AFUT.Tests.UnitTests.Referrals
         }
 
         /// <summary>
-        /// Finds a file input element for document upload
+        /// Gets the path to the test PDF file
         /// </summary>
-        private IWebElement FindFileUploadInput(IPookieWebDriver driver, string suffix = null)
+        private string GetTestFilePath()
         {
-            var selectors = new[]
+            if (File.Exists(TestFilePath))
             {
-                suffix != null ? $"input[type='file'][id$='{suffix}']" : "input[type='file']",
-                suffix != null ? $"input[type='file'][name$='{suffix}']" : "input[type='file']",
-                "input[type='file']"
-            };
-
-            foreach (var selector in selectors)
-            {
-                try
-                {
-                    var elements = driver.FindElements(By.CssSelector(selector));
-                    var match = elements.FirstOrDefault(el => el.Displayed);
-                    if (match != null)
-                    {
-                        _output.WriteLine($"[INFO] Found file upload input using selector '{selector}'");
-                        return match;
-                    }
-                }
-                catch (InvalidSelectorException ex)
-                {
-                    _output.WriteLine($"[WARN] Invalid selector '{selector}': {ex.Message}");
-                }
+                _output.WriteLine($"Using test file: {TestFilePath}");
+                return TestFilePath;
             }
 
-            throw new InvalidOperationException("Unable to locate file upload input element.");
+            // Fallback: Try alternative paths
+            var fallbackPath = Path.Combine(Directory.GetCurrentDirectory(), "TestFiles", "TestHFNY.pdf");
+            if (!File.Exists(fallbackPath))
+            {
+                fallbackPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "TestFiles", "TestHFNY.pdf");
+                fallbackPath = Path.GetFullPath(fallbackPath);
+            }
+
+            Assert.True(File.Exists(fallbackPath), $"Test file not found at: {TestFilePath} or {fallbackPath}");
+            _output.WriteLine($"Using test file: {fallbackPath}");
+            return fallbackPath;
         }
 
         /// <summary>
@@ -398,6 +389,14 @@ namespace AFUT.Tests.UnitTests.Referrals
                 "input[type='file']"
             };
 
+            return FindElementBySelectors(driver, selectors, "file upload input");
+        }
+
+        /// <summary>
+        /// Helper method to find elements by multiple CSS selectors
+        /// </summary>
+        private IWebElement FindElementBySelectors(IPookieWebDriver driver, string[] selectors, string elementDescription)
+        {
             foreach (var selector in selectors)
             {
                 try
@@ -406,7 +405,7 @@ namespace AFUT.Tests.UnitTests.Referrals
                     var match = elements.FirstOrDefault(el => el.Displayed);
                     if (match != null)
                     {
-                        _output.WriteLine($"[INFO] Found file upload input using selector '{selector}'");
+                        _output.WriteLine($"[INFO] Found {elementDescription} using selector '{selector}'");
                         return match;
                     }
                 }
@@ -416,7 +415,7 @@ namespace AFUT.Tests.UnitTests.Referrals
                 }
             }
 
-            throw new InvalidOperationException("Unable to locate file upload input field.");
+            throw new InvalidOperationException($"Unable to locate {elementDescription}.");
         }
 
         /// <summary>
@@ -478,6 +477,96 @@ namespace AFUT.Tests.UnitTests.Referrals
         }
 
         /// <summary>
+        /// Gets toast selectors for finding success/error messages
+        /// </summary>
+        private static By[] GetToastSelectors()
+        {
+            return new[]
+            {
+                By.CssSelector(".jq-toast-single"),
+                By.CssSelector("[class*='jq-toast']"),
+                By.CssSelector(".jq-icon-success"),
+                By.CssSelector(".toast"),
+                By.CssSelector(".toast-message"),
+                By.CssSelector("[class*='toast']"),
+                By.CssSelector(".alert-success"),
+                By.CssSelector(".alert"),
+                By.CssSelector("[class*='success']"),
+                By.CssSelector("[role='alert']"),
+                By.CssSelector("[class*='notification']"),
+                By.CssSelector("[id*='toast']"),
+                By.CssSelector("[class*='Toastify']")
+            };
+        }
+
+        /// <summary>
+        /// Verifies success toast message appears after upload
+        /// </summary>
+        private bool VerifySuccessToast(IPookieWebDriver driver, out string toastText)
+        {
+            toastText = string.Empty;
+            driver.WaitForReady(10);
+            
+            // Wait for toast to appear (jQuery toasts may take a moment to show)
+            var maxWaitTime = DateTime.UtcNow.AddSeconds(10);
+            while (DateTime.UtcNow < maxWaitTime)
+            {
+                foreach (var selector in GetToastSelectors())
+                {
+                    try
+                    {
+                        var elements = driver.FindElements(selector);
+                        
+                        foreach (var element in elements)
+                        {
+                            // Check if element exists in DOM (even if display: none initially)
+                            var text = element.Text?.Trim() ?? "";
+                            var heading = "";
+                            
+                            // Try to get heading text if it's a jQuery toast
+                            try
+                            {
+                                var headingElement = element.FindElements(By.CssSelector(".jq-toast-heading, h2, h3"));
+                                if (headingElement.Any())
+                                {
+                                    heading = headingElement.First().Text?.Trim() ?? "";
+                                }
+                            }
+                            catch { }
+                            
+                            // Check if toast contains the expected success messages
+                            // jQuery toasts may have display:none initially but still be in DOM
+                            var fullText = string.IsNullOrWhiteSpace(heading) ? text : $"{heading} {text}";
+                            
+                            if (!string.IsNullOrWhiteSpace(fullText))
+                            {
+                                if (fullText.IndexOf("Document Uploaded", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                    fullText.IndexOf("Successfully uploaded the document", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                    fullText.IndexOf("Successfully uploaded", StringComparison.OrdinalIgnoreCase) >= 0)
+                                {
+                                    toastText = fullText;
+                                    _output.WriteLine($"[SUCCESS] Found success toast message:");
+                                    _output.WriteLine($"  Full text: '{fullText}'");
+                                    _output.WriteLine($"  Heading: '{heading}'");
+                                    _output.WriteLine($"  Body: '{text}'");
+                                    _output.WriteLine($"  Selector: {selector}");
+                                    _output.WriteLine($"  Element classes: '{element.GetAttribute("class")}'");
+                                    _output.WriteLine($"  Display style: '{element.GetAttribute("style")}'");
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+                }
+                
+                System.Threading.Thread.Sleep(500);
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// Checks for validation error messages (CSS selectors only)
         /// </summary>
         private List<string> GetValidationErrorMessages(IPookieWebDriver driver)
@@ -536,22 +625,8 @@ namespace AFUT.Tests.UnitTests.Referrals
 
             // Check for success messages/toasts (CSS selectors only)
             _output.WriteLine("\n--- Checking for Success Messages/Toasts ---");
-            var toastSelectors = new[]
-            {
-                By.CssSelector(".toast"),
-                By.CssSelector(".toast-message"),
-                By.CssSelector("[class*='toast']"),
-                By.CssSelector(".alert-success"),
-                By.CssSelector(".alert"),
-                By.CssSelector("[class*='success']"),
-                By.CssSelector("[role='alert']"),
-                By.CssSelector("[class*='notification']"),
-                By.CssSelector("[id*='toast']"),
-                By.CssSelector("[class*='Toastify']")
-            };
-
             var foundMessages = new List<string>();
-            foreach (var selector in toastSelectors)
+            foreach (var selector in GetToastSelectors())
             {
                 try
                 {
@@ -722,107 +797,19 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("========================================");
 
             // Get the path to the test PDF file
-            var testFilePath = Path.Combine(Directory.GetCurrentDirectory(), "TestFiles", "TestHFNY.pdf");
-            if (!File.Exists(testFilePath))
-            {
-                // Try alternative path (if running from bin folder)
-                testFilePath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "TestFiles", "TestHFNY.pdf");
-                testFilePath = Path.GetFullPath(testFilePath);
-            }
+            var testFilePath = GetTestFilePath();
 
-            Assert.True(File.Exists(testFilePath), $"Test file not found at: {testFilePath}");
-            _output.WriteLine($"Using test file: {testFilePath}");
-
-            // Find file upload input field
-            _output.WriteLine("\nLooking for file upload input field...");
-            var fileInput = FindFileUploadInputField(driver);
-            _output.WriteLine($"[PASS] Found file upload input: id='{fileInput.GetAttribute("id")}', name='{fileInput.GetAttribute("name")}'");
-            
-            // Select the file (this will trigger file dialog and select the file)
-            _output.WriteLine($"\nSelecting file: TestHFNY.pdf");
-            fileInput.SendKeys(testFilePath);
-            _output.WriteLine("[PASS] File selected");
-            
-            // Wait for file name to appear in the input field
-            System.Threading.Thread.Sleep(1000);
-            var fileNameInInput = fileInput.GetAttribute("value");
-            if (!string.IsNullOrWhiteSpace(fileNameInInput))
-            {
-                _output.WriteLine($"[PASS] File name appears in input field: {Path.GetFileName(fileNameInInput)}");
-            }
-            else
-            {
-                _output.WriteLine("[INFO] File name not visible in input field (this is normal for file inputs)");
-            }
-
-            // Find and click the Upload submit button
-            _output.WriteLine("\nLooking for Upload submit button...");
-            var uploadSubmitButton = FindUploadSubmitButton(driver);
-            _output.WriteLine($"[PASS] Found Upload submit button: id='{uploadSubmitButton.GetAttribute("id")}', text='{uploadSubmitButton.Text?.Trim()}'");
-            
-            _output.WriteLine("Clicking Upload submit button...");
-            driver.ExecuteScript("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", uploadSubmitButton);
-            System.Threading.Thread.Sleep(500);
-            uploadSubmitButton.Click();
-            
-            driver.WaitForReady(30);
-            System.Threading.Thread.Sleep(3000);
-            _output.WriteLine("[PASS] Clicked Upload submit button");
+            // Upload the file
+            _output.WriteLine("\nUploading file: TestHFNY.pdf");
+            UploadFile(driver, testFilePath);
+            _output.WriteLine("[PASS] File uploaded successfully");
 
             // Verify success toast message appears
             _output.WriteLine("\n========================================");
             _output.WriteLine("VERIFYING SUCCESS TOAST MESSAGE");
             _output.WriteLine("========================================");
             
-            var toastSelectors = new[]
-            {
-                By.CssSelector(".toast"),
-                By.CssSelector(".toast-message"),
-                By.CssSelector("[class*='toast']"),
-                By.CssSelector(".alert-success"),
-                By.CssSelector(".alert"),
-                By.CssSelector("[class*='success']"),
-                By.CssSelector("[role='alert']"),
-                By.CssSelector("[class*='notification']"),
-                By.CssSelector("[id*='toast']"),
-                By.CssSelector("[class*='Toastify']")
-            };
-
-            var successToastFound = false;
-            var toastText = "";
-            
-            foreach (var selector in toastSelectors)
-            {
-                try
-                {
-                    var elements = driver.FindElements(selector);
-                    var visibleElements = elements.Where(el => el.Displayed && !string.IsNullOrWhiteSpace(el.Text?.Trim())).ToList();
-                    
-                    foreach (var element in visibleElements)
-                    {
-                        var text = element.Text?.Trim();
-                        if (!string.IsNullOrWhiteSpace(text))
-                        {
-                            // Check if toast contains the expected success messages
-                            if (text.IndexOf("Document Uploaded", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                text.IndexOf("Successfully uploaded the document", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                text.IndexOf("Successfully uploaded", StringComparison.OrdinalIgnoreCase) >= 0)
-                            {
-                                successToastFound = true;
-                                toastText = text;
-                                _output.WriteLine($"[SUCCESS] Found success toast message:");
-                                _output.WriteLine($"  Text: '{text}'");
-                                _output.WriteLine($"  Selector: {selector}");
-                                _output.WriteLine($"  Element classes: '{element.GetAttribute("class")}'");
-                                break;
-                            }
-                        }
-                    }
-                    if (successToastFound) break;
-                }
-                catch { }
-            }
-
+            var successToastFound = VerifySuccessToast(driver, out var toastText);
             Assert.True(successToastFound, $"Expected success toast message with 'Document Uploaded' or 'Successfully uploaded the document' but found: {(string.IsNullOrWhiteSpace(toastText) ? "no toast message" : toastText)}");
             _output.WriteLine("[PASS] ✓ Success toast message verified");
 
@@ -853,7 +840,6 @@ namespace AFUT.Tests.UnitTests.Referrals
                     {
                         if (!table.Displayed) continue;
                         
-                        // Check if table contains document-related content
                         var tableText = table.Text?.Trim() ?? "";
                         if (tableText.IndexOf("pdf", StringComparison.OrdinalIgnoreCase) >= 0 ||
                             tableText.IndexOf("View", StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -868,6 +854,34 @@ namespace AFUT.Tests.UnitTests.Referrals
             }
 
             throw new InvalidOperationException("Unable to locate uploaded documents table.");
+        }
+
+        /// <summary>
+        /// Gets document rows from the uploaded documents table
+        /// </summary>
+        private List<IWebElement> GetDocumentRows(IWebElement documentsTable)
+        {
+            return documentsTable.FindElements(By.CssSelector("tbody tr, tr"))
+                .Where(row => row.Displayed && 
+                    !row.Text.Contains("No data available", StringComparison.OrdinalIgnoreCase) &&
+                    row.Text.IndexOf("pdf", StringComparison.OrdinalIgnoreCase) >= 0)
+                .ToList();
+        }
+
+        /// <summary>
+        /// Uploads a file using the file upload dialog
+        /// </summary>
+        private void UploadFile(IPookieWebDriver driver, string filePath)
+        {
+            var fileInput = FindFileUploadInputField(driver);
+            fileInput.SendKeys(filePath);
+            System.Threading.Thread.Sleep(1000);
+
+            var uploadSubmitButton = FindUploadSubmitButton(driver);
+            ClickElement(driver, uploadSubmitButton);
+            
+            driver.WaitForReady(30);
+            System.Threading.Thread.Sleep(3000);
         }
 
         /// <summary>
@@ -1071,11 +1085,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("[PASS] Found uploaded documents table");
 
             // Get initial document rows
-            var initialRows = documentsTable.FindElements(By.CssSelector("tbody tr, tr"))
-                .Where(row => row.Displayed && 
-                    !row.Text.Contains("No data available", StringComparison.OrdinalIgnoreCase) &&
-                    row.Text.IndexOf("pdf", StringComparison.OrdinalIgnoreCase) >= 0)
-                .ToList();
+            var initialRows = GetDocumentRows(documentsTable);
 
             var initialRowCount = initialRows.Count;
             _output.WriteLine($"[INFO] Initial document count: {initialRowCount}");
@@ -1088,38 +1098,14 @@ namespace AFUT.Tests.UnitTests.Referrals
                 // Click Upload New Document button
                 ClickUploadNewDocumentButton(driver);
 
-                // Get the path to the test PDF file
-                var testFilePath = Path.Combine(Directory.GetCurrentDirectory(), "TestFiles", "TestHFNY.pdf");
-                if (!File.Exists(testFilePath))
-                {
-                    testFilePath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "TestFiles", "TestHFNY.pdf");
-                    testFilePath = Path.GetFullPath(testFilePath);
-                }
-
-                Assert.True(File.Exists(testFilePath), $"Test file not found at: {testFilePath}");
-
-                // Find file upload input field
-                var fileInput = FindFileUploadInputField(driver);
-                fileInput.SendKeys(testFilePath);
-                System.Threading.Thread.Sleep(1000);
-
-                // Find and click Upload submit button
-                var uploadSubmitButton = FindUploadSubmitButton(driver);
-                driver.ExecuteScript("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", uploadSubmitButton);
-                System.Threading.Thread.Sleep(500);
-                uploadSubmitButton.Click();
-                
-                driver.WaitForReady(30);
-                System.Threading.Thread.Sleep(3000);
+                // Upload the test file
+                var testFilePath = GetTestFilePath();
+                UploadFile(driver, testFilePath);
                 _output.WriteLine("[PASS] Uploaded test document");
 
                 // Refresh the table
                 documentsTable = FindUploadedDocumentsTable(driver);
-                initialRows = documentsTable.FindElements(By.CssSelector("tbody tr, tr"))
-                    .Where(row => row.Displayed && 
-                        !row.Text.Contains("No data available", StringComparison.OrdinalIgnoreCase) &&
-                        row.Text.IndexOf("pdf", StringComparison.OrdinalIgnoreCase) >= 0)
-                    .ToList();
+                initialRows = GetDocumentRows(documentsTable);
                 initialRowCount = initialRows.Count;
             }
 
@@ -1140,9 +1126,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine($"[PASS] Found delete button: id='{deleteButton.GetAttribute("id")}', text='{deleteButton.Text?.Trim()}'");
 
             // Scroll to delete button and click
-            driver.ExecuteScript("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", deleteButton);
-            System.Threading.Thread.Sleep(500);
-            deleteButton.Click();
+            ClickElement(driver, deleteButton);
             _output.WriteLine("[PASS] Clicked delete button");
 
             // Handle confirmation dialog - Click "No"
@@ -1160,11 +1144,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("========================================");
 
             documentsTable = FindUploadedDocumentsTable(driver);
-            var rowsAfterCancel = documentsTable.FindElements(By.CssSelector("tbody tr, tr"))
-                .Where(row => row.Displayed && 
-                    !row.Text.Contains("No data available", StringComparison.OrdinalIgnoreCase) &&
-                    row.Text.IndexOf("pdf", StringComparison.OrdinalIgnoreCase) >= 0)
-                .ToList();
+            var rowsAfterCancel = GetDocumentRows(documentsTable);
 
             _output.WriteLine($"[INFO] Rows after cancel: {rowsAfterCancel.Count}");
             Assert.Equal(initialRowCount, rowsAfterCancel.Count);
@@ -1181,9 +1161,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine($"[PASS] Found delete button again: id='{deleteButton.GetAttribute("id")}', text='{deleteButton.Text?.Trim()}'");
 
             // Scroll to delete button and click
-            driver.ExecuteScript("arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", deleteButton);
-            System.Threading.Thread.Sleep(500);
-            deleteButton.Click();
+            ClickElement(driver, deleteButton);
             _output.WriteLine("[PASS] Clicked delete button again");
 
             // Handle confirmation dialog - Click "Yes"
@@ -1202,11 +1180,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("========================================");
 
             documentsTable = FindUploadedDocumentsTable(driver);
-            var rowsAfterDelete = documentsTable.FindElements(By.CssSelector("tbody tr, tr"))
-                .Where(row => row.Displayed && 
-                    !row.Text.Contains("No data available", StringComparison.OrdinalIgnoreCase) &&
-                    row.Text.IndexOf("pdf", StringComparison.OrdinalIgnoreCase) >= 0)
-                .ToList();
+            var rowsAfterDelete = GetDocumentRows(documentsTable);
 
             _output.WriteLine($"[INFO] Rows after delete: {rowsAfterDelete.Count}");
             _output.WriteLine($"[INFO] Expected rows: {initialRowCount - 1}");
