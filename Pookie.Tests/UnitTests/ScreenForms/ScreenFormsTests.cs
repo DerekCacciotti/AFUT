@@ -876,6 +876,21 @@ namespace AFUT.Tests.UnitTests.ScreenForms
             return resultField.GetAttribute("value")?.Trim() ?? string.Empty;
         }
 
+        private OpenQA.Selenium.IWebElement? TryGetServicesOfferedQuestionContainer(IPookieWebDriver driver)
+        {
+            var label = driver.FindElements(OpenQA.Selenium.By.CssSelector("span[id$='lblScreenResultLabel'], label[for*='ServicesOffered']"))
+                .FirstOrDefault(el => el.Displayed &&
+                                      el.Text?.Contains("If screen result is positive, were services offered?", StringComparison.OrdinalIgnoreCase) == true);
+
+            if (label == null)
+            {
+                return null;
+            }
+
+            var container = label.FindElement(OpenQA.Selenium.By.XPath("./ancestor::div[contains(@class,'row') or contains(@class,'form-group')][1]"));
+            return container;
+        }
+
         private string WaitForScreenResultValue(IPookieWebDriver driver, string expectedValue, int timeoutSeconds = 5)
         {
             var endTime = DateTime.Now.AddSeconds(timeoutSeconds);
@@ -1198,6 +1213,43 @@ namespace AFUT.Tests.UnitTests.ScreenForms
             ExecuteScenario("Questions 15-17 -> Unknown/Unknown/Unknown", RiskAnswerChoice.Unknown, RiskAnswerChoice.Unknown, RiskAnswerChoice.Unknown);
             ExecuteScenario("Questions 15-17 -> Unknown/Unknown/True", RiskAnswerChoice.Unknown, RiskAnswerChoice.Unknown, RiskAnswerChoice.True);
             ExecuteScenario("Questions 15-17 -> Unknown/Unknown/False", RiskAnswerChoice.Unknown, RiskAnswerChoice.Unknown, RiskAnswerChoice.False);
+        }
+
+        [Fact]
+        public void ScreenForm_PositiveResult_ShowsServicesOfferedQuestion()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            NavigateToScreenFormPage(driver);
+            var js = (OpenQA.Selenium.IJavaScriptExecutor)driver;
+
+            SwitchToScreenFormTab(driver, "risk", "Demographic Criteria");
+
+            SetDemographicRiskResponses(driver, js, RiskAnswerChoice.True, RiskAnswerChoice.False, RiskAnswerChoice.False);
+            var result = WaitForScreenResultValue(driver, "Positive");
+            Assert.Equal("Positive", result);
+
+            var container = TryGetServicesOfferedQuestionContainer(driver);
+            Assert.NotNull(container);
+            Assert.True(container.Displayed, "Services offered question container should be visible when result is Positive.");
+        }
+
+        [Fact]
+        public void ScreenForm_NegativeResult_HidesServicesOfferedQuestion()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            NavigateToScreenFormPage(driver);
+            var js = (OpenQA.Selenium.IJavaScriptExecutor)driver;
+
+            SwitchToScreenFormTab(driver, "risk", "Demographic Criteria");
+
+            SetDemographicRiskResponses(driver, js, RiskAnswerChoice.False, RiskAnswerChoice.False, RiskAnswerChoice.False);
+            var result = WaitForScreenResultValue(driver, "Negative");
+            Assert.Equal("Negative", result);
+
+            var container = TryGetServicesOfferedQuestionContainer(driver);
+            Assert.True(container == null || !container.Displayed, "Services offered question container should be hidden when result is Negative.");
         }
     }
 }
