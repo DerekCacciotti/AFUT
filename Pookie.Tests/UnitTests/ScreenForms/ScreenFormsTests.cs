@@ -568,6 +568,358 @@ namespace AFUT.Tests.UnitTests.ScreenForms
             throw new TimeoutException("Timed out waiting for success toast notification.");
         }
 
+        private enum RiskAnswerChoice
+        {
+            False,
+            True,
+            Unknown
+        }
+
+        private static readonly Dictionary<RiskAnswerChoice, string[]> RiskAnswerTextPreferences = new()
+        {
+            { RiskAnswerChoice.False, new[] { "No", "False" } },
+            { RiskAnswerChoice.True, new[] { "Yes", "True" } },
+            { RiskAnswerChoice.Unknown, new[] { "Unknown", "Don't Know", "Not Sure", "N/A", "Not Assessed" } }
+        };
+
+        private static readonly Dictionary<RiskAnswerChoice, string[]> RiskAnswerValuePreferences = new()
+        {
+            { RiskAnswerChoice.False, new[] { "0", "2" } },
+            { RiskAnswerChoice.True, new[] { "1" } },
+            { RiskAnswerChoice.Unknown, new[] { "9", "-1" } }
+        };
+
+        private void SetDemographicRiskResponses(
+            IPookieWebDriver driver,
+            OpenQA.Selenium.IJavaScriptExecutor js,
+            RiskAnswerChoice question15,
+            RiskAnswerChoice question16,
+            RiskAnswerChoice question17)
+        {
+            SetRiskQuestionResponse(driver, js, "ddlRiskNotMarried", "Question 15 (Not Married)", question15);
+            SetRiskQuestionResponse(driver, js, "ddlRiskNoPrenatalCare", "Question 16 (No Prenatal Care)", question16);
+            SetRiskQuestionResponse(driver, js, "ddlRiskPoor", "Question 17 (Poverty)", question17);
+        }
+
+        private void SetRiskQuestionResponse(
+            IPookieWebDriver driver,
+            OpenQA.Selenium.IJavaScriptExecutor js,
+            string dropdownSuffix,
+            string questionDescription,
+            RiskAnswerChoice choice)
+        {
+            var dropdownSelector = $"select[id$='{dropdownSuffix}']";
+            var dropdown = driver.FindElements(OpenQA.Selenium.By.CssSelector(dropdownSelector))
+                .FirstOrDefault();
+
+            if (dropdown == null)
+            {
+                throw new InvalidOperationException($"Unable to locate dropdown for {questionDescription} using selector '{dropdownSelector}'.");
+            }
+
+            js.ExecuteScript("arguments[0].scrollIntoView({block: 'center'}); window.scrollBy(0, -120);", dropdown);
+            System.Threading.Thread.Sleep(200);
+
+            var selectElement = new OpenQA.Selenium.Support.UI.SelectElement(dropdown);
+
+            var selected = TrySelectOptionByValue(selectElement, RiskAnswerValuePreferences[choice]) ||
+                           TrySelectOptionByText(selectElement, RiskAnswerTextPreferences[choice]) ||
+                           TrySetDropdownViaJavaScript(js, dropdown, RiskAnswerValuePreferences[choice]);
+
+            if (!selected)
+            {
+                throw new InvalidOperationException($"Unable to set {questionDescription} to '{choice}'.");
+            }
+
+            try
+            {
+                js.ExecuteScript("arguments[0].dispatchEvent(new Event('change', { bubbles: true }));", dropdown);
+            }
+            catch (OpenQA.Selenium.WebDriverException)
+            {
+                // Dispatch best-effort.
+            }
+
+            driver.WaitForReady(5);
+            System.Threading.Thread.Sleep(250);
+            _output.WriteLine($"[INFO] {questionDescription} set to {choice}");
+        }
+
+        private static bool TrySelectOptionByText(OpenQA.Selenium.Support.UI.SelectElement selectElement, string[] candidateTexts)
+        {
+            if (candidateTexts == null || candidateTexts.Length == 0)
+            {
+                return false;
+            }
+
+            foreach (var candidate in candidateTexts)
+            {
+                if (string.IsNullOrWhiteSpace(candidate))
+                {
+                    continue;
+                }
+
+                var option = selectElement.Options
+                    .FirstOrDefault(opt =>
+                    {
+                        var optionText = opt.Text?.Trim();
+                        if (string.IsNullOrWhiteSpace(optionText))
+                        {
+                            return false;
+                        }
+
+                        return TextMatchesCandidate(optionText, candidate);
+                    });
+
+                if (option != null)
+                {
+                    option.Click();
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool TrySelectOptionByValue(OpenQA.Selenium.Support.UI.SelectElement selectElement, string[] candidateValues)
+        {
+            if (candidateValues == null || candidateValues.Length == 0)
+            {
+                return false;
+            }
+
+            foreach (var candidate in candidateValues)
+            {
+                if (string.IsNullOrWhiteSpace(candidate))
+                {
+                    continue;
+                }
+
+                var option = selectElement.Options
+                    .FirstOrDefault(opt =>
+                        string.Equals(opt.GetAttribute("value")?.Trim(), candidate, StringComparison.OrdinalIgnoreCase));
+
+                if (option != null)
+                {
+                    option.Click();
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool TrySetDropdownViaJavaScript(OpenQA.Selenium.IJavaScriptExecutor js, OpenQA.Selenium.IWebElement dropdown, string[] candidateValues)
+        {
+            if (candidateValues == null || candidateValues.Length == 0)
+            {
+                return false;
+            }
+
+            foreach (var candidate in candidateValues)
+            {
+                if (string.IsNullOrWhiteSpace(candidate))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    js.ExecuteScript("arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('change', { bubbles: true }));", dropdown, candidate);
+                    return true;
+                }
+                catch (OpenQA.Selenium.WebDriverException)
+                {
+                    // Try next candidate.
+                }
+            }
+
+            return false;
+        }
+
+        private RiskAnswerChoice GetRiskAnswerChoiceFromDropdown(IPookieWebDriver driver, string dropdownSuffix)
+        {
+            var dropdownSelector = $"select[id$='{dropdownSuffix}']";
+            var dropdown = driver.FindElements(OpenQA.Selenium.By.CssSelector(dropdownSelector))
+                .FirstOrDefault();
+
+            if (dropdown == null)
+            {
+                throw new InvalidOperationException($"Unable to locate dropdown with suffix '{dropdownSuffix}'.");
+            }
+
+            var selectedOption = GetSelectedOption(dropdown);
+            var value = selectedOption?.GetAttribute("value") ?? dropdown.GetAttribute("value") ?? string.Empty;
+            var text = selectedOption?.Text?.Trim() ?? dropdown.Text?.Trim() ?? string.Empty;
+
+            var choice = DetermineChoiceFromSelection(value, text);
+            _output.WriteLine($"[INFO] Dropdown '{dropdownSuffix}' value='{value}' text='{text}' => {choice}");
+            return choice;
+        }
+
+        private static OpenQA.Selenium.IWebElement? GetSelectedOption(OpenQA.Selenium.IWebElement dropdown)
+        {
+            var options = dropdown.FindElements(OpenQA.Selenium.By.TagName("option"));
+
+            var selected = options.FirstOrDefault(opt =>
+            {
+                try
+                {
+                    return opt.Selected;
+                }
+                catch
+                {
+                    return false;
+                }
+            });
+
+            if (selected != null)
+            {
+                return selected;
+            }
+
+            selected = options.FirstOrDefault(opt =>
+                string.Equals(opt.GetAttribute("selected"), "selected", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(opt.GetAttribute("selected"), "true", StringComparison.OrdinalIgnoreCase));
+
+            return selected ?? options.FirstOrDefault();
+        }
+
+        private static RiskAnswerChoice DetermineChoiceFromSelection(string? value, string? text)
+        {
+            if (MatchesChoice(RiskAnswerChoice.True, value, text))
+            {
+                return RiskAnswerChoice.True;
+            }
+
+            if (MatchesChoice(RiskAnswerChoice.False, value, text))
+            {
+                return RiskAnswerChoice.False;
+            }
+
+            if (MatchesChoice(RiskAnswerChoice.Unknown, value, text))
+            {
+                return RiskAnswerChoice.Unknown;
+            }
+
+            return RiskAnswerChoice.Unknown;
+        }
+
+        private static bool MatchesChoice(RiskAnswerChoice choice, string? value, string? text)
+        {
+            if (!string.IsNullOrWhiteSpace(value) &&
+                RiskAnswerValuePreferences.TryGetValue(choice, out var candidateValues) &&
+                candidateValues.Any(candidate => string.Equals(candidate, value.Trim(), StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(text) &&
+                RiskAnswerTextPreferences.TryGetValue(choice, out var candidateTexts) &&
+                candidateTexts.Any(candidate => TextMatchesCandidate(text, candidate)))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool TextMatchesCandidate(string optionText, string candidate)
+        {
+            var normalizedOption = NormalizeOptionText(optionText);
+            var normalizedCandidate = NormalizeOptionText(candidate);
+
+            if (string.Equals(normalizedOption, normalizedCandidate, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            var optionPrimary = normalizedOption.Split('(')[0].Trim();
+            var candidatePrimary = normalizedCandidate.Split('(')[0].Trim();
+
+            if (!string.IsNullOrWhiteSpace(optionPrimary) &&
+                string.Equals(optionPrimary, normalizedCandidate, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(candidatePrimary) &&
+                string.Equals(normalizedOption, candidatePrimary, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(optionPrimary) &&
+                !string.IsNullOrWhiteSpace(candidatePrimary) &&
+                string.Equals(optionPrimary, candidatePrimary, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        private static string NormalizeOptionText(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return string.Empty;
+            }
+
+            var condensedWhitespace = string.Join(" ", text.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries));
+            return condensedWhitespace.Trim();
+        }
+
+        private string GetScreenResultValue(IPookieWebDriver driver)
+        {
+            var resultField = driver.FindElement(OpenQA.Selenium.By.CssSelector("input[id$='txtScreenResult']"));
+            return resultField.GetAttribute("value")?.Trim() ?? string.Empty;
+        }
+
+        private string WaitForScreenResultValue(IPookieWebDriver driver, string expectedValue, int timeoutSeconds = 5)
+        {
+            var endTime = DateTime.Now.AddSeconds(timeoutSeconds);
+            string? lastObserved = null;
+
+            while (DateTime.Now < endTime)
+            {
+                lastObserved = GetScreenResultValue(driver);
+                if (string.Equals(lastObserved, expectedValue, StringComparison.OrdinalIgnoreCase))
+                {
+                    return lastObserved;
+                }
+
+                System.Threading.Thread.Sleep(200);
+            }
+
+            throw new TimeoutException($"Screen result value did not update to '{expectedValue}'. Last observed '{lastObserved ?? "(null)"}'.");
+        }
+
+        private void AssertScreenResult(IPookieWebDriver driver, string expectedValue, string scenarioDescription)
+        {
+            var actual = WaitForScreenResultValue(driver, expectedValue);
+            _output.WriteLine($"[PASS] {scenarioDescription} => Screen Result '{actual}'");
+        }
+
+        private static string DetermineExpectedScreenResult(
+            IReadOnlyCollection<RiskAnswerChoice> editableAnswers,
+            IReadOnlyCollection<RiskAnswerChoice> staticAnswers)
+        {
+            var allAnswers = editableAnswers.Concat(staticAnswers).ToList();
+
+            if (allAnswers.Any(answer => answer == RiskAnswerChoice.True))
+            {
+                return "Positive";
+            }
+
+            if (editableAnswers.Count > 0 && editableAnswers.All(answer => answer == RiskAnswerChoice.Unknown))
+            {
+                return "Positive";
+            }
+
+            return "Negative";
+        }
+
         [Fact]
         public void ReferralsWaiting_ClickCreateScreenForm_NavigatesToHvScreen()
         {
@@ -726,6 +1078,46 @@ namespace AFUT.Tests.UnitTests.ScreenForms
             {
                 _output.WriteLine($"  - {toast}");
             }
+        }
+
+        [Fact]
+        public void ScreenForm_DemographicCriteria_ScreenResultRespondsToRiskSelections()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            NavigateToScreenFormPage(driver);
+            var js = (OpenQA.Selenium.IJavaScriptExecutor)driver;
+
+            SwitchToScreenFormTab(driver, "risk", "Demographic Criteria");
+
+            var initialQ18 = GetRiskAnswerChoiceFromDropdown(driver, "ddlRiskUnder21");
+            var initialQ19 = GetRiskAnswerChoiceFromDropdown(driver, "ddlRiskCWP");
+            _output.WriteLine($"[INFO] Static risk states captured before scenarios: Q18={initialQ18}, Q19={initialQ19}");
+
+            void ExecuteScenario(string description, RiskAnswerChoice q15, RiskAnswerChoice q16, RiskAnswerChoice q17)
+            {
+                _output.WriteLine($"[STEP] {description}");
+                SetDemographicRiskResponses(driver, js, q15, q16, q17);
+
+                var q15Actual = GetRiskAnswerChoiceFromDropdown(driver, "ddlRiskNotMarried");
+                var q16Actual = GetRiskAnswerChoiceFromDropdown(driver, "ddlRiskNoPrenatalCare");
+                var q17Actual = GetRiskAnswerChoiceFromDropdown(driver, "ddlRiskPoor");
+                var q18 = GetRiskAnswerChoiceFromDropdown(driver, "ddlRiskUnder21");
+                var q19 = GetRiskAnswerChoiceFromDropdown(driver, "ddlRiskCWP");
+
+                _output.WriteLine($"[INFO] Effective responses => Q15={q15Actual}, Q16={q16Actual}, Q17={q17Actual}, Q18={q18}, Q19={q19}");
+
+                var expectedResult = DetermineExpectedScreenResult(
+                    new[] { q15Actual, q16Actual, q17Actual },
+                    new[] { q18, q19 });
+                AssertScreenResult(driver, expectedResult, $"{description} (Q15={q15Actual}, Q16={q16Actual}, Q17={q17Actual}, Q18={q18}, Q19={q19})");
+            }
+
+            ExecuteScenario("Questions 15-17 -> False/False/False", RiskAnswerChoice.False, RiskAnswerChoice.False, RiskAnswerChoice.False);
+            ExecuteScenario("Questions 15-17 -> True/False/False", RiskAnswerChoice.True, RiskAnswerChoice.False, RiskAnswerChoice.False);
+            ExecuteScenario("Questions 15-17 -> Unknown/Unknown/Unknown", RiskAnswerChoice.Unknown, RiskAnswerChoice.Unknown, RiskAnswerChoice.Unknown);
+            ExecuteScenario("Questions 15-17 -> Unknown/Unknown/True", RiskAnswerChoice.Unknown, RiskAnswerChoice.Unknown, RiskAnswerChoice.True);
+            ExecuteScenario("Questions 15-17 -> Unknown/Unknown/False", RiskAnswerChoice.Unknown, RiskAnswerChoice.Unknown, RiskAnswerChoice.False);
         }
     }
 }
