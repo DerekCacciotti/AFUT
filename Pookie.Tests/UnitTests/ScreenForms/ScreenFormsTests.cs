@@ -436,7 +436,7 @@ namespace AFUT.Tests.UnitTests.ScreenForms
             return messages;
         }
 
-        private string FillScreeningDate(IPookieWebDriver driver, OpenQA.Selenium.IJavaScriptExecutor js)
+        private string FillScreeningDate(IPookieWebDriver driver, OpenQA.Selenium.IJavaScriptExecutor js, string? screeningDateOverride = null)
         {
             var dateField = driver.FindElement(OpenQA.Selenium.By.CssSelector("input[id$='txtScreenDate']"));
             js.ExecuteScript("arguments[0].scrollIntoView({block: 'center'}); window.scrollBy(0, -120);", dateField);
@@ -445,7 +445,7 @@ namespace AFUT.Tests.UnitTests.ScreenForms
             System.Threading.Thread.Sleep(100);
             dateField.Clear();
 
-            var screeningDate = "11/17/25";
+            var screeningDate = screeningDateOverride ?? "11/17/25";
             dateField.SendKeys(screeningDate);
             js.ExecuteScript("arguments[0].dispatchEvent(new Event('change', { bubbles: true }));", dateField);
             _output.WriteLine($"[PASS] Entered Screening Date: {screeningDate}");
@@ -1078,6 +1078,86 @@ namespace AFUT.Tests.UnitTests.ScreenForms
             {
                 _output.WriteLine($"  - {toast}");
             }
+        }
+
+        [Fact]
+        public void ScreenForm_ScreenDateBeforeReferral_ShowsValidationError()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            NavigateToScreenFormPage(driver);
+            var js = (OpenQA.Selenium.IJavaScriptExecutor)driver;
+
+            SwitchToScreenFormTab(driver, "main", "Screen Information");
+            FillScreeningDate(driver, js, "11/09/25");
+
+            SwitchToScreenFormTab(driver, "risk", "Demographic Criteria");
+            var primaryLanguageDropdown = driver.FindElement(OpenQA.Selenium.By.CssSelector("select[id$='ddlPrimaryLanguage']"));
+            js.ExecuteScript("arguments[0].scrollIntoView({block: 'center'}); window.scrollBy(0, -120);", primaryLanguageDropdown);
+            System.Threading.Thread.Sleep(200);
+            var primaryLanguageSelect = new OpenQA.Selenium.Support.UI.SelectElement(primaryLanguageDropdown);
+            try
+            {
+                primaryLanguageSelect.SelectByValue("01");
+            }
+            catch (OpenQA.Selenium.ElementNotInteractableException)
+            {
+                _output.WriteLine("[WARN] Primary Language dropdown not interactable, selecting via JavaScript");
+                js.ExecuteScript("arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('change', {bubbles: true}));", primaryLanguageDropdown, "01");
+            }
+
+            SwitchToScreenFormTab(driver, "main", "Screen Information");
+            var q3Dropdown = driver.FindElement(OpenQA.Selenium.By.CssSelector("select[id$='ddlRelation2TC']"));
+            js.ExecuteScript("arguments[0].scrollIntoView({block: 'center'}); window.scrollBy(0, -120);", q3Dropdown);
+            System.Threading.Thread.Sleep(200);
+            var q3Select = new OpenQA.Selenium.Support.UI.SelectElement(q3Dropdown);
+            try
+            {
+                q3Select.SelectByValue("01");
+            }
+            catch (OpenQA.Selenium.ElementNotInteractableException)
+            {
+                _output.WriteLine("[WARN] Q3 dropdown not interactable, selecting via JavaScript");
+                js.ExecuteScript("arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('change', {bubbles: true}));", q3Dropdown, "01");
+            }
+
+            SwitchToScreenFormTab(driver, "risk", "Demographic Criteria");
+
+            void SelectRiskDropdownValue(string dropdownSuffix, string description, string valueToSelect)
+            {
+                var selector = $"select[id$='{dropdownSuffix}']";
+                var dropdown = driver.FindElements(OpenQA.Selenium.By.CssSelector(selector)).FirstOrDefault()
+                              ?? throw new InvalidOperationException($"Unable to locate dropdown '{selector}' for {description}.");
+
+                js.ExecuteScript("arguments[0].scrollIntoView({block: 'center'}); window.scrollBy(0, -120);", dropdown);
+                System.Threading.Thread.Sleep(200);
+
+                var selectElement = new OpenQA.Selenium.Support.UI.SelectElement(dropdown);
+                try
+                {
+                    selectElement.SelectByValue(valueToSelect);
+                }
+                catch (OpenQA.Selenium.ElementNotInteractableException)
+                {
+                    _output.WriteLine($"[WARN] {description} dropdown not interactable, selecting via JavaScript");
+                    js.ExecuteScript("arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('change', {bubbles: true}));", dropdown, valueToSelect);
+                }
+            }
+
+            SelectRiskDropdownValue("ddlRiskNotMarried", "Risk (Not Married)", "0");
+            SelectRiskDropdownValue("ddlRiskNoPrenatalCare", "Risk (No Prenatal Care)", "1");
+            SelectRiskDropdownValue("ddlRiskPoor", "Risk (Poverty)", "9");
+
+            SwitchToScreenFormTab(driver, "main", "Screen Information");
+            FillExpectedDueDate(driver, js);
+
+            SwitchToScreenFormTab(driver, "risk", "Demographic Criteria");
+            SelectReferralMadeOption(driver, js, "2");
+
+            ClickScreenFormSubmit(driver);
+            var messages = GetScreenFormValidationMessages(driver);
+            Assert.Contains(messages, message =>
+                message.StartsWith("Screen Date cannot be before the Referral Date on the Referral form", StringComparison.OrdinalIgnoreCase));
         }
 
         [Fact]
