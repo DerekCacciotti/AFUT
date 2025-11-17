@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using AFUT.Tests.Config;
 using AFUT.Tests.Driver;
+using AFUT.Tests.Helpers;
 using AFUT.Tests.Pages;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -198,15 +199,31 @@ namespace AFUT.Tests.UnitTests.Referrals
                 throw new ArgumentNullException(nameof(tableRow));
             }
 
-            var match = tableRow.FindElements(OpenQA.Selenium.By.CssSelector("a.btn.btn-default"))
+            // Use the icon CSS to locate the element - find icon first, then get parent button
+            var iconElement = tableRow.FindElements(OpenQA.Selenium.By.CssSelector(".glyphicon-pencil"))
+                .FirstOrDefault(icon => icon.Displayed);
+            
+            if (iconElement != null)
+            {
+                // Find the parent button with btn btn-default classes
+                var button = iconElement.FindElements(OpenQA.Selenium.By.XPath("./ancestor::*[contains(@class, 'btn') and contains(@class, 'btn-default')]"))
+                    .FirstOrDefault(b => b.Displayed && b.Enabled);
+                if (button != null)
+                {
+                    _output.WriteLine("[INFO] Found edit button via icon selector '.glyphicon-pencil'");
+                    return button;
+                }
+            }
+
+            // Fallback to finding button directly with btn btn-default classes
+            var match = tableRow.FindElements(OpenQA.Selenium.By.CssSelector(".btn.btn-default"))
                 .FirstOrDefault(el => el.Displayed &&
                                       el.Enabled &&
-                                      (ElementTextContains(el, "Edit") ||
-                                       ElementHasIcon(el, "glyphicon-pencil")));
+                                      ElementTextContains(el, "Edit"));
             
             if (match != null)
             {
-                _output.WriteLine("[INFO] Found edit button via selector 'a.btn.btn-default'");
+                _output.WriteLine("[INFO] Found edit button via selector '.btn.btn-default'");
                 return match;
             }
 
@@ -315,45 +332,8 @@ namespace AFUT.Tests.UnitTests.Referrals
         {
             optionText = optionText?.Trim() ?? throw new ArgumentNullException(nameof(optionText));
 
-            var selectElement = FindSelectBySuffix(driver, selectSuffix);
-            var js = (OpenQA.Selenium.IJavaScriptExecutor)driver;
-
-            js.ExecuteScript(@"
-                var select = arguments[0];
-                var targetText = (arguments[1] || '').trim().toLowerCase();
-                var targetValue = (arguments[2] || '').trim();
-                var option = Array.from(select.options).find(function(opt) {
-                    if (targetValue && opt.value === targetValue) {
-                        return true;
-                    }
-                    return opt.text && opt.text.trim().toLowerCase() === targetText;
-                });
-
-                if (!option) {
-                    throw new Error('Option not found: ' + targetText || targetValue);
-                }
-
-                option.selected = true;
-                if (!select.multiple) {
-                    Array.from(select.options).forEach(function(opt) {
-                        if (opt !== option) {
-                            opt.selected = false;
-                        }
-                    });
-                }
-
-                var changeEvent = new Event('change', { bubbles: true });
-                select.dispatchEvent(changeEvent);
-                var inputEvent = new Event('input', { bubbles: true });
-                select.dispatchEvent(inputEvent);
-
-                if (window.jQuery) {
-                    window.jQuery(select).trigger('change');
-                    window.jQuery(select).trigger('chosen:updated');
-                }
-            ", selectElement, optionText, optionValue ?? string.Empty);
-
-            System.Threading.Thread.Sleep(200);
+            var selectElement = driver.FindSelectBySuffix(_output, selectSuffix);
+            ChosenHelper.SelectOptionByScript(driver, selectElement, optionText, optionValue);
         }
 
         private static System.Collections.Generic.List<OpenQA.Selenium.IWebElement> GetContactAttemptDataRows(OpenQA.Selenium.IWebElement contactAttemptsTable)
@@ -366,184 +346,14 @@ namespace AFUT.Tests.UnitTests.Referrals
 
         private OpenQA.Selenium.IWebElement FindContactAttemptForm(IPookieWebDriver driver)
         {
-            return FindElementBySuffix(driver, "div.panel", new[] { "divAddEditContactAttempt", "ContactAttempt" }, "contact attempt form");
+            return driver.FindElementBySuffix("div.panel", new[] { "divAddEditContactAttempt", "ContactAttempt" }, "contact attempt form", _output);
         }
 
         private OpenQA.Selenium.IWebElement FindContactAttemptsTable(IPookieWebDriver driver)
         {
-            return FindElementBySuffix(driver, "table.table", new[] { "tblContactAttempts", "ContactAttempt" }, "contact attempts table");
+            return driver.FindElementBySuffix("table.table", new[] { "tblContactAttempts", "ContactAttempt" }, "contact attempts table", _output);
         }
 
-        private OpenQA.Selenium.IWebElement FindValidationSummaryBySuffix(IPookieWebDriver driver, params string[] suffixes)
-        {
-            return FindElementBySuffix(driver, ".validation-summary-errors", suffixes, "validation summary");
-        }
-
-        private OpenQA.Selenium.IWebElement FindTextInputBySuffix(IPookieWebDriver driver, params string[] suffixes)
-        {
-            return FindElementBySuffix(driver, "input.form-control", suffixes, "text input");
-        }
-
-        private OpenQA.Selenium.IWebElement FindSelectBySuffix(IPookieWebDriver driver, params string[] suffixes)
-        {
-            return FindElementBySuffixIncludingHidden(driver, "select", suffixes, "select input");
-        }
-
-        private OpenQA.Selenium.IWebElement FindElementBySuffixIncludingHidden(
-            IPookieWebDriver driver,
-            string baseSelector,
-            System.Collections.Generic.IEnumerable<string> suffixes,
-            string description)
-        {
-            foreach (var suffix in suffixes ?? System.Linq.Enumerable.Empty<string>())
-            {
-                if (string.IsNullOrWhiteSpace(suffix))
-                {
-                    continue;
-                }
-
-                // Try name attribute first
-                var endsWithSelector = $"{baseSelector}[name$='{suffix}']";
-                var match = driver.FindElements(OpenQA.Selenium.By.CssSelector(endsWithSelector))
-                    .FirstOrDefault(); // Don't filter by Displayed (for Chosen.js hidden selects)
-                if (match != null)
-                {
-                    _output.WriteLine($"[INFO] Found {description} via selector '{endsWithSelector}'");
-                    return match;
-                }
-
-                // Try id attribute
-                endsWithSelector = $"{baseSelector}[id$='{suffix}']";
-                match = driver.FindElements(OpenQA.Selenium.By.CssSelector(endsWithSelector))
-                    .FirstOrDefault(); // Don't filter by Displayed (for Chosen.js hidden selects)
-                if (match != null)
-                {
-                    _output.WriteLine($"[INFO] Found {description} via selector '{endsWithSelector}'");
-                    return match;
-                }
-            }
-
-            throw new InvalidOperationException($"Unable to locate {description} using suffixes: {string.Join(", ", suffixes)}");
-        }
-
-        private OpenQA.Selenium.IWebElement FindCheckboxBySuffix(IPookieWebDriver driver, params string[] suffixes)
-        {
-            return FindElementBySuffix(driver, "input[type='checkbox']", suffixes, "checkbox input");
-        }
-
-        private OpenQA.Selenium.IWebElement FindTextAreaBySuffix(IPookieWebDriver driver, params string[] suffixes)
-        {
-            return FindElementBySuffix(driver, "textarea.form-control", suffixes, "text area");
-        }
-
-        private OpenQA.Selenium.IWebElement FindButtonBySuffix(IPookieWebDriver driver, params string[] suffixes)
-        {
-            // Try button.btn first
-            try
-            {
-                return FindElementBySuffix(driver, "button.btn", suffixes, "button");
-            }
-            catch (InvalidOperationException)
-            {
-                // Fallback to a.btn for anchor tags styled as buttons
-                return FindElementBySuffix(driver, "a.btn", suffixes, "button");
-            }
-        }
-
-        private OpenQA.Selenium.IWebElement FindElementBySuffix(
-            IPookieWebDriver driver,
-            string baseSelector,
-            System.Collections.Generic.IEnumerable<string> suffixes,
-            string description)
-        {
-            foreach (var suffix in suffixes ?? System.Linq.Enumerable.Empty<string>())
-            {
-                if (string.IsNullOrWhiteSpace(suffix))
-                {
-                    continue;
-                }
-
-                // Try name attribute first
-                var endsWithSelector = $"{baseSelector}[name$='{suffix}']";
-                var match = driver.FindElements(OpenQA.Selenium.By.CssSelector(endsWithSelector))
-                    .FirstOrDefault(el => el.Displayed);
-                if (match != null)
-                {
-                    _output.WriteLine($"[INFO] Found {description} via selector '{endsWithSelector}'");
-                    return match;
-                }
-
-                // Try id attribute as fallback
-                endsWithSelector = $"{baseSelector}[id$='{suffix}']";
-                match = driver.FindElements(OpenQA.Selenium.By.CssSelector(endsWithSelector))
-                    .FirstOrDefault(el => el.Displayed);
-                if (match != null)
-                {
-                    _output.WriteLine($"[INFO] Found {description} via selector '{endsWithSelector}'");
-                    return match;
-                }
-            }
-
-            throw new InvalidOperationException($"Unable to locate {description} using suffixes: {string.Join(", ", suffixes)}");
-        }
-
-        private OpenQA.Selenium.IWebElement FindLinkByTextFragments(IPookieWebDriver driver, params string[] textFragments)
-        {
-            textFragments ??= Array.Empty<string>();
-            var links = driver.FindElements(OpenQA.Selenium.By.CssSelector("a, .btn"));
-
-            foreach (var link in links)
-            {
-                if (!link.Displayed)
-                {
-                    continue;
-                }
-
-                var text = link.Text?.Trim() ?? string.Empty;
-                if (textFragments.All(fragment => text.IndexOf(fragment, StringComparison.OrdinalIgnoreCase) >= 0))
-                {
-                    _output.WriteLine($"[INFO] Found link containing text '{string.Join(" ", textFragments)}'");
-                    return link;
-                }
-            }
-
-            throw new InvalidOperationException($"Unable to locate link containing text fragments: {string.Join(", ", textFragments)}");
-        }
-
-        private OpenQA.Selenium.IWebElement FindButtonByText(IPookieWebDriver driver, string buttonText)
-        {
-            // Try button tag first
-            var match = driver.FindElements(OpenQA.Selenium.By.CssSelector("button"))
-                .FirstOrDefault(el => el.Displayed && ElementTextContains(el, buttonText));
-            
-            if (match != null)
-            {
-                _output.WriteLine($"[INFO] Found button '{buttonText}'");
-                return match;
-            }
-
-            // Try input[type='submit'] and input[type='button'] as fallback
-            match = driver.FindElements(OpenQA.Selenium.By.CssSelector("input[type='submit'], input[type='button']"))
-                .FirstOrDefault(el => el.Displayed && ElementTextContains(el, buttonText));
-            
-            if (match != null)
-            {
-                _output.WriteLine($"[INFO] Found button '{buttonText}' (input element)");
-                return match;
-            }
-
-            // Try anchor tags with button classes (e.g., <a class="btn btn-primary">)
-            match = driver.FindElements(OpenQA.Selenium.By.CssSelector("a.btn"))
-                .FirstOrDefault(el => el.Displayed && ElementTextContains(el, buttonText));
-            
-            if (match != null)
-            {
-                _output.WriteLine($"[INFO] Found button '{buttonText}' (anchor element)");
-                return match;
-            }
-
-            throw new InvalidOperationException($"Unable to locate button with text '{buttonText}'.");
-        }
 
         private void LogElementClasses(string label, Func<OpenQA.Selenium.IWebElement> elementProvider)
         {
@@ -575,35 +385,35 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine($"Phone: {phone}");
             _output.WriteLine($"Emergency Phone: {emergencyPhone}");
 
-            var firstNameField = FindTextInputBySuffix(driver, "txtpcfirstname");
+            var firstNameField = driver.FindTextInputBySuffix(_output, "txtpcfirstname");
             firstNameField.Click();
             System.Threading.Thread.Sleep(200);
             firstNameField.Clear();
             firstNameField.SendKeys(firstName);
             _output.WriteLine("[PASS] Filled PC1 First Name");
 
-            var lastNameField = FindTextInputBySuffix(driver, "txtpclastname");
+            var lastNameField = driver.FindTextInputBySuffix(_output, "txtpclastname");
             lastNameField.Click();
             System.Threading.Thread.Sleep(200);
             lastNameField.Clear();
             lastNameField.SendKeys(lastName);
             _output.WriteLine("[PASS] Filled PC1 Last Name");
 
-            var dobField = FindTextInputBySuffix(driver, "txtpcdob");
+            var dobField = driver.FindTextInputBySuffix(_output, "txtpcdob");
             dobField.Click();
             System.Threading.Thread.Sleep(200);
             dobField.Clear();
             dobField.SendKeys(dob);
             _output.WriteLine("[PASS] Filled DOB");
 
-            var phoneField = FindTextInputBySuffix(driver, "txtpcphone");
+            var phoneField = driver.FindTextInputBySuffix(_output, "txtpcphone");
             phoneField.Click();
             System.Threading.Thread.Sleep(200);
             phoneField.Clear();
             phoneField.SendKeys(phone);
             _output.WriteLine("[PASS] Filled Phone");
 
-            var emergencyPhoneField = FindTextInputBySuffix(driver, "txtpcemergencyphone");
+            var emergencyPhoneField = driver.FindTextInputBySuffix(_output, "txtpcemergencyphone");
             emergencyPhoneField.Click();
             System.Threading.Thread.Sleep(200);
             emergencyPhoneField.Clear();
@@ -625,7 +435,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             OpenQA.Selenium.IWebElement? searchButton = null;
             try
             {
-                searchButton = FindButtonBySuffix(driver, "btSearch", "btnSearch");
+                searchButton = driver.FindButtonBySuffix(_output, "btSearch", "btnSearch");
                 _output.WriteLine("[INFO] Found search button via suffix-based selector");
             }
             catch (InvalidOperationException)
@@ -635,7 +445,7 @@ namespace AFUT.Tests.UnitTests.Referrals
 
             if (searchButton == null)
             {
-                searchButton = FindButtonByText(driver, "Search");
+                searchButton = driver.FindButtonByText(_output, "Search");
             }
 
             Assert.NotNull(searchButton);
@@ -652,7 +462,7 @@ namespace AFUT.Tests.UnitTests.Referrals
         /// </summary>
         private void FillReferralTextField(IPookieWebDriver driver, string suffix, string value, string fieldName)
         {
-            var field = FindTextInputBySuffix(driver, suffix);
+            var field = driver.FindTextInputBySuffix(_output, suffix);
             field.Clear();
             field.SendKeys(value);
             _output.WriteLine($"[PASS] Filled {fieldName}: {value}");
@@ -663,7 +473,7 @@ namespace AFUT.Tests.UnitTests.Referrals
         /// </summary>
         private void SelectReferralDropdownByText(IPookieWebDriver driver, string suffix, string optionText, string fieldName)
         {
-            var dropdown = FindSelectBySuffix(driver, suffix);
+            var dropdown = driver.FindSelectBySuffix(_output, suffix);
             var select = new OpenQA.Selenium.Support.UI.SelectElement(dropdown);
             select.SelectByText(optionText);
             _output.WriteLine($"[PASS] Selected {fieldName}: {optionText}");
@@ -674,7 +484,7 @@ namespace AFUT.Tests.UnitTests.Referrals
         /// </summary>
         private void SelectReferralDropdownByFirstNonEmpty(IPookieWebDriver driver, string suffix, string fieldName)
         {
-            var dropdown = FindSelectBySuffix(driver, suffix);
+            var dropdown = driver.FindSelectBySuffix(_output, suffix);
             var select = new OpenQA.Selenium.Support.UI.SelectElement(dropdown);
             var firstOption = select.Options.FirstOrDefault(o => !string.IsNullOrWhiteSpace(o.GetAttribute("value")));
             if (firstOption != null)
@@ -689,7 +499,7 @@ namespace AFUT.Tests.UnitTests.Referrals
         /// </summary>
         private System.Collections.Generic.HashSet<string> SubmitReferralFormAndGetErrors(IPookieWebDriver driver)
         {
-            var submitButton = FindButtonBySuffix(driver, "SubmitReferral_LoginView1_btnSubmit");
+            var submitButton = driver.FindButtonBySuffix(_output, "SubmitReferral_LoginView1_btnSubmit");
             submitButton.Click();
             driver.WaitForReady(30);
             System.Threading.Thread.Sleep(2000);
@@ -758,713 +568,7 @@ namespace AFUT.Tests.UnitTests.Referrals
 
         #endregion
 
-        [Fact]
-        public void ExploreReferralsPage_AfterLogin_LogAvailableElements()
-        {
-            using var driver = _driverFactory.CreateDriver();
-
-            // Navigate to the application
-            _output.WriteLine($"Navigating to application URL: {_config.AppUrl}");
-            driver.Navigate().GoToUrl(_config.AppUrl);
-            driver.WaitForReady(30);
-
-            // Sign in
-            _output.WriteLine($"Signing in with user: {_config.UserName}");
-            var loginPage = new LoginPage(driver);
-            loginPage.SignIn(_config.UserName, _config.Password);
-
-            var isSignedIn = loginPage.IsSignedIn();
-            Assert.True(isSignedIn, "User was not signed in successfully.");
-            _output.WriteLine("[PASS] Successfully signed in");
-
-            // Select Data Entry role
-            _output.WriteLine("Attempting to select DataEntry role...");
-            var selectRolePage = new SelectRolePage(driver);
-            var landingPage = selectRolePage.SelectRole("Program 1", "DataEntry");
-
-            Assert.NotNull(landingPage);
-            Assert.True(landingPage.IsLoaded, "Landing page did not load after selecting Data Entry role.");
-            _output.WriteLine("[PASS] Successfully selected Data Entry role");
-            _output.WriteLine($"Landing page type: {landingPage.GetType().Name}");
-
-            // Log current URL
-            _output.WriteLine($"Current URL after role selection: {driver.Url}");
-
-            // Navigate to Referrals page (find link by href, not by text to avoid hardcoding the count)
-            _output.WriteLine("\nNavigating to Referrals page...");
-            var referralsLink = driver.FindElements(OpenQA.Selenium.By.CssSelector(".navbar a, nav a"))
-                .FirstOrDefault(link => link.GetAttribute("href")?.Contains("Referrals.aspx", StringComparison.OrdinalIgnoreCase) == true);
-
-            Assert.NotNull(referralsLink);
-            var linkText = referralsLink.Text?.Trim();
-            _output.WriteLine($"Found Referrals link with text: '{linkText}'");
-            
-            referralsLink.Click();
-            driver.WaitForReady(30);
-            _output.WriteLine("[PASS] Successfully clicked Referrals link");
-            _output.WriteLine($"Current URL: {driver.Url}");
-
-            // Log what we find on the Referrals page
-            _output.WriteLine("\n=== LOGGING REFERRALS PAGE ELEMENTS ===");
-
-            // Log page title
-            _output.WriteLine($"Page Title: {driver.Title}");
-
-            // Try to find and log all buttons
-            _output.WriteLine("\n=== BUTTONS ===");
-            try
-            {
-                var buttons = driver.FindElements(OpenQA.Selenium.By.CssSelector("button, input[type='button'], input[type='submit'], a[id*='btn'], [id*='Button']"));
-                _output.WriteLine($"Found {buttons.Count} button elements:");
-                
-                foreach (var button in buttons)
-                {
-                    try
-                    {
-                        if (!button.Displayed) continue;
-                        
-                        var id = button.GetAttribute("id") ?? "no-id";
-                        var text = button.Text?.Trim() ?? button.GetAttribute("value") ?? "";
-                        var tagName = button.TagName;
-                        var isEnabled = button.Enabled;
-                        
-                        _output.WriteLine($"  - {tagName}: id='{id}', text='{text}', enabled={isEnabled}");
-                    }
-                    catch (Exception ex)
-                    {
-                        _output.WriteLine($"  - Error reading button: {ex.Message}");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _output.WriteLine($"Error finding buttons: {ex.Message}");
-            }
-
-            // Try to log all visible form fields
-            _output.WriteLine("\n=== FORM FIELDS ===");
-            try
-            {
-                var formFields = driver.FindElements(OpenQA.Selenium.By.CssSelector("input, select, textarea"));
-                var displayedFields = formFields.Where(f => f.Displayed).ToList();
-                _output.WriteLine($"Found {displayedFields.Count} visible form input elements:");
-                
-                foreach (var field in displayedFields)
-                {
-                    try
-                    {
-                        var id = field.GetAttribute("id") ?? "no-id";
-                        var name = field.GetAttribute("name") ?? "no-name";
-                        var type = field.GetAttribute("type") ?? field.TagName;
-                        var tagName = field.TagName;
-                        var isEnabled = field.Enabled;
-                        var value = field.GetAttribute("value") ?? "";
-                        
-                        _output.WriteLine($"  - {tagName} [{type}]: id='{id}', name='{name}', enabled={isEnabled}, value='{value}'");
-                    }
-                    catch (Exception ex)
-                    {
-                        _output.WriteLine($"  - Error reading field: {ex.Message}");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _output.WriteLine($"Error finding form fields: {ex.Message}");
-            }
-
-            // Try to find and log tables/grids
-            _output.WriteLine("\n=== TABLES/GRIDS ===");
-            try
-            {
-                var tables = driver.FindElements(OpenQA.Selenium.By.TagName("table"));
-                _output.WriteLine($"Found {tables.Count} table elements:");
-                
-                foreach (var table in tables)
-                {
-                    try
-                    {
-                        if (!table.Displayed) continue;
-                        
-                        var id = table.GetAttribute("id") ?? "no-id";
-                        var rows = table.FindElements(OpenQA.Selenium.By.TagName("tr"));
-                        
-                        _output.WriteLine($"  - Table id='{id}', rows={rows.Count}");
-                    }
-                    catch (Exception ex)
-                    {
-                        _output.WriteLine($"  - Error reading table: {ex.Message}");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _output.WriteLine($"Error finding tables: {ex.Message}");
-            }
-
-            // Try to find any headers or labels
-            _output.WriteLine("\n=== HEADERS AND LABELS ===");
-            try
-            {
-                var headers = driver.FindElements(OpenQA.Selenium.By.CssSelector("h1, h2, h3, h4, h5, h6, label, span[class*='label']"));
-                var displayedHeaders = headers.Where(h => h.Displayed && !string.IsNullOrWhiteSpace(h.Text)).ToList();
-                _output.WriteLine($"Found {displayedHeaders.Count} visible headers/labels with text:");
-                
-                foreach (var header in displayedHeaders.Take(20)) // Limit to first 20 to avoid too much output
-                {
-                    try
-                    {
-                        var text = header.Text?.Trim() ?? "";
-                        var tagName = header.TagName;
-                        var id = header.GetAttribute("id") ?? "no-id";
-                        
-                        if (text.Length > 100) text = text.Substring(0, 100) + "...";
-                        _output.WriteLine($"  - {tagName}: '{text}' (id='{id}')");
-                    }
-                    catch (Exception ex)
-                    {
-                        _output.WriteLine($"  - Error reading header: {ex.Message}");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _output.WriteLine($"Error finding headers: {ex.Message}");
-            }
-
-            // Try to find any divs with specific IDs or classes that might indicate content areas
-            _output.WriteLine("\n=== MAIN CONTENT AREAS ===");
-            try
-            {
-                var contentDivs = driver.FindElements(OpenQA.Selenium.By.CssSelector("[id*='Content'], [id*='Panel'], [class*='content'], [class*='panel']"));
-                var displayedDivs = contentDivs.Where(d => d.Displayed).Take(10).ToList();
-                _output.WriteLine($"Found {displayedDivs.Count} visible content area elements:");
-                
-                foreach (var div in displayedDivs)
-                {
-                    try
-                    {
-                        var id = div.GetAttribute("id") ?? "no-id";
-                        var className = div.GetAttribute("class") ?? "no-class";
-                        var tagName = div.TagName;
-                        
-                        _output.WriteLine($"  - {tagName}: id='{id}', class='{className}'");
-                    }
-                    catch (Exception ex)
-                    {
-                        _output.WriteLine($"  - Error reading content area: {ex.Message}");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _output.WriteLine($"Error finding content areas: {ex.Message}");
-            }
-
-            _output.WriteLine("\n=== CLICKING NEW REFERRAL BUTTON ===");
-
-            // Find and click the New Referral button
-            try
-            {
-                var newReferralButton = FindNewReferralButton(driver);
-                _output.WriteLine($"Found New Referral button: id='{newReferralButton.GetAttribute("id")}', text='{newReferralButton.Text?.Trim()}'");
-                
-                newReferralButton.Click();
-                driver.WaitForReady(30);
-                _output.WriteLine("[PASS] Successfully clicked New Referral button");
-                _output.WriteLine($"Current URL after clicking: {driver.Url}");
-                _output.WriteLine($"Page Title: {driver.Title}");
-
-                System.Threading.Thread.Sleep(1000); // Wait for page to fully load
-
-                // Log what appears on the New Referral page
-                _output.WriteLine("\n=== NEW REFERRAL PAGE ELEMENTS ===");
-
-                // Check for form fields
-                _output.WriteLine("\n--- Form Fields ---");
-                var formFields = driver.FindElements(OpenQA.Selenium.By.CssSelector("input, select, textarea"))
-                    .Where(f => f.Displayed).ToList();
-                _output.WriteLine($"Found {formFields.Count} visible form fields:");
-                
-                foreach (var field in formFields.Take(20))
-                {
-                    try
-                    {
-                        var id = field.GetAttribute("id") ?? "no-id";
-                        var name = field.GetAttribute("name") ?? "no-name";
-                        var type = field.GetAttribute("type") ?? field.TagName;
-                        var placeholder = field.GetAttribute("placeholder") ?? "";
-                        var tagName = field.TagName;
-                        
-                        _output.WriteLine($"  - {tagName} [{type}]: id='{id}', name='{name}', placeholder='{placeholder}'");
-                    }
-                    catch (Exception ex)
-                    {
-                        _output.WriteLine($"  - Error reading field: {ex.Message}");
-                    }
-                }
-
-                // Check for labels to understand what fields are for
-                _output.WriteLine("\n--- Labels ---");
-                var labels = driver.FindElements(OpenQA.Selenium.By.TagName("label"))
-                    .Where(l => l.Displayed && !string.IsNullOrWhiteSpace(l.Text)).ToList();
-                _output.WriteLine($"Found {labels.Count} visible labels:");
-                
-                foreach (var label in labels.Take(20))
-                {
-                    try
-                    {
-                        var text = label.Text?.Trim() ?? "";
-                        var forAttr = label.GetAttribute("for") ?? "";
-                        
-                        if (text.Length > 80) text = text.Substring(0, 80) + "...";
-                        _output.WriteLine($"  - '{text}' (for='{forAttr}')");
-                    }
-                    catch (Exception ex)
-                    {
-                        _output.WriteLine($"  - Error reading label: {ex.Message}");
-                    }
-                }
-
-                // Check for buttons (Save, Cancel, etc.) - Show ALL including hidden
-                _output.WriteLine("\n--- Buttons (ALL - including hidden) ---");
-                var allButtons = driver.FindElements(OpenQA.Selenium.By.CssSelector("button, input[type='button'], input[type='submit'], input[type='image'], a[id*='btn'], [id*='Button'], [id*='Search']"));
-                _output.WriteLine($"Found {allButtons.Count} total button elements:");
-                
-                foreach (var button in allButtons)
-                {
-                    try
-                    {
-                        var id = button.GetAttribute("id") ?? "no-id";
-                        var name = button.GetAttribute("name") ?? "no-name";
-                        var text = button.Text?.Trim() ?? button.GetAttribute("value") ?? "";
-                        var type = button.GetAttribute("type") ?? button.TagName;
-                        var enabled = button.Enabled;
-                        var displayed = button.Displayed;
-                        var className = button.GetAttribute("class") ?? "";
-                        var style = button.GetAttribute("style") ?? "";
-                        
-                        // Show style if element is not displayed to see why
-                        var styleInfo = displayed ? "" : $", style='{style}'";
-                        
-                        _output.WriteLine($"  - {type}: id='{id}', name='{name}', text='{text}', class='{className}', enabled={enabled}, displayed={displayed}{styleInfo}");
-                    }
-                    catch (Exception ex)
-                    {
-                        _output.WriteLine($"  - Error reading button: {ex.Message}");
-                    }
-                }
-                
-                // Also look for input elements that might be search buttons
-                _output.WriteLine("\n--- All Input Elements ---");
-                var allInputs = driver.FindElements(OpenQA.Selenium.By.TagName("input"));
-                _output.WriteLine($"Found {allInputs.Count} total input elements:");
-                
-                foreach (var input in allInputs)
-                {
-                    try
-                    {
-                        var id = input.GetAttribute("id") ?? "no-id";
-                        var type = input.GetAttribute("type") ?? "text";
-                        var value = input.GetAttribute("value") ?? "";
-                        var displayed = input.Displayed;
-                        
-                        // Only show button/submit/image types
-                        if (type == "button" || type == "submit" || type == "image" || id.Contains("btn", StringComparison.OrdinalIgnoreCase) || id.Contains("search", StringComparison.OrdinalIgnoreCase))
-                        {
-                            _output.WriteLine($"  - input[{type}]: id='{id}', value='{value}', displayed={displayed}");
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        _output.WriteLine($"  - Error reading input: {ex.Message}");
-                    }
-                }
-
-                // Check for any validation messages or instructions
-                _output.WriteLine("\n--- Page Headers and Instructions ---");
-                var headings = driver.FindElements(OpenQA.Selenium.By.CssSelector("h1, h2, h3, h4, h5, h6"))
-                    .Where(h => h.Displayed && !string.IsNullOrWhiteSpace(h.Text)).ToList();
-                
-                foreach (var heading in headings)
-                {
-                    try
-                    {
-                        var text = heading.Text?.Trim() ?? "";
-                        var tagName = heading.TagName;
-                        _output.WriteLine($"  - {tagName}: '{text}'");
-                    }
-                    catch (Exception ex)
-                    {
-                        _output.WriteLine($"  - Error reading heading: {ex.Message}");
-                    }
-                }
-
-                // Check for required field indicators
-                _output.WriteLine("\n--- Required Field Indicators ---");
-                var requiredIndicators = driver.FindElements(OpenQA.Selenium.By.CssSelector(".required, [required], span.text-danger, .field-validation-error"));
-                _output.WriteLine($"Found {requiredIndicators.Count} required field indicators");
-
-                _output.WriteLine("\n=== NEW REFERRAL PAGE EXPLORATION COMPLETE ===");
-
-                // Now fill in fake user information and search
-                _output.WriteLine("\n========================================");
-                _output.WriteLine("TESTING SEARCH WITH FAKE USER DATA");
-                _output.WriteLine("========================================");
-
-                var firstName = "unit";
-                var lastName = "utest";
-                var todayDate = DateTime.Now.ToString("MMddyyyy");
-                var phone = "0000000000";
-                var emergencyPhone = "0000000000";
-
-                _output.WriteLine($"PC1 First Name: {firstName}");
-                _output.WriteLine($"PC1 Last Name: {lastName}");
-                _output.WriteLine($"DOB: {todayDate}");
-                _output.WriteLine($"Phone: {phone}");
-                _output.WriteLine($"Emergency Phone: {emergencyPhone}");
-
-                try
-                {
-                    // Fill First Name
-                    var firstNameField = FindTextInputBySuffix(driver, "txtpcfirstname");
-                    firstNameField.Click();
-                    System.Threading.Thread.Sleep(200);
-                    firstNameField.Clear();
-                    firstNameField.SendKeys(firstName);
-                    _output.WriteLine("[PASS] Filled PC1 First Name");
-
-                    // Fill Last Name
-                    var lastNameField = FindTextInputBySuffix(driver, "txtpclastname");
-                    lastNameField.Click();
-                    System.Threading.Thread.Sleep(200);
-                    lastNameField.Clear();
-                    lastNameField.SendKeys(lastName);
-                    _output.WriteLine("[PASS] Filled PC1 Last Name");
-
-                    // Fill DOB
-                    var dobField = FindTextInputBySuffix(driver, "txtpcdob");
-                    dobField.Click();
-                    System.Threading.Thread.Sleep(200);
-                    dobField.Clear();
-                    dobField.SendKeys(todayDate);
-                    _output.WriteLine("[PASS] Filled DOB");
-
-                    // Fill Phone
-                    var phoneField = FindTextInputBySuffix(driver, "txtpcphone");
-                    phoneField.Click();
-                    System.Threading.Thread.Sleep(200);
-                    phoneField.Clear();
-                    phoneField.SendKeys(phone);
-                    _output.WriteLine("[PASS] Filled Phone");
-
-                    // Fill Emergency Phone
-                    var emergencyPhoneField = FindTextInputBySuffix(driver, "txtpcemergencyphone");
-                    emergencyPhoneField.Click();
-                    System.Threading.Thread.Sleep(200);
-                    emergencyPhoneField.Clear();
-                    emergencyPhoneField.SendKeys(emergencyPhone);
-                    _output.WriteLine("[PASS] Filled Emergency Phone");
-                    
-                    System.Threading.Thread.Sleep(500);
-
-                    _output.WriteLine("\n--- Searching for user ---");
-                    var searchButton = FindButtonByText(driver, "Search");
-                    var buttonId = searchButton.GetAttribute("id") ?? "no-id";
-                    var buttonText = searchButton.Text?.Trim() ?? searchButton.GetAttribute("value") ?? "";
-                    _output.WriteLine($"Found search button: id='{buttonId}', text='{buttonText}'");
-                    
-                    if (!searchButton.Displayed)
-                    {
-                        ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", searchButton);
-                    }
-                    else
-                    {
-                        searchButton.Click();
-                    }
-                    
-                    driver.WaitForReady(30);
-                    System.Threading.Thread.Sleep(2000);
-                    _output.WriteLine("[PASS] Clicked Search button");
-
-                    // Check for "No records found." message (exact match)
-                    _output.WriteLine("\n--- Checking for 'No records found.' Message ---");
-                    var pageText = driver.FindElement(OpenQA.Selenium.By.TagName("body")).Text;
-                    
-                    var noRecordsFound = false;
-                    var messageText = "";
-                    
-                    var messageSelectors = new[]
-                    {
-                        OpenQA.Selenium.By.CssSelector(".alert"),
-                        OpenQA.Selenium.By.CssSelector("[class*='message']"),
-                        OpenQA.Selenium.By.CssSelector("[class*='notification']"),
-                        OpenQA.Selenium.By.CssSelector("span[class*='text']"),
-                        OpenQA.Selenium.By.CssSelector("div[class*='result']"),
-                        OpenQA.Selenium.By.XPath("//*[contains(text(), 'No records found')]")
-                    };
-
-                    foreach (var selector in messageSelectors)
-                    {
-                        try
-                        {
-                            var elements = driver.FindElements(selector);
-                            foreach (var element in elements)
-                            {
-                                if (element.Displayed)
-                                {
-                                    var text = element.Text?.Trim() ?? "";
-                                    // Check for EXACT match: "No records found."
-                                    if (text.Equals("No records found.", StringComparison.Ordinal) ||
-                                        text.Contains("No records found.", StringComparison.Ordinal))
-                                    {
-                                        noRecordsFound = true;
-                                        messageText = text;
-                                        _output.WriteLine($"Found exact message: '{text}'");
-                                        break;
-                                    }
-                                }
-                            }
-                            if (noRecordsFound) break;
-                        }
-                        catch
-                        {
-                            // Continue
-                        }
-                    }
-
-                    if (noRecordsFound)
-                    {
-                        _output.WriteLine($"[PASS] Found exact 'No records found.' message: {messageText}");
-                    }
-                    else
-                    {
-                        _output.WriteLine("[WARN] Could not find exact 'No records found.' message");
-                        _output.WriteLine($"Page text preview: {pageText.Substring(0, Math.Min(500, pageText.Length))}...");
-                    }
-
-                    // Find the "add new" link
-                    _output.WriteLine("\n--- Looking for 'Add New' or 'Create' Link ---");
-                    var allLinks = driver.FindElements(OpenQA.Selenium.By.TagName("a"));
-                    _output.WriteLine($"Found {allLinks.Count} total link elements");
-                    
-                    var addNewLink = (OpenQA.Selenium.IWebElement)null;
-                    
-                    foreach (var link in allLinks)
-                    {
-                        try
-                        {
-                            if (link.Displayed)
-                            {
-                                var text = link.Text?.Trim() ?? "";
-                                var id = link.GetAttribute("id") ?? "";
-                                var href = link.GetAttribute("href") ?? "";
-                                
-                                _output.WriteLine($"  Link: id='{id}', text='{text}', href='{href}'");
-                                
-                                if ((text.Contains("add", StringComparison.OrdinalIgnoreCase) && 
-                                     text.Contains("new", StringComparison.OrdinalIgnoreCase)) ||
-                                    text.Contains("click here", StringComparison.OrdinalIgnoreCase) ||
-                                    (text.Contains("create", StringComparison.OrdinalIgnoreCase) &&
-                                     !text.Contains("case", StringComparison.OrdinalIgnoreCase)))
-                                {
-                                    addNewLink = link;
-                                    _output.WriteLine($"[FOUND] Potential add new link: '{text}' (id='{id}')");
-                                }
-                            }
-                        }
-                        catch (Exception linkEx)
-                        {
-                            _output.WriteLine($"  Error reading link: {linkEx.Message}");
-                        }
-                    }
-
-                    if (addNewLink != null)
-                    {
-                        _output.WriteLine($"\n[PASS] Found 'add new' link: '{addNewLink.Text?.Trim()}'");
-                        _output.WriteLine($"Link id: '{addNewLink.GetAttribute("id")}'");
-                        _output.WriteLine($"Link href: '{addNewLink.GetAttribute("href")}'");
-                        
-                        // Click the link
-                        _output.WriteLine("\n========================================");
-                        _output.WriteLine("CLICKING 'ADD NEW' LINK");
-                        _output.WriteLine("========================================");
-                        
-                        ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", addNewLink);
-                        System.Threading.Thread.Sleep(500);
-                        
-                        addNewLink.Click();
-                        driver.WaitForReady(30);
-                        System.Threading.Thread.Sleep(2000);
-                        
-                        _output.WriteLine($"[PASS] Clicked 'add new' link");
-                        _output.WriteLine($"Current URL: {driver.Url}");
-                        _output.WriteLine($"Page Title: {driver.Title}");
-
-                        // Log all elements on the page after clicking add new link
-                        _output.WriteLine("\n========================================");
-                        _output.WriteLine("LOGGING PAGE ELEMENTS AFTER CLICKING 'ADD NEW' LINK");
-                        _output.WriteLine("========================================");
-
-                        // Log all form fields
-                        _output.WriteLine("\n--- Form Fields ---");
-                        var newFormFields = driver.FindElements(OpenQA.Selenium.By.CssSelector("input, select, textarea"))
-                            .Where(f => f.Displayed).ToList();
-                        _output.WriteLine($"Found {newFormFields.Count} visible form fields:");
-                        
-                        foreach (var field in newFormFields)
-                        {
-                            try
-                            {
-                                var id = field.GetAttribute("id") ?? "no-id";
-                                var name = field.GetAttribute("name") ?? "no-name";
-                                var type = field.GetAttribute("type") ?? field.TagName;
-                                var value = field.GetAttribute("value") ?? "";
-                                var placeholder = field.GetAttribute("placeholder") ?? "";
-                                var tagName = field.TagName;
-                                
-                                _output.WriteLine($"  - {tagName} [{type}]: id='{id}', name='{name}', value='{value}', placeholder='{placeholder}'");
-                            }
-                            catch (Exception fieldEx)
-                            {
-                                _output.WriteLine($"  - Error reading field: {fieldEx.Message}");
-                            }
-                        }
-
-                        // Log all labels
-                        _output.WriteLine("\n--- Labels ---");
-                        var newLabels = driver.FindElements(OpenQA.Selenium.By.TagName("label"))
-                            .Where(l => l.Displayed && !string.IsNullOrWhiteSpace(l.Text)).ToList();
-                        _output.WriteLine($"Found {newLabels.Count} visible labels:");
-                        
-                        foreach (var label in newLabels)
-                        {
-                            try
-                            {
-                                var text = label.Text?.Trim() ?? "";
-                                var forAttr = label.GetAttribute("for") ?? "";
-                                
-                                if (text.Length > 80) text = text.Substring(0, 80) + "...";
-                                _output.WriteLine($"  - '{text}' (for='{forAttr}')");
-                            }
-                            catch (Exception labelEx)
-                            {
-                                _output.WriteLine($"  - Error reading label: {labelEx.Message}");
-                            }
-                        }
-
-                        // Log all buttons
-                        _output.WriteLine("\n--- Buttons ---");
-                        var newButtons = driver.FindElements(OpenQA.Selenium.By.CssSelector("button, input[type='button'], input[type='submit'], input[type='image'], a[id*='btn'], [id*='Button']"));
-                        _output.WriteLine($"Found {newButtons.Count} button elements:");
-                        
-                        foreach (var button in newButtons)
-                        {
-                            try
-                            {
-                                var id = button.GetAttribute("id") ?? "no-id";
-                                var name = button.GetAttribute("name") ?? "no-name";
-                                var text = button.Text?.Trim() ?? button.GetAttribute("value") ?? "";
-                                var type = button.GetAttribute("type") ?? button.TagName;
-                                var enabled = button.Enabled;
-                                var displayed = button.Displayed;
-                                var className = button.GetAttribute("class") ?? "";
-                                
-                                _output.WriteLine($"  - {type}: id='{id}', name='{name}', text='{text}', class='{className}', enabled={enabled}, displayed={displayed}");
-                            }
-                            catch (Exception buttonEx)
-                            {
-                                _output.WriteLine($"  - Error reading button: {buttonEx.Message}");
-                            }
-                        }
-
-                        // Log all headings
-                        _output.WriteLine("\n--- Headings ---");
-                        var newHeadings = driver.FindElements(OpenQA.Selenium.By.CssSelector("h1, h2, h3, h4, h5, h6"))
-                            .Where(h => h.Displayed && !string.IsNullOrWhiteSpace(h.Text)).ToList();
-                        
-                        foreach (var heading in newHeadings)
-                        {
-                            try
-                            {
-                                var text = heading.Text?.Trim() ?? "";
-                                var tagName = heading.TagName;
-                                _output.WriteLine($"  - {tagName}: '{text}'");
-                            }
-                            catch (Exception headingEx)
-                            {
-                                _output.WriteLine($"  - Error reading heading: {headingEx.Message}");
-                            }
-                        }
-
-                        // Log any divs or panels that might contain content
-                        _output.WriteLine("\n--- Content Panels/Divs ---");
-                        var contentDivs = driver.FindElements(OpenQA.Selenium.By.CssSelector("[id*='Panel'], [id*='panel'], [class*='panel'], [id*='Content']"))
-                            .Where(d => d.Displayed).ToList();
-                        _output.WriteLine($"Found {contentDivs.Count} visible content panels:");
-                        
-                        foreach (var div in contentDivs.Take(10))
-                        {
-                            try
-                            {
-                                var id = div.GetAttribute("id") ?? "no-id";
-                                var className = div.GetAttribute("class") ?? "no-class";
-                                var tagName = div.TagName;
-                                
-                                _output.WriteLine($"  - {tagName}: id='{id}', class='{className}'");
-                            }
-                            catch (Exception divEx)
-                            {
-                                _output.WriteLine($"  - Error reading div: {divEx.Message}");
-                            }
-                        }
-
-                        // Log all tables if any
-                        _output.WriteLine("\n--- Tables ---");
-                        var tables = driver.FindElements(OpenQA.Selenium.By.TagName("table"))
-                            .Where(t => t.Displayed).ToList();
-                        _output.WriteLine($"Found {tables.Count} visible tables:");
-                        
-                        foreach (var table in tables)
-                        {
-                            try
-                            {
-                                var id = table.GetAttribute("id") ?? "no-id";
-                                var rows = table.FindElements(OpenQA.Selenium.By.TagName("tr")).Count;
-                                
-                                _output.WriteLine($"  - Table id='{id}', rows={rows}");
-                            }
-                            catch (Exception tableEx)
-                            {
-                                _output.WriteLine($"  - Error reading table: {tableEx.Message}");
-                            }
-                        }
-
-                        _output.WriteLine("\n========================================");
-                        _output.WriteLine("'ADD NEW' PAGE EXPLORATION COMPLETE");
-                        _output.WriteLine("========================================");
-                    }
-                    else
-                    {
-                        _output.WriteLine("[WARN] Could not find 'add new' link to click");
-                    }
-                }
-                catch (Exception searchEx)
-                {
-                    _output.WriteLine($"[FAIL] Error during search flow: {searchEx.Message}");
-                    _output.WriteLine($"Stack trace: {searchEx.StackTrace}");
-                }
-            }
-            catch (Exception ex)
-            {
-                _output.WriteLine($"[FAIL] Error clicking or exploring New Referral button: {ex.Message}");
-                _output.WriteLine($"Stack trace: {ex.StackTrace}");
-            }
-
-            _output.WriteLine("\n=== EXPLORATION COMPLETE ===");
-        }
-
-
+      
         [Fact]
         public void ReferralsPage_ClickFirstEdit_OpensEditPage()
         {
@@ -2120,9 +1224,9 @@ namespace AFUT.Tests.UnitTests.Referrals
                             }
                         }
                     }
-                    catch
+                    catch (Exception linkEx)
                     {
-                        // Continue
+                        throw new InvalidOperationException("Encountered an error while evaluating links for the 'add new' option.", linkEx);
                     }
                 }
 
@@ -2160,9 +1264,9 @@ namespace AFUT.Tests.UnitTests.Referrals
         /// 
         /// This means the person already exists in the database from a previous test run.
         /// 
-        /// TO FIX: Change the test data below (around line 1999-2003):
-        /// - Change firstName (e.g., "checkone" to "checktwo" or "checkone1")
-        /// - Change lastName (e.g., "check" to "check1")
+       
+        /// - Change firstName (e.g., "checkone" to "checktwo" or "checkonethree")
+        /// - Change lastName (e.g., "checklastone" to "checklasttwo")
         /// - Or change the DOB year (e.g., "11091916" to "11091816" for year 2018)
         /// 
         /// File: UnitTests/Referrals/ReferralsTests.cs
@@ -2179,8 +1283,8 @@ namespace AFUT.Tests.UnitTests.Referrals
 
             // *** CHANGE TEST DATA HERE IF TEST FAILS ***
             // If test fails because person already exists in database, modify these values:
-            var firstName = "Noavailable";      // Change to unique value (e.g., "checktwo", "checkone1")
-            var lastName = "checkavailable";          // Change to unique value (e.g., "check1")
+            var firstName = "Noavailable";      // Change to unique value (e.g., "checktwo", "checkone")
+            var lastName = "checkavailable";          // Change to unique value (e.g., "checklastone")
             var dob = "10091916";            // Change year digits (e.g., "11091816" for 2018, "11091716" for 2017)
             var phone = "2222222222";        // Can also change phone number
             var emergencyPhone = "2222222222"; // Can also change emergency phone
@@ -2214,8 +1318,8 @@ namespace AFUT.Tests.UnitTests.Referrals
                 _output.WriteLine("2. Go to lines 2006-2013");
                 _output.WriteLine("3. Look for the comment: *** CHANGE TEST DATA HERE IF TEST FAILS ***");
                 _output.WriteLine("4. Change one or more of these values:");
-                _output.WriteLine($"   - firstName = \"{firstName}\"     (change to \"checktwo\", \"checkone1\", etc.)");
-                _output.WriteLine($"   - lastName = \"{lastName}\"       (change to \"check1\", \"check2\", etc.)");
+                _output.WriteLine($"   - firstName = \"{firstName}\"     (change to \"checktwo\", \"checkone\", etc.)");
+                _output.WriteLine($"   - lastName = \"{lastName}\"       (change to \"checklastone\", \"checklast2\", etc.)");
                 _output.WriteLine($"   - dob = \"{dob}\"           (change to \"11091816\" for 2018, \"11091716\" for 2017, etc.)");
                 _output.WriteLine("");
                 _output.WriteLine("5. Save the file and run the test again");
@@ -2233,7 +1337,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("CLICKING 'ADD NEW' LINK");
             _output.WriteLine("=====DONT GO ON LOGS, AS THE DETAILS MAY BE CHANGED , BUT NOT IN THE LOGS===================================");
 
-            var addNewLink = FindLinkByTextFragments(driver, "create", "new", "Person Profile");
+            var addNewLink = driver.FindLinkByTextFragments(_output, "create", "new", "Person Profile");
             Assert.NotNull(addNewLink);
             _output.WriteLine($"Found 'add new' link: '{addNewLink.Text?.Trim()}'");
             
@@ -2255,11 +1359,11 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("VERIFYING PRE-FILLED DATA");
             _output.WriteLine("========================================");
 
-            var pcFirstName = FindTextInputBySuffix(driver, "txtPCFirstName");
-            var pcLastName = FindTextInputBySuffix(driver, "txtPCLastName");
-            var pcDOB = FindTextInputBySuffix(driver, "txtPCDOB");
-            var pcPhone = FindTextInputBySuffix(driver, "txtPCPrimaryPhone");
-            var pcEmergencyPhone = FindTextInputBySuffix(driver, "txtPCEmergencyPhone");
+            var pcFirstName = driver.FindTextInputBySuffix(_output, "txtPCFirstName");
+            var pcLastName = driver.FindTextInputBySuffix(_output, "txtPCLastName");
+            var pcDOB = driver.FindTextInputBySuffix(_output, "txtPCDOB");
+            var pcPhone = driver.FindTextInputBySuffix(_output, "txtPCPrimaryPhone");
+            var pcEmergencyPhone = driver.FindTextInputBySuffix(_output, "txtPCEmergencyPhone");
 
             _output.WriteLine($"First Name field value: {pcFirstName.GetAttribute("value")}");
             _output.WriteLine($"Last Name field value: {pcLastName.GetAttribute("value")}");
@@ -2276,7 +1380,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("FILLING ADDITIONAL REQUIRED FIELDS");
             _output.WriteLine("========================================");
 
-            var asianCheckbox = FindCheckboxBySuffix(driver, "chkRace_Asian");
+            var asianCheckbox = driver.FindCheckboxBySuffix(_output, "chkRace_Asian");
             if (!asianCheckbox.Selected)
             {
                 asianCheckbox.Click();
@@ -2286,7 +1390,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("[PASS] Selected Race: Asian");
 
             // Fill in Gender (Male from dropdown)
-            var genderDropdown = FindSelectBySuffix(driver, "ddlGender");
+            var genderDropdown = driver.FindSelectBySuffix(_output, "ddlGender");
             var genderSelect = new OpenQA.Selenium.Support.UI.SelectElement(genderDropdown);
             
             // Log available gender options
@@ -2305,7 +1409,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("SUBMITTING PERSON PROFILE");
             _output.WriteLine("========================================");
 
-            var submitButton = FindButtonBySuffix(driver, "btnSubmit");
+            var submitButton = driver.FindButtonBySuffix(_output, "btnSubmit");
             Assert.NotNull(submitButton);
             _output.WriteLine($"Found Submit button: text='{submitButton.Text?.Trim()}'");
             
@@ -2439,8 +1543,8 @@ namespace AFUT.Tests.UnitTests.Referrals
         /// This means the person already exists in the database from a previous test run.
         /// 
         /// TO FIX: Change the test data below (around line 2349-2353):
-        /// - Change firstName (e.g., "checkone" to "checktwo" or "checkone2")
-        /// - Change lastName (e.g., "check" to "check2")
+        /// - Change firstName (e.g., "checkone" to "checktwo" or "checkthree")
+        /// - Change lastName (e.g., "check" to "checklastone")
         /// - Or change the DOB year (e.g., "11091616" to "11091516" for year 2015)
         /// 
         /// File: UnitTests/Referrals/ReferralsTests.cs
@@ -2457,8 +1561,8 @@ namespace AFUT.Tests.UnitTests.Referrals
 
             // *** CHANGE TEST DATA HERE IF TEST FAILS ***
             // If test fails because person already exists in database, modify these values:
-            var firstName = "checktwo";      // Change to unique value (e.g., "checktwo", "checkone2")
-            var lastName = "checkingagain";          // Change to unique value (e.g., "check2")
+            var firstName = "checktwo";      // Change to unique value (e.g., "checktwo", "checkone")
+            var lastName = "checkingagain";          // Change to unique value (e.g., "checklastone")
             var dob = "10091616";            // Change year digits (e.g., "11091516" for 2015, "11091716" for 2017)
             var phone = "1100000111";        // Can also change phone number
             var emergencyPhone = "1100000111"; // Can also change emergency phone
@@ -2494,8 +1598,8 @@ namespace AFUT.Tests.UnitTests.Referrals
                 _output.WriteLine("2. Go to lines 2350-2357");
                 _output.WriteLine("3. Look for the comment: *** CHANGE TEST DATA HERE IF TEST FAILS ***");
                 _output.WriteLine("4. Change one or more of these values:");
-                _output.WriteLine($"   - firstName = \"{firstName}\"     (change to \"checktwo\", \"checkone2\", etc.)");
-                _output.WriteLine($"   - lastName = \"{lastName}\"       (change to \"check2\", \"check3\", etc.)");
+                _output.WriteLine($"   - firstName = \"{firstName}\"     (change to \"checktwo\", \"checkone\", etc.)");
+                _output.WriteLine($"   - lastName = \"{lastName}\"       (change to \"checklastone\", \"checklasttwo\", etc.)");
                 _output.WriteLine($"   - dob = \"{dob}\"           (change to \"11091516\" for 2015, \"11091716\" for 2017, etc.)");
                 _output.WriteLine("");
                 _output.WriteLine("5. Save the file and run the test again");
@@ -2513,7 +1617,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("CLICKING 'ADD NEW' LINK");
             _output.WriteLine("========================================");
 
-            var addNewLink = FindLinkByTextFragments(driver, "create", "new", "Person Profile");
+            var addNewLink = driver.FindLinkByTextFragments(_output, "create", "new", "Person Profile");
             Assert.NotNull(addNewLink);
             _output.WriteLine($"Found 'add new' link: '{addNewLink.Text?.Trim()}'");
             
@@ -2535,11 +1639,11 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("VERIFYING PRE-FILLED DATA");
             _output.WriteLine("========================================");
 
-            var pcFirstName = FindTextInputBySuffix(driver, "txtPCFirstName");
-            var pcLastName = FindTextInputBySuffix(driver, "txtPCLastName");
-            var pcDOB = FindTextInputBySuffix(driver, "txtPCDOB");
-            var pcPhone = FindTextInputBySuffix(driver, "txtPCPrimaryPhone");
-            var pcEmergencyPhone = FindTextInputBySuffix(driver, "txtPCEmergencyPhone");
+            var pcFirstName = driver.FindTextInputBySuffix(_output, "txtPCFirstName");
+            var pcLastName = driver.FindTextInputBySuffix(_output, "txtPCLastName");
+            var pcDOB = driver.FindTextInputBySuffix(_output, "txtPCDOB");
+            var pcPhone = driver.FindTextInputBySuffix(_output, "txtPCPrimaryPhone");
+            var pcEmergencyPhone = driver.FindTextInputBySuffix(_output, "txtPCEmergencyPhone");
 
             // Capture values before they become stale
             var firstNameValue = pcFirstName.GetAttribute("value");
@@ -2563,7 +1667,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("FILLING ADDITIONAL REQUIRED FIELDS");
             _output.WriteLine("========================================");
 
-            var asianCheckbox = FindCheckboxBySuffix(driver, "chkRace_Asian");
+            var asianCheckbox = driver.FindCheckboxBySuffix(_output, "chkRace_Asian");
             if (!asianCheckbox.Selected)
             {
                 asianCheckbox.Click();
@@ -2573,7 +1677,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("[PASS] Selected Race: Asian");
 
             // Fill in Gender (Male from dropdown)
-            var genderDropdown = FindSelectBySuffix(driver, "ddlGender");
+            var genderDropdown = driver.FindSelectBySuffix(_output, "ddlGender");
             var genderSelect = new OpenQA.Selenium.Support.UI.SelectElement(genderDropdown);
             
             // Log available gender options
@@ -2592,7 +1696,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("SUBMITTING PERSON PROFILE");
             _output.WriteLine("========================================");
 
-            var submitButton = FindButtonBySuffix(driver, "btnSubmit");
+            var submitButton = driver.FindButtonBySuffix(_output, "btnSubmit");
             Assert.NotNull(submitButton);
             _output.WriteLine($"Found Submit button: text='{submitButton.Text?.Trim()}'");
             
@@ -3056,7 +2160,7 @@ namespace AFUT.Tests.UnitTests.Referrals
 
             SelectReferralDropdownByFirstNonEmpty(driver, "ddlReferralSource", "Name/Organization Name");
             System.Threading.Thread.Sleep(1000); // Extra wait before final submit
-            var submitButton = FindButtonBySuffix(driver, "SubmitReferral_LoginView1_btnSubmit");
+            var submitButton = driver.FindButtonBySuffix(_output, "SubmitReferral_LoginView1_btnSubmit");
             submitButton.Click();
             driver.WaitForReady(30);
             System.Threading.Thread.Sleep(3000);
@@ -3156,14 +2260,14 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine($"[PASS] Opened referral edit page: {driver.Url}");
 
             // Click "New Contact Attempt"
-            var newContactBtn = FindButtonBySuffix(driver, "lbNewContactAttempt");
+            var newContactBtn = driver.FindButtonBySuffix(_output, "lbNewContactAttempt");
             newContactBtn.Click();
             System.Threading.Thread.Sleep(2000);
             _output.WriteLine("[PASS] Clicked 'New Contact Attempt'");
 
             // Fill Contact Date
             _output.WriteLine("\n[INFO] ========== FILLING CONTACT DATE ==========");
-            var contactDateField = FindTextInputBySuffix(driver, "txtContactAttemptDate");
+            var contactDateField = driver.FindTextInputBySuffix(_output, "txtContactAttemptDate");
             _output.WriteLine($"[INFO] Found Contact Date field: ID={contactDateField.GetAttribute("id")}");
             
             var todayDate = DateTime.Now.ToString("MM/dd/yyyy");
@@ -3177,7 +2281,7 @@ namespace AFUT.Tests.UnitTests.Referrals
 
             // Fill Worker dropdown
             _output.WriteLine("\n[INFO] ========== FILLING WORKER DROPDOWN ==========");
-            var workerDropdown = FindSelectBySuffix(driver, "ddlContactAttemptWorker");
+            var workerDropdown = driver.FindSelectBySuffix(_output, "ddlContactAttemptWorker");
             _output.WriteLine($"[INFO] Found Worker dropdown: ID={workerDropdown.GetAttribute("id")}");
             
             var workerSelect = new OpenQA.Selenium.Support.UI.SelectElement(workerDropdown);
@@ -3199,7 +2303,7 @@ namespace AFUT.Tests.UnitTests.Referrals
 
             // Fill Was Family Successfully Contacted
             _output.WriteLine("\n[INFO] ========== FILLING 'WAS FAMILY SUCCESSFULLY CONTACTED?' ==========");
-            var contactedDropdown = FindSelectBySuffix(driver, "ddlContactAttemptSuccessful");
+            var contactedDropdown = driver.FindSelectBySuffix(_output, "ddlContactAttemptSuccessful");
             _output.WriteLine($"[INFO] Found 'Successfully Contacted' dropdown: ID={contactedDropdown.GetAttribute("id")}");
             
             var contactedSelect = new OpenQA.Selenium.Support.UI.SelectElement(contactedDropdown);
@@ -3234,7 +2338,7 @@ namespace AFUT.Tests.UnitTests.Referrals
 
             // Try to submit WITHOUT filling Contact Attempt Type(s)
             _output.WriteLine("\n[INFO] ========== CLICKING SUBMIT BUTTON ==========");
-            var submitBtn = FindButtonBySuffix(driver, "lbSubmitContactAttempt");
+            var submitBtn = driver.FindButtonBySuffix(_output, "lbSubmitContactAttempt");
             _output.WriteLine($"[INFO] Found Submit button: ID={submitBtn.GetAttribute("id")}, Text='{submitBtn.Text}'");
             _output.WriteLine($"[INFO] Submit button enabled: {submitBtn.Enabled}");
             
@@ -3382,7 +2486,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("========================================");
 
             // Find and click the New Contact Attempt button
-            var newContactAttemptButton = FindButtonBySuffix(driver, "lbNewContactAttempt");
+            var newContactAttemptButton = driver.FindButtonBySuffix(_output, "lbNewContactAttempt");
             Assert.NotNull(newContactAttemptButton);
             _output.WriteLine($"[PASS] Found New Contact Attempt button: '{newContactAttemptButton.Text}'");
 
@@ -3410,7 +2514,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("========================================");
 
             // Fill Contact Date using JavaScript to ensure value + events are set
-            var contactDateField = FindTextInputBySuffix(driver, "txtContactAttemptDate");
+            var contactDateField = driver.FindTextInputBySuffix(_output, "txtContactAttemptDate");
             var contactDateJs = (OpenQA.Selenium.IJavaScriptExecutor)driver;
             contactDateJs.ExecuteScript("arguments[0].scrollIntoView({block: 'center'});", contactAttemptForm);
             System.Threading.Thread.Sleep(300);
@@ -3423,7 +2527,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             // IMPORTANT: Re-find the worker dropdown AFTER the postback
             // The postback may have refreshed the dropdown, making the old reference stale
             _output.WriteLine("[INFO] Re-finding worker dropdown after postback...");
-            var workerDropdown = FindSelectBySuffix(driver, "ddlContactAttemptWorker");
+            var workerDropdown = driver.FindSelectBySuffix(_output, "ddlContactAttemptWorker");
             ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true);", workerDropdown);
             System.Threading.Thread.Sleep(300);
             
@@ -3438,7 +2542,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("[PASS] Selected Contact Attempt Type via JavaScript: Phone Call Made to Parent");
 
             // Select "Was the Family Successfully Contacted?"
-            var successfulContactDropdown = FindSelectBySuffix(driver, "ddlContactAttemptSuccessful");
+            var successfulContactDropdown = driver.FindSelectBySuffix(_output, "ddlContactAttemptSuccessful");
             ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true);", successfulContactDropdown);
             System.Threading.Thread.Sleep(300);
             
@@ -3447,7 +2551,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("[PASS] Selected Was Family Successfully Contacted: Yes");
 
             // Fill Notes using JavaScript (avoids navbar intercept + triggers events)
-            var notesField = FindTextAreaBySuffix(driver, "txtContactAttemptNotes");
+            var notesField = driver.FindTextAreaBySuffix(_output, "txtContactAttemptNotes");
             var notesText = "Test contact attempt - spoke with parent about upcoming program activities.";
             ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript(
                 "arguments[0].value = ''; arguments[0].focus(); arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('change', { bubbles: true }));", 
@@ -3460,7 +2564,7 @@ namespace AFUT.Tests.UnitTests.Referrals
             _output.WriteLine("========================================");
 
             // Find and click Submit button
-            var submitButton = FindButtonBySuffix(driver, "lbSubmitContactAttempt");
+            var submitButton = driver.FindButtonBySuffix(_output, "lbSubmitContactAttempt");
             Assert.NotNull(submitButton);
             _output.WriteLine($"[PASS] Found Submit button");
 
@@ -3496,7 +2600,7 @@ namespace AFUT.Tests.UnitTests.Referrals
                     // Check for validation errors
                     try
                     {
-                        var validationSummary = FindValidationSummaryBySuffix(driver, "vsContactAttempt");
+                        var validationSummary = driver.FindValidationSummaryBySuffix(_output, "vsContactAttempt");
                         if (validationSummary.Displayed)
                         {
                             _output.WriteLine($"[WARN] Validation error found: {validationSummary.Text}");
@@ -3679,70 +2783,13 @@ namespace AFUT.Tests.UnitTests.Referrals
 
             _output.WriteLine($"[INFO] Found {initialRowsWithData.Count} contact attempt(s) in table");
 
-            // If no contact attempts exist, create one first
             if (initialRowsWithData.Count == 0)
             {
-                _output.WriteLine("\n[INFO] No contact attempts found, creating one first...");
-                
-                // Click New Contact Attempt button
-                var newContactAttemptButton = FindButtonBySuffix(driver, "lbNewContactAttempt");
-                ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -200);", newContactAttemptButton);
-                System.Threading.Thread.Sleep(500);
-                ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", newContactAttemptButton);
-                driver.WaitForReady(10);
-                System.Threading.Thread.Sleep(1000);
-
-                // Fill the form
-                var contactDateField = FindTextInputBySuffix(driver, "txtContactAttemptDate");
-                ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript(
-                    "arguments[0].value = ''; arguments[0].focus(); arguments[0].value = arguments[1];", 
-                    contactDateField, "11/14/2025");
-                System.Threading.Thread.Sleep(300);
-
-                var workerDropdown = FindSelectBySuffix(driver, "ddlContactAttemptWorker");
-                var workerSelectElement = new OpenQA.Selenium.Support.UI.SelectElement(workerDropdown);
-                workerSelectElement.SelectByValue("3489");
-
-                var contactTypesDropdown = FindSelectBySuffix(driver, "ddlContactAttemptTypes");
-                var jsScript = @"
-                    var select = arguments[0];
-                    var option = select.querySelector('option[value=""1469""]');
-                    if (option) {
-                        option.selected = true;
-                        $(select).trigger('change');
-                        $(select).trigger('chosen:updated');
-                    }
-                ";
-                ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript(jsScript, contactTypesDropdown);
-                System.Threading.Thread.Sleep(500);
-
-                var successfulContactDropdown = FindSelectBySuffix(driver, "ddlContactAttemptSuccessful");
-                var successfulSelectElement = new OpenQA.Selenium.Support.UI.SelectElement(successfulContactDropdown);
-                successfulSelectElement.SelectByValue("True");
-
-                var notesField = FindTextAreaBySuffix(driver, "txtContactAttemptNotes");
-                ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript(
-                    "arguments[0].value = ''; arguments[0].focus(); arguments[0].value = arguments[1];", 
-                    notesField, "Test contact attempt for delete test");
-                System.Threading.Thread.Sleep(300);
-
-                // Submit
-                var submitButton = FindButtonBySuffix(driver, "lbSubmitContactAttempt");
-                ((OpenQA.Selenium.IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true); window.scrollBy(0, -150);", submitButton);
-                System.Threading.Thread.Sleep(500);
-                submitButton.Click();
-                
-                driver.WaitForReady(10);
-                System.Threading.Thread.Sleep(2000);
-                _output.WriteLine("[PASS] Created test contact attempt");
-
-                // Refresh the rows list
-                initialRows = contactAttemptsTable.FindElements(OpenQA.Selenium.By.CssSelector("tbody tr"));
-                initialRowsWithData = initialRows.Where(row => 
-                    !row.Text.Contains("No data available in table", StringComparison.OrdinalIgnoreCase)).ToList();
+                _output.WriteLine("\n[WARN] No contact attempts were found.");
+                _output.WriteLine("[ACTION] Please create at least one contact attempt before running this test.");
             }
 
-            Assert.True(initialRowsWithData.Count > 0, "No contact attempts available to delete!");
+            Assert.True(initialRowsWithData.Count > 0, "No contact attempts available to delete! Create one before running this test.");
             _output.WriteLine($"[PASS] Found contact attempt to delete");
 
             var targetContactRow = initialRowsWithData[0];
