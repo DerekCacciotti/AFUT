@@ -261,6 +261,71 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             }
         }
 
+        [Fact]
+        public void CheckingAssignedCaseStatusTwoSubmitsToGrid()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            var steps = new List<(string Action, string Result)>();
+            var homePage = SignInAsDataEntry(driver);
+
+            Assert.NotNull(homePage);
+            Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
+
+            NavigateToEngagementLog(driver, steps);
+
+            var caseStatusDropdown = OpenNewFormAndGetCaseStatusDropdown(driver, steps);
+            var caseStatusSelect = new SelectElement(caseStatusDropdown);
+            caseStatusSelect.SelectByValue("02");
+            driver.WaitForUpdatePanel(30);
+            driver.WaitForReady(30);
+            Thread.Sleep(1000);
+            steps.Add(("Case status", "Selected option value 02"));
+
+            var yesRadio = driver.FindElement(By.CssSelector("input#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_rbtnAssigned"));
+            ClickElement(driver, yesRadio);
+            driver.WaitForUpdatePanel(30);
+            driver.WaitForReady(30);
+            Thread.Sleep(500);
+            steps.Add(("Case assigned radio", "Selected Yes"));
+
+            var workerDropdownElement = driver.FindElement(By.CssSelector("select#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_ddlFSW"));
+            var workerSelect = new SelectElement(workerDropdownElement);
+            try
+            {
+                workerSelect.SelectByText("Test, Derek");
+            }
+            catch (NoSuchElementException)
+            {
+                workerSelect.SelectByValue("3489");
+            }
+            steps.Add(("Worker assigned", "Test, Derek"));
+
+            var assignDateInput = driver.FindElement(By.CssSelector("input#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_txtFSWDate"));
+            SetInputValue(driver, assignDateInput, "11/18/25", "Worker assigned date", steps, triggerBlur: true);
+
+            var finalSubmitButton = FindElementInModalOrPage(
+                driver,
+                "div.panel-footer #Buttons a#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_Submit1_LoginView1_btnSubmit.btn.btn-primary," +
+                " a#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_Submit1_LoginView1_btnSubmit.btn.btn-primary",
+                "Final Submit button",
+                15);
+            ClickElement(driver, finalSubmitButton);
+            driver.WaitForUpdatePanel(30);
+            driver.WaitForReady(30);
+            Thread.Sleep(2000);
+            steps.Add(("Final submit", "Submitted engagement log with assigned worker"));
+
+            var preassessRow = FindPreassessmentRow(driver, "11/18/25", "Parent Enrolls");
+            Assert.True(preassessRow != null, "Engagement log grid did not contain the newly submitted record.");
+            steps.Add(("Grid verification", "Preassessment row containing 11/18/25 and Parent Enrolls located"));
+
+            foreach (var step in steps)
+            {
+                _output.WriteLine($"{step.Action}: {step.Result}");
+            }
+        }
+
         private HomePage SignInAsDataEntry(IPookieWebDriver driver)
         {
             driver.Navigate().GoToUrl(_config.AppUrl);
@@ -454,6 +519,56 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             steps.Add(("Add New button", "Advanced to case status step"));
 
             return EnsureCaseStatusDropdown(driver, steps);
+        }
+
+        private IWebElement? FindEngagementLogRow(IPookieWebDriver driver, string workerName, string monthText)
+        {
+            var grids = driver.FindElements(By.CssSelector("table[id*='gr'], table[id*='gv'], table.table"));
+
+            foreach (var grid in grids)
+            {
+                try
+                {
+                    var row = grid.FindElements(By.CssSelector("tbody tr"))
+                        .FirstOrDefault(tr =>
+                            tr.Displayed &&
+                            tr.Text.Contains(workerName, StringComparison.OrdinalIgnoreCase) &&
+                            tr.Text.Contains(monthText, StringComparison.OrdinalIgnoreCase));
+
+                    if (row != null)
+                    {
+                        return row;
+                    }
+                }
+                catch
+                {
+                    // ignore grids that don't have tbody/tr structure
+                }
+            }
+
+            return null;
+        }
+
+        private IWebElement? FindPreassessmentRow(IPookieWebDriver driver, string formDateText, string statusText)
+        {
+            var grid = driver.WaitforElementToBeInDOM(By.CssSelector("#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_grPreassessments"), 20);
+            if (grid == null)
+            {
+                return null;
+            }
+
+            var rows = grid.FindElements(By.CssSelector("tr")).Where(tr => tr.Displayed && tr.FindElements(By.CssSelector("td")).Any()).ToList();
+            foreach (var row in rows)
+            {
+                var dateMatch = row.Text.IndexOf(formDateText, StringComparison.OrdinalIgnoreCase) >= 0;
+                var statusMatch = row.Text.IndexOf(statusText, StringComparison.OrdinalIgnoreCase) >= 0;
+                if (dateMatch && statusMatch)
+                {
+                    return row;
+                }
+            }
+
+            return null;
         }
 
         private static void ClickElement(IPookieWebDriver driver, IWebElement element)
