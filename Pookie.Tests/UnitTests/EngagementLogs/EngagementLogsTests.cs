@@ -262,6 +262,37 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
         }
 
         [Fact]
+        public void CheckingDuplicateMonthValidationDisplayedWhenFormExists()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            var steps = new List<(string Action, string Result)>();
+            var homePage = SignInAsDataEntry(driver);
+
+            Assert.NotNull(homePage);
+            Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
+
+            NavigateToEngagementLog(driver, steps);
+
+            var newFormButton = driver.FindElements(By.CssSelector("a#btnAdd.btn.btn-default.pull-right"))
+                .FirstOrDefault(el => el.Displayed)
+                ?? throw new InvalidOperationException("New Form button was not found on the Engagement Log page.");
+
+            ClickElement(driver, newFormButton);
+            driver.WaitForReady(5);
+            steps.Add(("New Form button", "New Form dialog displayed"));
+
+            var validationText = TriggerDuplicateMonthValidation(driver, steps);
+            Assert.Contains("There is already a form entered for this activity month.", validationText, StringComparison.OrdinalIgnoreCase);
+            steps.Add(("Validation message", validationText));
+
+            foreach (var step in steps)
+            {
+                _output.WriteLine($"{step.Action}: {step.Result}");
+            }
+        }
+
+        [Fact]
         public void CheckingAssignedCaseStatusTwoSubmitsToGrid()
         {
             using var driver = _driverFactory.CreateDriver();
@@ -521,6 +552,55 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             return EnsureCaseStatusDropdown(driver, steps);
         }
 
+        private string TriggerDuplicateMonthValidation(IPookieWebDriver driver, List<(string Action, string Result)> steps, int maxAttempts = 3)
+        {
+            for (var attempt = 1; attempt <= maxAttempts; attempt++)
+            {
+                _output.WriteLine($"[INFO] Duplicate month validation attempt {attempt}/{maxAttempts}.");
+
+                var activityMonthInput = FindElementInModalOrPage(
+                    driver,
+                    "input#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_txtActivityMonth.form-control.mon-year",
+                    $"Activity month duplicate attempt {attempt}",
+                    15);
+
+                SetInputValue(driver, activityMonthInput, "11/2025", $"Activity month duplicate attempt {attempt}", steps, triggerBlur: true);
+
+                var submitButton = FindElementInModalOrPage(
+                    driver,
+                    "input#btnSubmit.btn.btn-primary, button#btnSubmit.btn.btn-primary, .modal-footer .btn-primary",
+                    "Add New button",
+                    10);
+
+                ClickElement(driver, submitButton);
+                driver.WaitForUpdatePanel(30);
+                driver.WaitForReady(30);
+                Thread.Sleep(500);
+                steps.Add(($"Duplicate Add New attempt {attempt}", "Submitted request"));
+
+                var validationSummary = driver.FindElements(By.CssSelector("#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_ValidationSummary1.alert.alert-danger"))
+                    .FirstOrDefault(el => el.Displayed);
+
+                if (validationSummary != null)
+                {
+                    var validationText = validationSummary.Text?.Trim() ?? string.Empty;
+                    steps.Add(($"Validation summary attempt {attempt}", validationText));
+
+                    if (validationText.IndexOf("There is already a form entered for this activity month.", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        return validationText;
+                    }
+
+                    if (validationText.IndexOf("Missing Activity Month", StringComparison.OrdinalIgnoreCase) < 0)
+                    {
+                        throw new InvalidOperationException($"Unexpected validation message '{validationText}'.");
+                    }
+                }
+            }
+
+            throw new InvalidOperationException("Duplicate month validation did not appear after multiple attempts.");
+        }
+
         private IWebElement? FindEngagementLogRow(IPookieWebDriver driver, string workerName, string monthText)
         {
             var grids = driver.FindElements(By.CssSelector("table[id*='gr'], table[id*='gv'], table.table"));
@@ -615,6 +695,15 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
                 js.ExecuteScript("arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('change', { bubbles: true }));", input, value);
                 Thread.Sleep(200);
                 finalValue = input.GetAttribute("value")?.Trim() ?? string.Empty;
+
+                if (!string.Equals(finalValue, value, StringComparison.OrdinalIgnoreCase))
+                {
+                    js.ExecuteScript("arguments[0].removeAttribute('readonly');", input);
+                    input.Clear();
+                    js.ExecuteScript("arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('change', { bubbles: true }));", input, value);
+                    Thread.Sleep(200);
+                    finalValue = input.GetAttribute("value")?.Trim() ?? string.Empty;
+                }
             }
 
             if (!string.Equals(finalValue, value, StringComparison.OrdinalIgnoreCase))
