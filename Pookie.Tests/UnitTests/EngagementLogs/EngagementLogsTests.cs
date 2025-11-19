@@ -317,6 +317,67 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
         }
 
         [Fact]
+        public void CheckingDeletingPreassessmentRecordRequiresConfirmation()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            var steps = new List<(string Action, string Result)>();
+            var homePage = SignInAsDataEntry(driver);
+
+            Assert.NotNull(homePage);
+            Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
+
+            NavigateToEngagementLog(driver, steps);
+
+            var targetRow = FindPreassessmentRow(driver, "11/18/25", "Engagement Efforts Terminated")
+                ?? throw new InvalidOperationException("Target preassessment row was not found for deletion test.");
+
+            var deleteControl = targetRow.FindElements(By.CssSelector(".delete-control")).FirstOrDefault()
+                ?? throw new InvalidOperationException("Delete control container was not found.");
+            var deleteButton = deleteControl.FindElements(By.CssSelector("a[id*='_btnDelete_lbDelete'].btn.btn-danger")).FirstOrDefault()
+                ?? throw new InvalidOperationException("Delete button was not present in the preassessment row.");
+
+            ClickElement(driver, deleteButton);
+            driver.WaitForReady(5);
+            var deleteModal = WaitForDeleteConfirmationModal(deleteControl);
+
+            var cancelButton = deleteModal.FindElements(By.CssSelector("button.btn.btn-default"))
+                .FirstOrDefault(btn => btn.Displayed && btn.Text.IndexOf("No, return", StringComparison.OrdinalIgnoreCase) >= 0)
+                ?? throw new InvalidOperationException("Cancel button was not found in the delete confirmation modal.");
+
+            cancelButton.Click();
+            driver.WaitForReady(5);
+            steps.Add(("Delete confirmation", "Cancel clicked"));
+
+            var rowAfterCancel = FindPreassessmentRow(driver, "11/18/25", "Engagement Efforts Terminated");
+            Assert.NotNull(rowAfterCancel);
+            steps.Add(("Grid verification", "Row still present after cancel"));
+
+            ClickElement(driver, deleteButton);
+            driver.WaitForReady(5);
+            deleteModal = WaitForDeleteConfirmationModal(deleteControl);
+
+            var confirmButton = deleteModal.FindElements(By.CssSelector("a[id*='_btnDelete_lbConfirmDelete'].btn.btn-primary"))
+                .FirstOrDefault(btn => btn.Displayed)
+                ?? throw new InvalidOperationException("Confirm delete button was not found in the modal.");
+
+            confirmButton.Click();
+            driver.WaitForUpdatePanel(30);
+            driver.WaitForReady(30);
+            Thread.Sleep(1000);
+            steps.Add(("Delete confirmation", "Confirmed delete"));
+
+            var rowAfterDelete = FindPreassessmentRow(driver, "11/18/25", "Engagement Efforts Terminated");
+            Assert.Null(rowAfterDelete);
+            steps.Add(("Grid verification", "Row removed after delete confirmation"));
+
+            foreach (var step in steps)
+            {
+                _output.WriteLine($"{step.Action}: {step.Result}");
+            }
+        }
+
+        [Fact]
         public void CheckingDuplicateMonthValidationDisplayedWhenFormExists()
         {
             using var driver = _driverFactory.CreateDriver();
@@ -654,6 +715,29 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             }
 
             throw new InvalidOperationException("Duplicate month validation did not appear after multiple attempts.");
+        }
+
+        private IWebElement WaitForDeleteConfirmationModal(IWebElement deleteControl, int timeoutMilliseconds = 5000)
+        {
+            var end = DateTime.Now.AddMilliseconds(timeoutMilliseconds);
+            while (DateTime.Now <= end)
+            {
+                var modal = deleteControl.FindElements(By.CssSelector(".dc-confirmation-modal"))
+                    .FirstOrDefault(element =>
+                    {
+                        var classes = element.GetAttribute("class") ?? string.Empty;
+                        return element.Displayed || classes.Contains("in", StringComparison.OrdinalIgnoreCase) || classes.Contains("show", StringComparison.OrdinalIgnoreCase);
+                    });
+
+                if (modal != null)
+                {
+                    return modal;
+                }
+
+                Thread.Sleep(100);
+            }
+
+            throw new InvalidOperationException("Delete confirmation modal did not appear.");
         }
 
         private IWebElement? FindEngagementLogRow(IPookieWebDriver driver, string workerName, string monthText)
