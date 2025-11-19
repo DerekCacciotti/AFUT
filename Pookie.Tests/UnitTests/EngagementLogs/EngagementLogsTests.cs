@@ -262,6 +262,61 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
         }
 
         [Fact]
+        public void CheckingCaseStatusThreeSubmissionAppearsInGrid()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            var steps = new List<(string Action, string Result)>();
+            var homePage = SignInAsDataEntry(driver);
+
+            Assert.NotNull(homePage);
+            Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
+
+            NavigateToEngagementLog(driver, steps);
+
+            var caseStatusDropdown = OpenNewFormAndGetCaseStatusDropdown(driver, steps);
+            var caseStatusSelect = new SelectElement(caseStatusDropdown);
+            caseStatusSelect.SelectByValue("03");
+            driver.WaitForUpdatePanel(30);
+            driver.WaitForReady(30);
+            Thread.Sleep(1000);
+            steps.Add(("Case status", "Selected option value 03"));
+
+            var terminationRow = driver.WaitforElementToBeInDOM(By.CssSelector("#trEffortsTerminated"), 10)
+                ?? throw new InvalidOperationException("Termination section was not found.");
+            Assert.True(terminationRow.Displayed, "Termination section was not displayed.");
+
+            var terminationDateInput = terminationRow.FindElement(By.CssSelector("input#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_txtTerminationDate"));
+            SetInputValue(driver, terminationDateInput, "11/18/25", "Termination date", steps, triggerBlur: true);
+
+            var terminationReasonDropdown = driver.FindElement(By.CssSelector("select#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_ddlTerminationReason"));
+            var terminationReasonSelect = new SelectElement(terminationReasonDropdown);
+            terminationReasonSelect.SelectByValue("36");
+            steps.Add(("Termination reason", "36 Participant Refused"));
+
+            var finalSubmitButton = FindElementInModalOrPage(
+                driver,
+                "div.panel-footer #Buttons a#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_Submit1_LoginView1_btnSubmit.btn.btn-primary," +
+                " a#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_Submit1_LoginView1_btnSubmit.btn.btn-primary",
+                "Final Submit button",
+                15);
+            ClickElement(driver, finalSubmitButton);
+            driver.WaitForUpdatePanel(30);
+            driver.WaitForReady(30);
+            Thread.Sleep(2000);
+            steps.Add(("Final submit", "Submitted engagement log with termination info"));
+
+            var preassessRow = FindPreassessmentRow(driver, "11/18/25", "Engagement Efforts Terminated");
+            Assert.True(preassessRow != null, "Preassessment grid did not contain the terminated record.");
+            steps.Add(("Grid verification", "Row containing 11/18/25 and Engagement Efforts Terminated located"));
+
+            foreach (var step in steps)
+            {
+                _output.WriteLine($"{step.Action}: {step.Result}");
+            }
+        }
+
+        [Fact]
         public void CheckingDuplicateMonthValidationDisplayedWhenFormExists()
         {
             using var driver = _driverFactory.CreateDriver();
