@@ -264,7 +264,7 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
             Thread.Sleep(1000);
         }
 
-        private void CreateNewReferralEntry(IPookieWebDriver driver)
+        private void CreateNewReferralEntry(IPookieWebDriver driver, string referralDate = "11/20/25", bool expectSuccess = true)
         {
             var newReferralButton = driver.FindElements(By.CssSelector("a#btnAdd.btn.btn-default.pull-right"))
                 .FirstOrDefault(el => el.Displayed)
@@ -282,7 +282,7 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
                 "Referral date input",
                 15);
 
-            SetInputValue(driver, referralDateInput, "11/20/25", "Referral date", triggerBlur: true);
+            SetInputValue(driver, referralDateInput, referralDate, "Referral date", triggerBlur: true);
 
             var addNewButton = FindElementInModalOrPage(
                 driver,
@@ -294,6 +294,33 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
             driver.WaitForUpdatePanel(30);
             driver.WaitForReady(30);
             Thread.Sleep(1500);
+
+            if (!expectSuccess)
+            {
+                return;
+            }
+        }
+
+        [Fact]
+        public void CheckingReferralDateCannotBeEarlierThanCaseStart()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            var homePage = SignInAsDataEntry(driver);
+            Assert.NotNull(homePage);
+            Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
+
+            NavigateToServiceReferrals(driver);
+
+            var pc1Display = FindPc1Display(driver, TargetPc1Id);
+            Assert.False(string.IsNullOrWhiteSpace(pc1Display), "Unable to locate PC1 ID on Service Referrals page.");
+            Assert.Contains(TargetPc1Id, pc1Display, StringComparison.OrdinalIgnoreCase);
+
+            CreateNewReferralEntry(driver, "10/16/23", expectSuccess: false);
+
+            var validationText = GetValidationSummaryText(driver);
+            Assert.False(string.IsNullOrWhiteSpace(validationText), "Validation summary did not appear for invalid referral date.");
+            Assert.Contains("Invalid Referral Date; must be greater than Case Start Date.", validationText, StringComparison.OrdinalIgnoreCase);
         }
 
         private void SelectWorker(IPookieWebDriver driver, string workerText, string workerValue)
