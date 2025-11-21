@@ -15,6 +15,7 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
     public class ServiceReferralsTests : IClassFixture<AppConfig>
     {
         private const string EditButtonSelector = "a#lnkEditButton.btn.btn-sm.btn-default, a[id$='lnkEditButton']";
+        private const string DeleteButtonSelector = "div.delete-control a#lbDelete.btn.btn-danger, div.delete-control a[id$='lbDelete'], a.btn.btn-danger[id$='lbDelete']";
         private readonly AppConfig _config;
         private readonly IPookieDriverFactory _driverFactory;
         private readonly ITestOutputHelper _output;
@@ -203,6 +204,31 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
                 var updatedRow = WaitForReferralRowBySrpk(driver, srpk, 20);
                 AssertReferralRowShowsServicesReceivedYes(updatedRow);
             }
+        }
+
+        [Fact]
+        public void CheckDeleteButton()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            var homePage = SignInAsDataEntry(driver);
+            Assert.NotNull(homePage);
+            Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
+
+            NavigateToServiceReferrals(driver);
+
+            var pc1Display = FindPc1Display(driver, TargetPc1Id);
+            Assert.False(string.IsNullOrWhiteSpace(pc1Display), "Unable to locate PC1 ID on Service Referrals page.");
+            Assert.Contains(TargetPc1Id, pc1Display, StringComparison.OrdinalIgnoreCase);
+
+            var referralRow = GetExistingEditableReferralRow(driver);
+            var editLink = referralRow.FindElements(By.CssSelector(EditButtonSelector))
+                .FirstOrDefault(el => el.Displayed);
+            var srpk = ExtractQueryParameter(editLink?.GetAttribute("href"), "srpk")
+                       ?? throw new InvalidOperationException("Unable to determine srpk for the selected referral row.");
+
+            CancelDeleteFlow(driver, srpk);
+            ConfirmDeleteFlow(driver, srpk);
         }
 
         private HomePage SignInAsDataEntry(IPookieWebDriver driver)
@@ -514,23 +540,6 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
             return null;
         }
 
-        private IWebElement WaitForReferralRowBySrpk(IPookieWebDriver driver, string srpk, int timeoutSeconds = 15)
-        {
-            var end = DateTime.Now.AddSeconds(timeoutSeconds);
-            while (DateTime.Now <= end)
-            {
-                var row = FindReferralRowBySrpk(driver, srpk);
-                if (row != null)
-                {
-                    return row;
-                }
-
-                Thread.Sleep(400);
-            }
-
-            throw new InvalidOperationException($"Referral row with srpk '{srpk}' did not appear within {timeoutSeconds} seconds.");
-        }
-
         private void AssertReferralRowShowsServicesReceivedYes(IWebElement row)
         {
             var servicesReceivedText = GetRowText(row,
@@ -544,6 +553,180 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
                 "td:nth-child(6)");
 
             Assert.Contains("Yes", servicesReceivedText, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void CancelDeleteFlow(IPookieWebDriver driver, string srpk)
+        {
+            var modal = OpenDeleteModal(driver, srpk);
+
+            var cancelButton = FindModalElement(modal,
+                "button.btn.btn-default[data-dismiss='modal']",
+                "button.btn.btn-default",
+                ".modal-footer button.btn-default");
+
+            ClickElement(driver, cancelButton);
+            WaitForModalToClose(modal);
+            WaitForReferralRowBySrpk(driver, srpk);
+        }
+
+        private void ConfirmDeleteFlow(IPookieWebDriver driver, string srpk)
+        {
+            var modal = OpenDeleteModal(driver, srpk);
+
+            var confirmButton = FindModalElement(modal,
+                "a#lbConfirmDelete.btn.btn-primary",
+                "a[id$='lbConfirmDelete'].btn.btn-primary",
+                ".modal-footer a.btn.btn-primary");
+
+            ClickElement(driver, confirmButton);
+            driver.WaitForUpdatePanel(30);
+            driver.WaitForReady(30);
+            Thread.Sleep(1500);
+
+            WaitForModalToClose(modal);
+            WaitForDeleteToastMessage(driver, TargetPc1Id);
+            WaitForReferralRowRemoval(driver, srpk, 25);
+        }
+
+        private void WaitForDeleteToastMessage(IPookieWebDriver driver, string pc1Id)
+        {
+            var toast = driver.WaitforElementToBeInDOM(By.CssSelector(".jq-toast-single.jq-icon-success"), 15)
+                ?? throw new InvalidOperationException("Success toast was not displayed after deleting Service Referral.");
+
+            var toastText = toast.Text?.Trim() ?? string.Empty;
+            Assert.Contains("Form Deleted", toastText, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Service Referral", toastText, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("was successfully deleted", toastText, StringComparison.OrdinalIgnoreCase);
+            if (!string.IsNullOrWhiteSpace(pc1Id))
+            {
+                Assert.Contains(pc1Id, toastText, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        private IWebElement OpenDeleteModal(IPookieWebDriver driver, string srpk, int timeoutSeconds = 10)
+        {
+            var row = WaitForReferralRowBySrpk(driver, srpk);
+            var deleteButton = row.FindElements(By.CssSelector(DeleteButtonSelector))
+                .FirstOrDefault(el => el.Displayed)
+                ?? throw new InvalidOperationException("Delete button was not found for the selected referral row.");
+
+            ClickElement(driver, deleteButton);
+
+            var end = DateTime.Now.AddSeconds(timeoutSeconds);
+            while (DateTime.Now <= end)
+            {
+                try
+                {
+                    var modal = row.FindElements(By.CssSelector("div.dc-confirmation-modal.modal"))
+                        .FirstOrDefault(IsModalDisplayed);
+                    if (modal != null)
+                    {
+                        return modal;
+                    }
+                }
+                catch (StaleElementReferenceException)
+                {
+                    row = WaitForReferralRowBySrpk(driver, srpk);
+                }
+
+                Thread.Sleep(200);
+            }
+
+            throw new InvalidOperationException("Delete confirmation modal did not appear.");
+        }
+
+        private void WaitForModalToClose(IWebElement modal, int timeoutSeconds = 10)
+        {
+            var end = DateTime.Now.AddSeconds(timeoutSeconds);
+            while (DateTime.Now <= end)
+            {
+                if (!IsModalDisplayed(modal))
+                {
+                    return;
+                }
+
+                Thread.Sleep(200);
+            }
+
+            throw new InvalidOperationException("Delete confirmation modal did not close.");
+        }
+
+        private IWebElement WaitForReferralRowBySrpk(IPookieWebDriver driver, string srpk, int timeoutSeconds = 10)
+        {
+            var end = DateTime.Now.AddSeconds(timeoutSeconds);
+            while (DateTime.Now <= end)
+            {
+                var row = FindReferralRowBySrpk(driver, srpk);
+                if (row != null)
+                {
+                    return row;
+                }
+
+                Thread.Sleep(250);
+            }
+
+            throw new InvalidOperationException($"Referral row with srpk '{srpk}' did not appear within {timeoutSeconds} seconds.");
+        }
+
+        private void WaitForReferralRowRemoval(IPookieWebDriver driver, string srpk, int timeoutSeconds = 15)
+        {
+            var end = DateTime.Now.AddSeconds(timeoutSeconds);
+            while (DateTime.Now <= end)
+            {
+                var row = FindReferralRowBySrpk(driver, srpk);
+                if (row == null)
+                {
+                    return;
+                }
+
+                Thread.Sleep(300);
+            }
+
+            throw new InvalidOperationException($"Referral row with srpk '{srpk}' was still present after attempting to delete.");
+        }
+
+        private static bool IsModalDisplayed(IWebElement? modal)
+        {
+            if (modal == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                if (modal.Displayed)
+                {
+                    return true;
+                }
+            }
+            catch (StaleElementReferenceException)
+            {
+                return false;
+            }
+
+            var classAttr = modal.GetAttribute("class") ?? string.Empty;
+            if (classAttr.Contains("in", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            var style = modal.GetAttribute("style") ?? string.Empty;
+            return style.Contains("display: block", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static IWebElement FindModalElement(IWebElement modal, params string[] selectors)
+        {
+            foreach (var selector in selectors)
+            {
+                var element = modal.FindElements(By.CssSelector(selector))
+                    .FirstOrDefault(el => el.Displayed);
+                if (element != null)
+                {
+                    return element;
+                }
+            }
+
+            throw new InvalidOperationException($"Modal element matching selectors '{string.Join(", ", selectors)}' was not found.");
         }
 
         private static string GetRowText(IWebElement row, params string[] candidateSelectors)
