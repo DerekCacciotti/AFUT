@@ -109,6 +109,47 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
             Assert.NotNull(referralRow);
         }
 
+        [Fact]
+        public void CheckingServiceReferralConditionalFields()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            var homePage = SignInAsDataEntry(driver);
+            Assert.NotNull(homePage);
+            Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
+
+            NavigateToServiceReferrals(driver);
+
+            var pc1Display = FindPc1Display(driver, TargetPc1Id);
+            Assert.False(string.IsNullOrWhiteSpace(pc1Display), "Unable to locate PC1 ID on Service Referrals page.");
+            Assert.Contains(TargetPc1Id, pc1Display, StringComparison.OrdinalIgnoreCase);
+
+            CreateNewReferralEntry(driver);
+            PopulateMinimumRequiredServiceReferralFields(driver);
+
+            SelectServicesReceived(driver, true);
+            var startDateInput = FindElementInModalOrPage(
+                driver,
+                "input#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_startdate",
+                "Start date input",
+                10);
+            Assert.True(startDateInput.Displayed);
+
+            SetInputValue(driver, startDateInput, "11/21/25", "Start date", triggerBlur: true);
+            Assert.False(IsElementDisplayed(driver, "#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_reasonnotreceived"));
+
+            SelectServicesReceived(driver, false);
+            var reasonDropdown = FindElementInModalOrPage(
+                driver,
+                "select#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_reasonnotreceived",
+                "Reason not received dropdown",
+                10);
+            Assert.True(reasonDropdown.Displayed);
+            SelectDropdownOption(driver, reasonDropdown, "Reason not received dropdown", "2. Participant not eligible for service", "02");
+
+            Assert.False(IsElementDisplayed(driver, "#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_startdate"));
+        }
+
         private HomePage SignInAsDataEntry(IPookieWebDriver driver)
         {
             driver.Navigate().GoToUrl(_config.AppUrl);
@@ -231,9 +272,30 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
                 optionValue);
         }
 
+        private void SelectServicesReceived(IPookieWebDriver driver, bool servicesReceived)
+        {
+            var dropdown = FindElementInModalOrPage(
+                driver,
+                "select#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_servicesreceived, select[id$='_servicesreceived']",
+                "Services received dropdown",
+                10);
+
+            var select = new SelectElement(dropdown);
+            select.SelectByValue(servicesReceived ? "1" : "0");
+
+            driver.WaitForUpdatePanel(10);
+            driver.WaitForReady(10);
+            Thread.Sleep(500);
+        }
+
         private void SelectDropdownOption(IPookieWebDriver driver, string cssSelector, string description, string optionText, string? optionValue)
         {
             var dropdown = FindElementInModalOrPage(driver, cssSelector, description, 15);
+            SelectDropdownOption(driver, dropdown, description, optionText, optionValue);
+        }
+
+        private void SelectDropdownOption(IPookieWebDriver driver, IWebElement dropdown, string description, string optionText, string? optionValue)
+        {
             var select = new SelectElement(dropdown);
             SelectByTextOrValue(select, optionText, optionValue);
             driver.WaitForUpdatePanel(5);
@@ -336,6 +398,21 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
             }
 
             return null;
+        }
+
+        private void PopulateMinimumRequiredServiceReferralFields(IPookieWebDriver driver)
+        {
+            SelectWorker(driver, "Test, Derek", "3489");
+            SelectServiceCode(driver, "02 Child primary care", "02");
+            SelectFamilyMemberReferred(driver, "2. Primary Caretaker 2", "02");
+            SelectNatureOfReferral(driver, "2. Inform/Discuss", "02");
+            SelectAgencyReferredTo(driver, "Anonymized", "1");
+        }
+
+        private bool IsElementDisplayed(IPookieWebDriver driver, string cssSelector)
+        {
+            return driver.FindElements(By.CssSelector(cssSelector))
+                .Any(el => el.Displayed);
         }
 
         private IWebElement NavigateToFormsTab(IPookieWebDriver driver, string targetPc1Id)
