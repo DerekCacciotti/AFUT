@@ -14,6 +14,7 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
 {
     public class ServiceReferralsTests : IClassFixture<AppConfig>
     {
+        private const string EditButtonSelector = "a#lnkEditButton.btn.btn-sm.btn-default, a[id$='lnkEditButton']";
         private readonly AppConfig _config;
         private readonly IPookieDriverFactory _driverFactory;
         private readonly ITestOutputHelper _output;
@@ -148,6 +149,60 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
             SelectDropdownOption(driver, reasonDropdown, "Reason not received dropdown", "2. Participant not eligible for service", "02");
 
             Assert.False(IsElementDisplayed(driver, "#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_startdate"));
+        }
+
+        [Fact]
+        public void CheckEditButton()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            var homePage = SignInAsDataEntry(driver);
+            Assert.NotNull(homePage);
+            Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
+
+            NavigateToServiceReferrals(driver);
+
+            var pc1Display = FindPc1Display(driver, TargetPc1Id);
+            Assert.False(string.IsNullOrWhiteSpace(pc1Display), "Unable to locate PC1 ID on Service Referrals page.");
+            Assert.Contains(TargetPc1Id, pc1Display, StringComparison.OrdinalIgnoreCase);
+
+            var referralRow = GetExistingEditableReferralRow(driver);
+            var editButton = referralRow.FindElements(By.CssSelector(EditButtonSelector))
+                .FirstOrDefault(el => el.Displayed)
+                ?? throw new InvalidOperationException("Edit button was not found for the existing referral row.");
+
+            var href = editButton.GetAttribute("href") ?? string.Empty;
+            var srpk = ExtractQueryParameter(href, "srpk");
+
+            ClickElement(driver, editButton);
+            driver.WaitForReady(30);
+            driver.WaitForUpdatePanel(30);
+            Thread.Sleep(1000);
+
+            SelectServicesReceived(driver, true);
+            var startDateInput = FindElementInModalOrPage(
+                driver,
+                "input#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_startdate",
+                "Start date input",
+                10);
+            SetInputValue(driver, startDateInput, "11/20/25", "Start date", triggerBlur: true);
+
+            var reasonDropdown = driver.FindElements(By.CssSelector("#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_reasonnotreceived"))
+                .FirstOrDefault();
+            Assert.True(reasonDropdown == null || !reasonDropdown.Displayed, "Reason not received should not be visible when services received is Yes.");
+
+            var validationText = SubmitAndCaptureValidation(driver);
+            Assert.True(string.IsNullOrWhiteSpace(validationText));
+            WaitForToastMessage(driver, TargetPc1Id);
+            driver.WaitForReady(10);
+            driver.WaitForUpdatePanel(10);
+            Thread.Sleep(500);
+
+            if (!string.IsNullOrWhiteSpace(srpk))
+            {
+                var updatedRow = WaitForReferralRowBySrpk(driver, srpk, 20);
+                AssertReferralRowShowsServicesReceivedYes(updatedRow);
+            }
         }
 
         private HomePage SignInAsDataEntry(IPookieWebDriver driver)
@@ -394,6 +449,137 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
                 if (dateMatch && detailMatch)
                 {
                     return row;
+                }
+            }
+
+            return null;
+        }
+
+        private IWebElement GetExistingEditableReferralRow(IPookieWebDriver driver)
+        {
+            var grid = driver.WaitforElementToBeInDOM(By.CssSelector("#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_grServiceReferrals, " +
+                                                                     "table[id*='grServiceReferral'], table[id*='gvServiceReferral']"), 20)
+                       ?? throw new InvalidOperationException("Service Referrals grid was not found.");
+
+            var rows = grid.FindElements(By.CssSelector("tr"))
+                .Where(tr => tr.Displayed && tr.FindElements(By.CssSelector("td")).Any())
+                .ToList();
+
+            IWebElement? TryFindRow(Func<IWebElement, bool> predicate)
+            {
+                return rows.FirstOrDefault(row =>
+                    predicate(row) &&
+                    row.FindElements(By.CssSelector(EditButtonSelector)).Any(el => el.Displayed));
+            }
+
+            var testRow = TryFindRow(row => row.Text?.Contains("Test", StringComparison.OrdinalIgnoreCase) == true);
+            if (testRow != null)
+            {
+                return testRow;
+            }
+
+            var firstRowWithEdit = TryFindRow(_ => true);
+            if (firstRowWithEdit != null)
+            {
+                return firstRowWithEdit;
+            }
+
+            throw new InvalidOperationException("No editable Service Referral rows were available.");
+        }
+
+        private IWebElement? FindReferralRowBySrpk(IPookieWebDriver driver, string srpk)
+        {
+            var grid = driver.WaitforElementToBeInDOM(By.CssSelector("#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_grServiceReferrals, " +
+                                                                     "table[id*='grServiceReferral'], table[id*='gvServiceReferral']"), 20);
+            if (grid == null)
+            {
+                return null;
+            }
+
+            var rows = grid.FindElements(By.CssSelector("tr"))
+                .Where(tr => tr.Displayed && tr.FindElements(By.CssSelector("td")).Any())
+                .ToList();
+
+            foreach (var row in rows)
+            {
+                var link = row.FindElements(By.CssSelector(EditButtonSelector))
+                    .FirstOrDefault(el => (el.GetAttribute("href") ?? string.Empty)
+                        .Contains($"srpk={srpk}", StringComparison.OrdinalIgnoreCase));
+                if (link != null)
+                {
+                    return row;
+                }
+            }
+
+            return null;
+        }
+
+        private IWebElement WaitForReferralRowBySrpk(IPookieWebDriver driver, string srpk, int timeoutSeconds = 15)
+        {
+            var end = DateTime.Now.AddSeconds(timeoutSeconds);
+            while (DateTime.Now <= end)
+            {
+                var row = FindReferralRowBySrpk(driver, srpk);
+                if (row != null)
+                {
+                    return row;
+                }
+
+                Thread.Sleep(400);
+            }
+
+            throw new InvalidOperationException($"Referral row with srpk '{srpk}' did not appear within {timeoutSeconds} seconds.");
+        }
+
+        private void AssertReferralRowShowsServicesReceivedYes(IWebElement row)
+        {
+            var servicesReceivedText = GetRowText(row,
+                "span#Label3",
+                "span[id*='Label4']",
+                "span[id$='Label3']",
+                "span[id*='lblServiceReceived']",
+                "td:nth-child(5) span",
+                "td:nth-child(6) span",
+                "td:nth-child(5)",
+                "td:nth-child(6)");
+
+            Assert.Contains("Yes", servicesReceivedText, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string GetRowText(IWebElement row, params string[] candidateSelectors)
+        {
+            foreach (var selector in candidateSelectors)
+            {
+                var element = row.FindElements(By.CssSelector(selector))
+                    .FirstOrDefault(el => el.Displayed && !string.IsNullOrWhiteSpace(el.Text));
+
+                if (element != null)
+                {
+                    return element.Text.Trim();
+                }
+            }
+
+            return row.Text?.Trim() ?? string.Empty;
+        }
+
+        private static string? ExtractQueryParameter(string? href, string parameterName)
+        {
+            if (string.IsNullOrWhiteSpace(href) || string.IsNullOrWhiteSpace(parameterName))
+            {
+                return null;
+            }
+
+            var queryIndex = href.IndexOf('?');
+            var query = queryIndex >= 0 ? href[(queryIndex + 1)..] : href;
+            var segments = query.Split('&', StringSplitOptions.RemoveEmptyEntries);
+
+            foreach (var segment in segments)
+            {
+                var trimmed = segment.Trim();
+                var parts = trimmed.Split('=', 2, StringSplitOptions.TrimEntries);
+                if (parts.Length == 2 && string.Equals(parts[0], parameterName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return Uri.UnescapeDataString(parts[1]);
                 }
             }
 
