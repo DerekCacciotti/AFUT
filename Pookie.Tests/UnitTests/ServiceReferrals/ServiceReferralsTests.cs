@@ -12,7 +12,7 @@ using Xunit.Abstractions;
 
 namespace AFUT.Tests.UnitTests.ServiceReferrals
 {
-    [TestCaseOrderer("AFUT.Tests.UnitTests.ServiceReferrals.PriorityOrderer", "AFUT.Tests")]
+    [TestCaseOrderer("AFUT.Tests.UnitTests.Attributes.PriorityOrderer", "AFUT.Tests")]
     public class ServiceReferralsTests : IClassFixture<AppConfig>
     {
         private const string EditButtonSelector = "a#lnkEditButton.btn.btn-sm.btn-default, a[id$='lnkEditButton']";
