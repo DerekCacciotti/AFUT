@@ -5,6 +5,7 @@ using System.Threading;
 using AFUT.Tests.Config;
 using AFUT.Tests.Driver;
 using AFUT.Tests.Pages;
+using AFUT.Tests.UnitTests.Attributes;
 using Microsoft.Extensions.DependencyInjection;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Support.UI;
@@ -19,7 +20,13 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
         private readonly AppConfig _config;
         private readonly IPookieDriverFactory _driverFactory;
         private readonly ITestOutputHelper _output;
-        private const string TargetPc1Id = "EC01001408989";
+        private string TargetPc1Id => _config.TestPc1Id;
+
+        public static IEnumerable<object[]> GetTestPc1Ids()
+        {
+            var config = new AppConfig();
+            return config.TestPc1Ids.Select(id => new object[] { id });
+        }
 
         public EngagementLogsTests(AppConfig config, ITestOutputHelper output)
         {
@@ -32,9 +39,10 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             CaseHomePage.ConfigureDefaultTabs(_config.CaseHomeTabs);
         }
 
-        [Fact]
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
         [TestPriority(1)]
-        public void CheckingTheEngagementLogButton()
+        public void CheckingTheEngagementLogButton(string pc1Id)
         {
             using var driver = _driverFactory.CreateDriver();
 
@@ -44,8 +52,8 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             Assert.NotNull(homePage);
             Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
 
-            NavigateToEngagementLog(driver, steps);
-            var targetPc1Id = TargetPc1Id;
+            NavigateToEngagementLog(driver, pc1Id, steps);
+            var targetPc1Id = pc1Id;
 
             var engagementSummary = driver.FindElements(By.CssSelector(".panel-body, .card-body, .form-group, .list-group"))
                 .Where(el => el.Displayed && !string.IsNullOrWhiteSpace(el.Text))
@@ -85,9 +93,10 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             }
         }
 
-        [Fact]
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
         [TestPriority(2)]
-        public void CheckingValdiationOneMonthIsOver()
+        public void CheckingValdiationOneMonthIsOver(string pc1Id)
         {
             using var driver = _driverFactory.CreateDriver();
 
@@ -97,7 +106,7 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             Assert.NotNull(homePage);
             Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
 
-            NavigateToEngagementLog(driver, steps);
+            NavigateToEngagementLog(driver, pc1Id, steps);
 
             var caseStatusDropdown = OpenNewFormAndGetCaseStatusDropdown(driver, steps);
             var caseStatusSelect = new SelectElement(caseStatusDropdown);
@@ -106,8 +115,8 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
 
             var finalSubmitButton = FindElementInModalOrPage(
                 driver,
-                "div.panel-footer #Buttons a#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_Submit1_LoginView1_btnSubmit.btn.btn-primary," +
-                " a#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_Submit1_LoginView1_btnSubmit.btn.btn-primary",
+                "div.panel-footer a.btn.btn-primary[id$='btnSubmit'], " +
+                "a.btn.btn-primary[id$='btnSubmit']",
                 "Final Submit button",
                 15);
             ClickElement(driver, finalSubmitButton);
@@ -131,9 +140,10 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             Assert.Contains("You can not enter a Engagement Log record with a case status of 1", confirmationSnippet, StringComparison.OrdinalIgnoreCase);
         }
 
-        [Fact]
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
         [TestPriority(3)]
-        public void CheckingAdditionalQuestionsAppearWhenCaseStatusTwoSelected()
+        public void CheckingAdditionalQuestionsAppearWhenCaseStatusTwoSelected(string pc1Id)
         {
             using var driver = _driverFactory.CreateDriver();
 
@@ -143,7 +153,7 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             Assert.NotNull(homePage);
             Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
 
-            NavigateToEngagementLog(driver, steps);
+            NavigateToEngagementLog(driver, pc1Id, steps);
 
             var caseStatusDropdown = OpenNewFormAndGetCaseStatusDropdown(driver, steps);
             var caseStatusSelect = new SelectElement(caseStatusDropdown);
@@ -153,15 +163,15 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             Thread.Sleep(1000);
             steps.Add(("Case status", "Selected option value 02"));
 
-            var caseAssignedSection = driver.WaitforElementToBeInDOM(By.CssSelector("#trAssessmentCompleted"), 10)
+            var caseAssignedSection = driver.WaitforElementToBeInDOM(By.CssSelector("#trAssessmentCompleted, tr#trAssessmentCompleted, tr[id$='trAssessmentCompleted']"), 10)
                 ?? throw new InvalidOperationException("Case assignment section was not found.");
 
             Assert.True(caseAssignedSection.Displayed, "Case assignment section was not displayed.");
 
-            var yesRadio = driver.FindElement(By.CssSelector("input#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_rbtnAssigned"));
-            var noRadio = driver.FindElement(By.CssSelector("input#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_rbtnNotAssigned"));
-            var workerDropdown = driver.FindElement(By.CssSelector("select#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_ddlFSW"));
-            var assignDateInput = driver.FindElement(By.CssSelector("input#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_txtFSWDate"));
+            var yesRadio = driver.FindElement(By.CssSelector("input[type='radio'][id$='rbtnAssigned']"));
+            var noRadio = driver.FindElement(By.CssSelector("input[type='radio'][id$='rbtnNotAssigned']"));
+            var workerDropdown = driver.FindElement(By.CssSelector("select.form-control[id$='ddlFSW']"));
+            var assignDateInput = driver.FindElement(By.CssSelector("input.form-control[id$='txtFSWDate']"));
 
             Assert.True(yesRadio.Displayed && noRadio.Displayed, "Case assignment radio buttons were not visible.");
             Assert.True(workerDropdown.Displayed, "Worker selection dropdown was not visible.");
@@ -175,9 +185,10 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             }
         }
 
-        [Fact]
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
         [TestPriority(4)]
-        public void CheckingTerminationFieldsAppearWhenCaseStatusTwoAndCaseNotAssigned()
+        public void CheckingTerminationFieldsAppearWhenCaseStatusTwoAndCaseNotAssigned(string pc1Id)
         {
             using var driver = _driverFactory.CreateDriver();
 
@@ -187,7 +198,7 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             Assert.NotNull(homePage);
             Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
 
-            NavigateToEngagementLog(driver, steps);
+            NavigateToEngagementLog(driver, pc1Id, steps);
 
             var caseStatusDropdown = OpenNewFormAndGetCaseStatusDropdown(driver, steps);
             var caseStatusSelect = new SelectElement(caseStatusDropdown);
@@ -197,21 +208,21 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             Thread.Sleep(1000);
             steps.Add(("Case status", "Selected option value 02"));
 
-            var noRadio = driver.FindElement(By.CssSelector("input#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_rbtnNotAssigned"));
+            var noRadio = driver.FindElement(By.CssSelector("input[type='radio'][id$='rbtnNotAssigned']"));
             ClickElement(driver, noRadio);
             driver.WaitForUpdatePanel(30);
             driver.WaitForReady(30);
             Thread.Sleep(1000);
             steps.Add(("Case assigned radio", "Selected No"));
 
-            var terminationRow = driver.WaitforElementToBeInDOM(By.CssSelector("#trEffortsTerminated"), 10)
+            var terminationRow = driver.WaitforElementToBeInDOM(By.CssSelector("#trEffortsTerminated, tr#trEffortsTerminated, tr[id$='trEffortsTerminated']"), 10)
                 ?? throw new InvalidOperationException("Termination section was not found.");
             Assert.True(terminationRow.Displayed, "Termination section was not displayed.");
 
-            var terminationDateInput = terminationRow.FindElement(By.CssSelector("input#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_txtTerminationDate"));
+            var terminationDateInput = terminationRow.FindElement(By.CssSelector("input.form-control[id$='txtTerminationDate']"));
             Assert.True(terminationDateInput.Displayed, "Termination date input was not visible.");
 
-            var terminationReasonDropdown = driver.FindElement(By.CssSelector("select#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_ddlTerminationReason"));
+            var terminationReasonDropdown = driver.FindElement(By.CssSelector("select.form-control[id$='ddlTerminationReason']"));
             Assert.True(terminationReasonDropdown.Displayed, "Termination reason dropdown was not visible.");
 
             steps.Add(("Termination fields", "Termination date and reason displayed when case not assigned"));
@@ -222,9 +233,10 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             }
         }
 
-        [Fact]
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
         [TestPriority(5)]
-        public void CheckingTerminationFieldsAppearWhenCaseStatusThreeSelected()
+        public void CheckingTerminationFieldsAppearWhenCaseStatusThreeSelected(string pc1Id)
         {
             using var driver = _driverFactory.CreateDriver();
 
@@ -234,7 +246,7 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             Assert.NotNull(homePage);
             Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
 
-            NavigateToEngagementLog(driver, steps);
+            NavigateToEngagementLog(driver, pc1Id, steps);
 
             var caseStatusDropdown = OpenNewFormAndGetCaseStatusDropdown(driver, steps);
             var caseStatusSelect = new SelectElement(caseStatusDropdown);
@@ -244,18 +256,18 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             Thread.Sleep(1000);
             steps.Add(("Case status", "Selected option value 03"));
 
-            var terminationRow = driver.WaitforElementToBeInDOM(By.CssSelector("#trEffortsTerminated"), 10)
+            var terminationRow = driver.WaitforElementToBeInDOM(By.CssSelector("#trEffortsTerminated, tr#trEffortsTerminated, tr[id$='trEffortsTerminated']"), 10)
                 ?? throw new InvalidOperationException("Termination section was not found.");
 
-            var terminationDateInput = terminationRow.FindElement(By.CssSelector("input#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_txtTerminationDate"));
-            var terminationReasonDropdown = driver.FindElement(By.CssSelector("select#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_ddlTerminationReason"));
+            var terminationDateInput = terminationRow.FindElement(By.CssSelector("input.form-control[id$='txtTerminationDate']"));
+            var terminationReasonDropdown = driver.FindElement(By.CssSelector("select.form-control[id$='ddlTerminationReason']"));
 
             Assert.True(terminationRow.Displayed, "Termination section was not displayed.");
             Assert.True(terminationDateInput.Displayed, "Termination date input was not visible.");
             Assert.True(terminationReasonDropdown.Displayed, "Termination reason dropdown was not visible.");
             steps.Add(("Termination fields", "Termination date and reason displayed when case status is 3"));
 
-            var caseAssignedSection = driver.WaitforElementToBeInDOM(By.CssSelector("#trAssessmentCompleted"), 5);
+            var caseAssignedSection = driver.WaitforElementToBeInDOM(By.CssSelector("#trAssessmentCompleted, tr#trAssessmentCompleted, tr[id$='trAssessmentCompleted']"), 5);
             if (caseAssignedSection != null)
             {
                 Assert.False(caseAssignedSection.Displayed, "Case assignment section should not be visible when case status is 3.");
@@ -267,9 +279,10 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             }
         }
 
-        [Fact]
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
         [TestPriority(6)]
-        public void CheckingCaseStatusThreeSubmissionAppearsInGrid()
+        public void CheckingCaseStatusThreeSubmissionAppearsInGrid(string pc1Id)
         {
             using var driver = _driverFactory.CreateDriver();
 
@@ -279,7 +292,7 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             Assert.NotNull(homePage);
             Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
 
-            NavigateToEngagementLog(driver, steps);
+            NavigateToEngagementLog(driver, pc1Id, steps);
 
             var caseStatusDropdown = OpenNewFormAndGetCaseStatusDropdown(driver, steps);
             var caseStatusSelect = new SelectElement(caseStatusDropdown);
@@ -289,22 +302,22 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             Thread.Sleep(1000);
             steps.Add(("Case status", "Selected option value 03"));
 
-            var terminationRow = driver.WaitforElementToBeInDOM(By.CssSelector("#trEffortsTerminated"), 10)
+            var terminationRow = driver.WaitforElementToBeInDOM(By.CssSelector("#trEffortsTerminated, tr#trEffortsTerminated, tr[id$='trEffortsTerminated']"), 10)
                 ?? throw new InvalidOperationException("Termination section was not found.");
             Assert.True(terminationRow.Displayed, "Termination section was not displayed.");
 
-            var terminationDateInput = terminationRow.FindElement(By.CssSelector("input#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_txtTerminationDate"));
+            var terminationDateInput = terminationRow.FindElement(By.CssSelector("input.form-control[id$='txtTerminationDate']"));
             SetInputValue(driver, terminationDateInput, "11/18/25", "Termination date", steps, triggerBlur: true);
 
-            var terminationReasonDropdown = driver.FindElement(By.CssSelector("select#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_ddlTerminationReason"));
+            var terminationReasonDropdown = driver.FindElement(By.CssSelector("select.form-control[id$='ddlTerminationReason']"));
             var terminationReasonSelect = new SelectElement(terminationReasonDropdown);
             terminationReasonSelect.SelectByValue("36");
             steps.Add(("Termination reason", "36 Participant Refused"));
 
             var finalSubmitButton = FindElementInModalOrPage(
                 driver,
-                "div.panel-footer #Buttons a#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_Submit1_LoginView1_btnSubmit.btn.btn-primary," +
-                " a#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_Submit1_LoginView1_btnSubmit.btn.btn-primary",
+                "div.panel-footer a.btn.btn-primary[id$='btnSubmit'], " +
+                "a.btn.btn-primary[id$='btnSubmit']",
                 "Final Submit button",
                 15);
             ClickElement(driver, finalSubmitButton);
@@ -323,9 +336,10 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             }
         }
 
-        [Fact]
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
         [TestPriority(7)]
-        public void CheckingDeletingPreassessmentRecordRequiresConfirmation()
+        public void CheckingDeletingPreassessmentRecordRequiresConfirmation(string pc1Id)
         {
             using var driver = _driverFactory.CreateDriver();
 
@@ -335,14 +349,22 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             Assert.NotNull(homePage);
             Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
 
-            NavigateToEngagementLog(driver, steps);
+            NavigateToEngagementLog(driver, pc1Id, steps);
 
-            var targetRow = FindPreassessmentRow(driver, "11/18/25", "Engagement Efforts Terminated")
-                ?? throw new InvalidOperationException("Target preassessment row was not found for deletion test.");
+            // Find the first available row with a delete button
+            var grid = driver.WaitforElementToBeInDOM(By.CssSelector("table[id$='grPreassessments'], table#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_grPreassessments"), 20)
+                ?? throw new InvalidOperationException("Preassessment grid was not found.");
+
+            var rows = grid.FindElements(By.CssSelector("tr")).Where(tr => tr.Displayed && tr.FindElements(By.CssSelector("td")).Any()).ToList();
+            var targetRow = rows.FirstOrDefault(row => row.FindElements(By.CssSelector(".delete-control")).Any())
+                ?? throw new InvalidOperationException("No row with delete button was found for deletion test.");
+
+            var rowIdentifier = targetRow.Text?.Split('\n').FirstOrDefault()?.Trim() ?? "unknown";
+            steps.Add(("Target row", $"Selected row: {rowIdentifier}"));
 
             var deleteControl = targetRow.FindElements(By.CssSelector(".delete-control")).FirstOrDefault()
                 ?? throw new InvalidOperationException("Delete control container was not found.");
-            var deleteButton = deleteControl.FindElements(By.CssSelector("a[id*='_btnDelete_lbDelete'].btn.btn-danger")).FirstOrDefault()
+            var deleteButton = deleteControl.FindElements(By.CssSelector("a.btn.btn-danger[id*='btnDelete'][id$='lbDelete']")).FirstOrDefault()
                 ?? throw new InvalidOperationException("Delete button was not present in the preassessment row.");
 
             ClickElement(driver, deleteButton);
@@ -354,18 +376,32 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
                 ?? throw new InvalidOperationException("Cancel button was not found in the delete confirmation modal.");
 
             cancelButton.Click();
+            driver.WaitForUpdatePanel(10);
             driver.WaitForReady(5);
+            Thread.Sleep(500);
             steps.Add(("Delete confirmation", "Cancel clicked"));
 
-            var rowAfterCancel = FindPreassessmentRow(driver, "11/18/25", "Engagement Efforts Terminated");
-            Assert.NotNull(rowAfterCancel);
+            // Verify row is still present by checking if delete button still exists
+            var gridAfterCancel = driver.WaitforElementToBeInDOM(By.CssSelector("table[id$='grPreassessments'], table#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_grPreassessments"), 10);
+            var rowStillPresent = gridAfterCancel.FindElements(By.CssSelector("tr")).Any(tr => tr.Text.Contains(rowIdentifier, StringComparison.OrdinalIgnoreCase));
+            Assert.True(rowStillPresent, "Row should still be present after cancel");
             steps.Add(("Grid verification", "Row still present after cancel"));
 
-            ClickElement(driver, deleteButton);
-            driver.WaitForReady(5);
-            deleteModal = WaitForDeleteConfirmationModal(deleteControl);
+            // Re-find the row and delete button after cancel (to avoid stale element)
+            var targetRowAgain = gridAfterCancel.FindElements(By.CssSelector("tr"))
+                .FirstOrDefault(tr => tr.Displayed && tr.Text.Contains(rowIdentifier, StringComparison.OrdinalIgnoreCase))
+                ?? throw new InvalidOperationException("Could not re-locate the target row after cancel.");
 
-            var confirmButton = deleteModal.FindElements(By.CssSelector("a[id*='_btnDelete_lbConfirmDelete'].btn.btn-primary"))
+            var deleteControlAgain = targetRowAgain.FindElements(By.CssSelector(".delete-control")).FirstOrDefault()
+                ?? throw new InvalidOperationException("Delete control was not found after cancel.");
+            var deleteButtonAgain = deleteControlAgain.FindElements(By.CssSelector("a.btn.btn-danger[id*='btnDelete'][id$='lbDelete']")).FirstOrDefault()
+                ?? throw new InvalidOperationException("Delete button was not found after cancel.");
+
+            ClickElement(driver, deleteButtonAgain);
+            driver.WaitForReady(5);
+            deleteModal = WaitForDeleteConfirmationModal(deleteControlAgain);
+
+            var confirmButton = deleteModal.FindElements(By.CssSelector("a.btn.btn-primary[id*='btnDelete'][id$='lbConfirmDelete']"))
                 .FirstOrDefault(btn => btn.Displayed)
                 ?? throw new InvalidOperationException("Confirm delete button was not found in the modal.");
 
@@ -375,8 +411,10 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             Thread.Sleep(1000);
             steps.Add(("Delete confirmation", "Confirmed delete"));
 
-            var rowAfterDelete = FindPreassessmentRow(driver, "11/18/25", "Engagement Efforts Terminated");
-            Assert.Null(rowAfterDelete);
+            // Verify row is deleted - re-fetch grid to avoid stale element
+            var gridAfterDelete = driver.WaitforElementToBeInDOM(By.CssSelector("table[id$='grPreassessments'], table#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_grPreassessments"), 10);
+            var rowAfterDelete = gridAfterDelete != null && gridAfterDelete.FindElements(By.CssSelector("tr")).Any(tr => tr.Displayed && tr.Text.Contains(rowIdentifier, StringComparison.OrdinalIgnoreCase));
+            Assert.False(rowAfterDelete, "Row should be removed after delete confirmation");
             steps.Add(("Grid verification", "Row removed after delete confirmation"));
 
             foreach (var step in steps)
@@ -385,9 +423,10 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             }
         }
 
-        [Fact]
-        [TestPriority(9)]
-        public void CheckingDuplicateMonthValidationDisplayedWhenFormExists()
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
+        [TestPriority(8)]
+        public void CheckingDuplicateMonthValidationDisplayedWhenFormExists(string pc1Id)
         {
             using var driver = _driverFactory.CreateDriver();
 
@@ -397,9 +436,9 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             Assert.NotNull(homePage);
             Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
 
-            NavigateToEngagementLog(driver, steps);
+            NavigateToEngagementLog(driver, pc1Id, steps);
 
-            var newFormButton = driver.FindElements(By.CssSelector("a#btnAdd.btn.btn-default.pull-right"))
+            var newFormButton = driver.FindElements(By.CssSelector("a.btn.btn-default.pull-right[id$='btnAdd']"))
                 .FirstOrDefault(el => el.Displayed)
                 ?? throw new InvalidOperationException("New Form button was not found on the Engagement Log page.");
 
@@ -417,9 +456,10 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             }
         }
 
-        [Fact]
-        [TestPriority(8)]
-        public void CheckingAssignedCaseStatusTwoSubmitsToGrid()
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
+        [TestPriority(9)]
+        public void CheckingAssignedCaseStatusTwoSubmitsToGrid(string pc1Id)
         {
             using var driver = _driverFactory.CreateDriver();
 
@@ -429,7 +469,7 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             Assert.NotNull(homePage);
             Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
 
-            NavigateToEngagementLog(driver, steps);
+            NavigateToEngagementLog(driver, pc1Id, steps);
 
             var caseStatusDropdown = OpenNewFormAndGetCaseStatusDropdown(driver, steps);
             var caseStatusSelect = new SelectElement(caseStatusDropdown);
@@ -439,14 +479,14 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             Thread.Sleep(1000);
             steps.Add(("Case status", "Selected option value 02"));
 
-            var yesRadio = driver.FindElement(By.CssSelector("input#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_rbtnAssigned"));
+            var yesRadio = driver.FindElement(By.CssSelector("input[type='radio'][id$='rbtnAssigned']"));
             ClickElement(driver, yesRadio);
             driver.WaitForUpdatePanel(30);
             driver.WaitForReady(30);
             Thread.Sleep(500);
             steps.Add(("Case assigned radio", "Selected Yes"));
 
-            var workerDropdownElement = driver.FindElement(By.CssSelector("select#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_ddlFSW"));
+            var workerDropdownElement = driver.FindElement(By.CssSelector("select.form-control[id$='ddlFSW']"));
             var workerSelect = new SelectElement(workerDropdownElement);
             try
             {
@@ -458,13 +498,13 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             }
             steps.Add(("Worker assigned", "Test, Derek"));
 
-            var assignDateInput = driver.FindElement(By.CssSelector("input#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_txtFSWDate"));
+            var assignDateInput = driver.FindElement(By.CssSelector("input.form-control[id$='txtFSWDate']"));
             SetInputValue(driver, assignDateInput, "11/18/25", "Worker assigned date", steps, triggerBlur: true);
 
             var finalSubmitButton = FindElementInModalOrPage(
                 driver,
-                "div.panel-footer #Buttons a#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_Submit1_LoginView1_btnSubmit.btn.btn-primary," +
-                " a#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_Submit1_LoginView1_btnSubmit.btn.btn-primary",
+                "div.panel-footer a.btn.btn-primary[id$='btnSubmit'], " +
+                "a.btn.btn-primary[id$='btnSubmit']",
                 "Final Submit button",
                 15);
             ClickElement(driver, finalSubmitButton);
@@ -502,11 +542,11 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             return (HomePage)landingPage;
         }
 
-        private void NavigateToEngagementLog(IPookieWebDriver driver, List<(string Action, string Result)> steps)
+        private void NavigateToEngagementLog(IPookieWebDriver driver, string pc1Id, List<(string Action, string Result)> steps)
         {
-            var formsPane = NavigateToFormsTab(driver, TargetPc1Id, steps);
+            var formsPane = NavigateToFormsTab(driver, pc1Id, steps);
 
-            var engagementLogLink = formsPane.FindElements(By.CssSelector("a#ctl00_ContentPlaceHolder1_ucForms_lnkPA.moreInfo, a[data-formtype='pa'].moreInfo"))
+            var engagementLogLink = formsPane.FindElements(By.CssSelector("a.moreInfo[data-formtype='pa'], a.moreInfo[id$='lnkPA']"))
                 .FirstOrDefault(el => el.Displayed)
                 ?? throw new InvalidOperationException("Engagement Log link was not found inside the Forms tab.");
 
@@ -538,7 +578,7 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             pc1Input.Clear();
             pc1Input.SendKeys(targetPc1Id);
 
-            var searchButton = driver.WaitforElementToBeInDOM(By.CssSelector("a#ctl00_ContentPlaceHolder1_btSearch"), 5)
+            var searchButton = driver.WaitforElementToBeInDOM(By.CssSelector("a[id$='btSearch'], button[id$='btSearch']"), 5)
                 ?? throw new InvalidOperationException("Search button was not found on the Search Cases page.");
 
             searchButton.Click();
@@ -546,18 +586,18 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             driver.WaitForReady(30);
             steps?.Add(("Search button", $"Search executed for PC1 {targetPc1Id}"));
 
-            var formsTab = driver.WaitforElementToBeInDOM(By.CssSelector("a#formstab[data-toggle='tab'][href='#forms']"), 10)
+            var formsTab = driver.WaitforElementToBeInDOM(By.CssSelector("a[data-toggle='tab'][href='#forms'][id$='formstab']"), 10)
                 ?? throw new InvalidOperationException("Forms tab was not found on the Search Cases results.");
             formsTab.Click();
             driver.WaitForReady(5);
 
-            var formsPane = driver.WaitforElementToBeInDOM(By.CssSelector(".tab-pane#forms"), 5)
+            var formsPane = driver.WaitforElementToBeInDOM(By.CssSelector(".tab-pane[id$='forms']"), 5)
                 ?? throw new InvalidOperationException("Forms tab content was not found.");
             if (!formsPane.Displayed || !formsPane.GetAttribute("class").Contains("active", StringComparison.OrdinalIgnoreCase))
             {
                 formsTab.Click();
                 driver.WaitForReady(3);
-                formsPane = driver.WaitforElementToBeInDOM(By.CssSelector(".tab-pane#forms"), 5)
+                formsPane = driver.WaitforElementToBeInDOM(By.CssSelector(".tab-pane[id$='forms']"), 5)
                     ?? throw new InvalidOperationException("Forms tab content was not found after activation.");
             }
 
@@ -608,7 +648,7 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             for (var attempt = 1; attempt <= maxAttempts; attempt++)
             {
                 _output.WriteLine($"[INFO] Attempting to locate Case Status dropdown (attempt {attempt}/{maxAttempts}).");
-                var dropdown = driver.FindElements(By.CssSelector("select#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_ddlCaseStatus.form-control"))
+                var dropdown = driver.FindElements(By.CssSelector("select.form-control[id$='ddlCaseStatus']"))
                     .FirstOrDefault(el => el.Displayed);
                 if (dropdown != null)
                 {
@@ -620,7 +660,7 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
                 var activityDescription = attempt == 1 ? "Activity month (post advance)" : $"Activity month retry {attempt - 1}";
                 var activityInput = FindElementInModalOrPage(
                     driver,
-                    "input#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_txtActivityMonth.form-control.mon-year",
+                    "input.form-control.mon-year[id$='txtActivityMonth']",
                     activityDescription,
                     15);
                 SetInputValue(driver, activityInput, "11/2025", activityDescription, steps, triggerBlur: true);
@@ -628,7 +668,7 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
                 var addNewDescription = attempt == 1 ? "Add New button (post advance)" : $"Add New button retry {attempt - 1}";
                 var addNewButton = FindElementInModalOrPage(
                     driver,
-                    "input#btnSubmit.btn.btn-primary, button#btnSubmit.btn.btn-primary, .modal-footer .btn-primary",
+                    "input.btn.btn-primary[id$='btnSubmit'], button.btn.btn-primary[id$='btnSubmit'], .modal-footer .btn-primary",
                     addNewDescription,
                     10);
                 ClickElement(driver, addNewButton);
@@ -643,7 +683,7 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
 
         private IWebElement OpenNewFormAndGetCaseStatusDropdown(IPookieWebDriver driver, List<(string Action, string Result)> steps)
         {
-            var newFormButton = driver.FindElements(By.CssSelector("a#btnAdd.btn.btn-default.pull-right"))
+            var newFormButton = driver.FindElements(By.CssSelector("a.btn.btn-default.pull-right[id$='btnAdd']"))
                 .FirstOrDefault(el => el.Displayed)
                 ?? throw new InvalidOperationException("New Form button was not found on the Engagement Log page.");
 
@@ -652,12 +692,12 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
             steps.Add(("New Form button", "New Form dialog displayed"));
 
             _output.WriteLine("[INFO] Waiting for activity month input in modal.");
-            var activityMonthInput = FindElementInModalOrPage(driver, "input#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_txtActivityMonth.form-control.mon-year", "Activity Month input", 15);
+            var activityMonthInput = FindElementInModalOrPage(driver, "input.form-control.mon-year[id$='txtActivityMonth']", "Activity Month input", 15);
             SetInputValue(driver, activityMonthInput, "11/2025", "Activity month", steps, triggerBlur: true);
 
             var submitButton = FindElementInModalOrPage(
                 driver,
-                "input#btnSubmit.btn.btn-primary, button#btnSubmit.btn.btn-primary, .modal-footer .btn-primary",
+                "input.btn.btn-primary[id$='btnSubmit'], button.btn.btn-primary[id$='btnSubmit'], .modal-footer .btn-primary",
                 "Add New button",
                 10);
 
@@ -678,7 +718,7 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
 
                 var activityMonthInput = FindElementInModalOrPage(
                     driver,
-                    "input#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_txtActivityMonth.form-control.mon-year",
+                    "input.form-control.mon-year[id$='txtActivityMonth']",
                     $"Activity month duplicate attempt {attempt}",
                     15);
 
@@ -686,7 +726,7 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
 
                 var submitButton = FindElementInModalOrPage(
                     driver,
-                    "input#btnSubmit.btn.btn-primary, button#btnSubmit.btn.btn-primary, .modal-footer .btn-primary",
+                    "input.btn.btn-primary[id$='btnSubmit'], button.btn.btn-primary[id$='btnSubmit'], .modal-footer .btn-primary",
                     "Add New button",
                     10);
 
@@ -696,7 +736,7 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
                 Thread.Sleep(500);
                 steps.Add(($"Duplicate Add New attempt {attempt}", "Submitted request"));
 
-                var validationSummary = driver.FindElements(By.CssSelector("#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_ValidationSummary1.alert.alert-danger"))
+                var validationSummary = driver.FindElements(By.CssSelector(".alert.alert-danger[id$='ValidationSummary1']"))
                     .FirstOrDefault(el => el.Displayed);
 
                 if (validationSummary != null)
@@ -772,7 +812,7 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
 
         private IWebElement? FindPreassessmentRow(IPookieWebDriver driver, string formDateText, string statusText)
         {
-            var grid = driver.WaitforElementToBeInDOM(By.CssSelector("#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_grPreassessments"), 20);
+            var grid = driver.WaitforElementToBeInDOM(By.CssSelector("table[id$='grPreassessments'], table#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_grPreassessments"), 20);
             if (grid == null)
             {
                 return null;
