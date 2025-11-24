@@ -12,6 +12,7 @@ using Xunit.Abstractions;
 
 namespace AFUT.Tests.UnitTests.AuditC
 {
+    [TestCaseOrderer("AFUT.Tests.UnitTests.AuditC.PriorityOrderer", "AFUT.Tests")]
     public class AuditCTests : IClassFixture<AppConfig>
     {
         private const string EditButtonSelector = "a[id$='lnkEditAuditC'], a.edit-auditc, a#lnkEditButton.btn.btn-sm.btn-default, a[id$='lnkEditButton']";
@@ -33,6 +34,7 @@ namespace AFUT.Tests.UnitTests.AuditC
         }
 
         [Fact]
+        [TestPriority(1)]
         public void CheckingTheAddNewOfAuditCForm()
         {
             using var driver = _driverFactory.CreateDriver();
@@ -55,6 +57,7 @@ namespace AFUT.Tests.UnitTests.AuditC
         }
 
         [Fact]
+        [TestPriority(2)]
         public void CheckingAuditCFormValidationAndSubmission()
         {
             using var driver = _driverFactory.CreateDriver();
@@ -318,6 +321,7 @@ namespace AFUT.Tests.UnitTests.AuditC
         }
 
         [Fact]
+        [TestPriority(3)]
         public void CheckEditButton()
         {
             using var driver = _driverFactory.CreateDriver();
@@ -380,6 +384,7 @@ namespace AFUT.Tests.UnitTests.AuditC
         }
 
         [Fact]
+        [TestPriority(4)]
         public void CheckDeleteButton()
         {
             using var driver = _driverFactory.CreateDriver();
