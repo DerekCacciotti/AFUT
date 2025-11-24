@@ -328,6 +328,84 @@ namespace AFUT.Tests.UnitTests.HITS
             _output.WriteLine("[INFO] ✓ HITS form successfully edited and updated to Positive!");
         }
 
+        [Fact]
+        public void CheckingHITSFormDeleteWithCancelAndConfirm()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            // Use common helper for the navigation flow
+            var (homePage, formsPane) = CommonTestHelper.NavigateToFormsTab(driver, _config, TargetPc1Id);
+
+            Assert.NotNull(homePage);
+            Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
+
+            // Navigate to HITS
+            NavigateToHITS(driver, formsPane);
+
+            var pc1Display = CommonTestHelper.FindPc1Display(driver, TargetPc1Id);
+            Assert.False(string.IsNullOrWhiteSpace(pc1Display), "Unable to locate PC1 ID on HITS page.");
+            Assert.Contains(TargetPc1Id, pc1Display, StringComparison.OrdinalIgnoreCase);
+
+            // Get initial count of HITS forms (only count rows with delete buttons)
+            var initialTableRows = driver.FindElements(By.CssSelector("table#tblHITSs tbody tr"))
+                .Where(row => row.FindElements(By.CssSelector("button.delete-HITS, button[id*='btnDeleteHITS']")).Any())
+                .ToList();
+            var initialCount = initialTableRows.Count;
+            _output.WriteLine($"[INFO] Initial HITS forms count: {initialCount}");
+            Assert.True(initialCount > 0, "No HITS forms found in the table to delete.");
+
+            // Step 1: Click Delete button on the first HITS form
+            _output.WriteLine("[INFO] Step 1: Clicking Delete button on existing HITS form...");
+            ClickDeleteButton(driver);
+            Thread.Sleep(1000);
+
+            // Step 2: Verify modal is displayed and click "No" to cancel
+            _output.WriteLine("[INFO] Step 2: Clicking 'No' to cancel deletion...");
+            ClickModalNoButton(driver);
+            driver.WaitForUpdatePanel(10);
+            driver.WaitForReady(10);
+            Thread.Sleep(1000);
+
+            // Verify the form is still in the table (count should be the same)
+            var tableRowsAfterCancel = driver.FindElements(By.CssSelector("table#tblHITSs tbody tr"))
+                .Where(row => row.FindElements(By.CssSelector("button.delete-HITS, button[id*='btnDeleteHITS']")).Any())
+                .ToList();
+            Assert.Equal(initialCount, tableRowsAfterCancel.Count);
+            _output.WriteLine($"[INFO] Forms count after cancel: {tableRowsAfterCancel.Count} (unchanged)");
+
+            // Step 3: Click Delete button again
+            _output.WriteLine("[INFO] Step 3: Clicking Delete button again...");
+            ClickDeleteButton(driver);
+            Thread.Sleep(1000);
+
+            // Step 4: Click "Yes" to confirm deletion
+            _output.WriteLine("[INFO] Step 4: Clicking 'Yes' to confirm deletion...");
+            ClickModalYesButton(driver);
+            driver.WaitForUpdatePanel(30);
+            driver.WaitForReady(30);
+            Thread.Sleep(2000);
+
+            // Step 5: Verify success toast message
+            _output.WriteLine("[INFO] Step 5: Verifying success toast message...");
+            var toastMessage = GetToastMessage(driver);
+            Assert.Contains("Form Deleted", toastMessage, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("HITS", toastMessage, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("successfully deleted", toastMessage, StringComparison.OrdinalIgnoreCase);
+            _output.WriteLine($"[INFO] Success toast: {toastMessage}");
+
+            // Step 6: Verify the form is no longer in the table
+            _output.WriteLine("[INFO] Step 6: Verifying form is deleted from the table...");
+            var tableRowsAfterDelete = driver.FindElements(By.CssSelector("table#tblHITSs tbody tr"))
+                .Where(row => row.FindElements(By.CssSelector("button.delete-HITS, button[id*='btnDeleteHITS']")).Any())
+                .ToList();
+            var finalCount = tableRowsAfterDelete.Count;
+            Assert.Equal(initialCount - 1, finalCount);
+            _output.WriteLine($"[INFO] Forms count after deletion: {finalCount} (decreased by 1)");
+            _output.WriteLine($"[INFO] Expected: {initialCount - 1}, Actual: {finalCount}");
+
+            _output.WriteLine("[INFO] ✓ HITS form successfully deleted!");
+        }
+
         #region Helper Methods
 
         private void NavigateToHITS(IPookieWebDriver driver, IWebElement formsPane)
@@ -375,6 +453,48 @@ namespace AFUT.Tests.UnitTests.HITS
             driver.WaitForReady(30);
             driver.WaitForUpdatePanel(30);
             Thread.Sleep(1000);
+        }
+
+        private void ClickDeleteButton(IPookieWebDriver driver)
+        {
+            // Wait for the table to be present
+            Thread.Sleep(1000);
+            
+            // Find the table first
+            var table = driver.FindElements(By.CssSelector("table#tblHITSs, table[id*='tblHITS']"))
+                .FirstOrDefault(el => el.Displayed)
+                ?? throw new InvalidOperationException("HITS table was not found on the page.");
+
+            // Find the Delete button within the table - must have 'delete-HITS' class
+            var deleteButton = table.FindElements(By.CssSelector("button.delete-HITS, button[id*='btnDeleteHITS']"))
+                .FirstOrDefault(el => el.Displayed && el.Text.Contains("Delete", StringComparison.OrdinalIgnoreCase))
+                ?? throw new InvalidOperationException("Delete HITS button was not found in the HITS table.");
+
+            _output.WriteLine($"[INFO] Found Delete button");
+            
+            CommonTestHelper.ClickElement(driver, deleteButton);
+            driver.WaitForReady(5);
+            Thread.Sleep(500);
+        }
+
+        private void ClickModalNoButton(IPookieWebDriver driver)
+        {
+            var noButton = driver.FindElements(By.CssSelector("button.btn.btn-default[data-dismiss='modal'], div.modal-footer button[data-dismiss='modal']"))
+                .FirstOrDefault(el => el.Displayed && el.Text.Contains("No", StringComparison.OrdinalIgnoreCase))
+                ?? throw new InvalidOperationException("'No' button was not found in the delete confirmation modal.");
+
+            _output.WriteLine("[INFO] Clicking 'No' button in modal");
+            CommonTestHelper.ClickElement(driver, noButton);
+        }
+
+        private void ClickModalYesButton(IPookieWebDriver driver)
+        {
+            var yesButton = driver.FindElements(By.CssSelector("a#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_lbDeleteHITS, a[id*='lbDeleteHITS'].btn-danger.modal-delete, div.modal-footer a.btn-danger"))
+                .FirstOrDefault(el => el.Displayed && el.Text.Contains("Yes", StringComparison.OrdinalIgnoreCase))
+                ?? throw new InvalidOperationException("'Yes' button was not found in the delete confirmation modal.");
+
+            _output.WriteLine("[INFO] Clicking 'Yes' button in modal");
+            CommonTestHelper.ClickElement(driver, yesButton);
         }
 
         private void SubmitHITSForm(IPookieWebDriver driver)
