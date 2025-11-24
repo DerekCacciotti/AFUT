@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading;
 using AFUT.Tests.Config;
 using AFUT.Tests.Driver;
+using AFUT.Tests.Helpers;
 using AFUT.Tests.Pages;
 using AFUT.Tests.UnitTests.Attributes;
 using Microsoft.Extensions.DependencyInjection;
@@ -82,12 +83,12 @@ namespace AFUT.Tests.UnitTests.AuditC
             Assert.Contains("Question #4 is required", validationText, StringComparison.OrdinalIgnoreCase);
 
             // Step 2: Enter the date
-            var dateInput = FindElementInModalOrPage(
+            var dateInput = WebElementHelper.FindElementInModalOrPage(
                 driver,
                 "input#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_txtAuditCDate, input[id$='txtAuditCDate']",
                 "Audit-C Date input",
                 10);
-            SetInputValue(driver, dateInput, "10/12/16", "Audit-C Date", triggerBlur: true);
+            WebElementHelper.SetInputValue(driver, dateInput, "10/12/16", "Audit-C Date", triggerBlur: true);
             driver.WaitForUpdatePanel(10);
             driver.WaitForReady(10);
             Thread.Sleep(500);
@@ -256,7 +257,7 @@ namespace AFUT.Tests.UnitTests.AuditC
             _output.WriteLine($"[INFO] Date and worker validation errors: {validationText}");
 
             // Step 11: Select worker "105, Worker"
-            SelectWorker(driver, "105, Worker", "105");
+            WebElementHelper.SelectWorker(driver, "105, Worker", "105");
             driver.WaitForUpdatePanel(10);
             driver.WaitForReady(10);
             Thread.Sleep(500);
@@ -271,12 +272,12 @@ namespace AFUT.Tests.UnitTests.AuditC
 
             // Step 13: Change date to "10/26/25" (2-digit year format required)
             // Re-find the date input element as the previous reference may be stale after postbacks
-            dateInput = FindElementInModalOrPage(
+            dateInput = WebElementHelper.FindElementInModalOrPage(
                 driver,
                 "input#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_txtAuditCDate, input[id$='txtAuditCDate']",
                 "Audit-C Date input",
                 10);
-            SetInputValue(driver, dateInput, "10/26/25", "Audit-C Date", triggerBlur: true);
+            WebElementHelper.SetInputValue(driver, dateInput, "10/26/25", "Audit-C Date", triggerBlur: true);
             driver.WaitForUpdatePanel(10);
             driver.WaitForReady(10);
             Thread.Sleep(500);
@@ -446,20 +447,11 @@ namespace AFUT.Tests.UnitTests.AuditC
             Assert.True(auditCFormPresent, "Audit-C form did not load after clicking New Audit-C button.");
         }
 
-        private void SelectWorker(IPookieWebDriver driver, string workerText, string workerValue)
-        {
-            SelectDropdownOption(
-                driver,
-                "select#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_ddlWorker, " +
-                "select[id$='_ddlWorker'], select[id*='ddlCaseWorker'], select[id*='ddlFSW']",
-                "Worker dropdown",
-                workerText,
-                workerValue);
-        }
+        // SelectWorker has been moved to WebElementHelper for reusability across tests
 
         private void SelectAuditCHowOften(IPookieWebDriver driver, string optionText, string optionValue)
         {
-            SelectDropdownOption(
+            WebElementHelper.SelectDropdownOption(
                 driver,
                 "select#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_ddlAuditCHowOften, select[id$='ddlAuditCHowOften']",
                 "Audit-C How Often dropdown",
@@ -469,7 +461,7 @@ namespace AFUT.Tests.UnitTests.AuditC
 
         private void SelectAuditCDailyDrinks(IPookieWebDriver driver, string optionText, string optionValue)
         {
-            SelectDropdownOption(
+            WebElementHelper.SelectDropdownOption(
                 driver,
                 "select#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_ddlAuditCDailyDrinks, select[id$='ddlAuditCDailyDrinks']",
                 "Audit-C Daily Drinks dropdown",
@@ -479,7 +471,7 @@ namespace AFUT.Tests.UnitTests.AuditC
 
         private void SelectAuditCMoreThanSix(IPookieWebDriver driver, string optionText, string optionValue)
         {
-            SelectDropdownOption(
+            WebElementHelper.SelectDropdownOption(
                 driver,
                 "select#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_ddlAuditCMoreThanSix, select[id$='ddlAuditCMoreThanSix']",
                 "Audit-C More Than Six dropdown",
@@ -600,31 +592,7 @@ namespace AFUT.Tests.UnitTests.AuditC
             return string.Empty;
         }
 
-        private void SelectDropdownOption(IPookieWebDriver driver, string cssSelector, string description, string optionText, string? optionValue)
-        {
-            var dropdown = FindElementInModalOrPage(driver, cssSelector, description, 15);
-            SelectDropdownOption(driver, dropdown, description, optionText, optionValue);
-        }
-
-        private void SelectDropdownOption(IPookieWebDriver driver, IWebElement dropdown, string description, string optionText, string? optionValue)
-        {
-            var select = new SelectElement(dropdown);
-            SelectByTextOrValue(select, optionText, optionValue);
-            driver.WaitForUpdatePanel(5);
-            driver.WaitForReady(5);
-            Thread.Sleep(250);
-        }
-
-        private static void SelectByTextOrValue(SelectElement selectElement, string optionText, string? optionValue)
-        {
-            if (!string.IsNullOrWhiteSpace(optionValue))
-            {
-                selectElement.SelectByValue(optionValue);
-                return;
-            }
-
-            selectElement.SelectByText(optionText);
-        }
+        // SelectDropdownOption has been moved to WebElementHelper for reusability across tests
 
         private string? SubmitAndCaptureValidation(IPookieWebDriver driver)
         {
@@ -634,7 +602,7 @@ namespace AFUT.Tests.UnitTests.AuditC
 
         private void ClickSubmitButton(IPookieWebDriver driver)
         {
-            var submitButton = FindElementInModalOrPage(
+            var submitButton = WebElementHelper.FindElementInModalOrPage(
                 driver,
                 "a#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_SubmitAuditC_LoginView1_btnSubmit.btn.btn-primary, " +
                 "a[id$='_SubmitAuditC_LoginView1_btnSubmit'].btn.btn-primary, " +
@@ -964,84 +932,9 @@ namespace AFUT.Tests.UnitTests.AuditC
                 .Any(el => el.Displayed);
         }
 
-        private IWebElement FindElementInModalOrPage(IPookieWebDriver driver, string cssSelector, string description, int timeoutSeconds = 10)
-        {
-            var endTime = DateTime.Now.AddSeconds(timeoutSeconds);
+        // FindElementInModalOrPage has been moved to WebElementHelper for reusability across tests
 
-            while (DateTime.Now <= endTime)
-            {
-                var modal = driver.FindElements(By.CssSelector(".modal.show, .modal.in, .modal[style*='display: block'], .modal.fade.in"))
-                    .FirstOrDefault(el => el.Displayed);
-                if (modal != null)
-                {
-                    var withinModal = modal.FindElements(By.CssSelector(cssSelector))
-                        .FirstOrDefault(el => el.Displayed);
-                    if (withinModal != null)
-                    {
-                        _output.WriteLine($"[INFO] Located '{description}' inside modal using selector '{cssSelector}'.");
-                        return withinModal;
-                    }
-                }
-
-                var fallback = driver.FindElements(By.CssSelector(cssSelector))
-                    .FirstOrDefault(el => el.Displayed);
-                if (fallback != null)
-                {
-                    _output.WriteLine($"[INFO] Located '{description}' on page using selector '{cssSelector}'.");
-                    return fallback;
-                }
-
-                Thread.Sleep(200);
-            }
-
-            throw new InvalidOperationException($"'{description}' was not found within the expected time.");
-        }
-
-        private void SetInputValue(IPookieWebDriver driver, IWebElement input, string value, string fieldDescription, bool triggerBlur = false)
-        {
-            if (input is null)
-            {
-                throw new ArgumentNullException(nameof(input));
-            }
-
-            _output.WriteLine($"[INFO] Setting '{fieldDescription}' via standard send keys.");
-            input.Clear();
-            input.SendKeys(value);
-
-            var finalValue = input.GetAttribute("value")?.Trim() ?? string.Empty;
-            if (!string.Equals(finalValue, value, StringComparison.OrdinalIgnoreCase))
-            {
-                _output.WriteLine($"[WARN] '{fieldDescription}' value after entry was '{finalValue}'. Retrying via JavaScript.");
-                var js = (IJavaScriptExecutor)driver;
-                js.ExecuteScript("arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('change', { bubbles: true }));", input, value);
-                Thread.Sleep(200);
-                finalValue = input.GetAttribute("value")?.Trim() ?? string.Empty;
-
-                if (!string.Equals(finalValue, value, StringComparison.OrdinalIgnoreCase))
-                {
-                    js.ExecuteScript("arguments[0].removeAttribute('readonly');", input);
-                    input.Clear();
-                    js.ExecuteScript("arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('change', { bubbles: true }));", input, value);
-                    Thread.Sleep(200);
-                    finalValue = input.GetAttribute("value")?.Trim() ?? string.Empty;
-                }
-            }
-
-            if (!string.Equals(finalValue, value, StringComparison.OrdinalIgnoreCase))
-            {
-                throw new InvalidOperationException($"Unable to set '{fieldDescription}' to '{value}'. Last observed value '{finalValue}'.");
-            }
-
-            if (triggerBlur)
-            {
-                input.SendKeys(Keys.Tab);
-                var js = (IJavaScriptExecutor)driver;
-                js.ExecuteScript("arguments[0].dispatchEvent(new Event('blur', { bubbles: true }));", input);
-                Thread.Sleep(200);
-            }
-
-            _output.WriteLine($"[INFO] '{fieldDescription}' now has value '{finalValue}'.");
-        }
+        // SetInputValue has been moved to WebElementHelper for reusability across tests
     }
 }
 
