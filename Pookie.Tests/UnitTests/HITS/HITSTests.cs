@@ -4,6 +4,7 @@ using System.Threading;
 using AFUT.Tests.Config;
 using AFUT.Tests.Driver;
 using AFUT.Tests.Pages;
+using AFUT.Tests.UnitTests.Attributes;
 using Microsoft.Extensions.DependencyInjection;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Support.UI;
@@ -12,6 +13,7 @@ using Xunit.Abstractions;
 
 namespace AFUT.Tests.UnitTests.HITS
 {
+    [TestCaseOrderer("AFUT.Tests.UnitTests.Attributes.PriorityOrderer", "AFUT.Tests")]
     public class HITSTests : IClassFixture<AppConfig>
     {
         private readonly AppConfig _config;
@@ -31,6 +33,7 @@ namespace AFUT.Tests.UnitTests.HITS
         }
 
         [Fact]
+        [TestPriority(1)]
         public void CheckingHITSFormValidationAndSubmission()
         {
             using var driver = _driverFactory.CreateDriver();
@@ -232,6 +235,7 @@ namespace AFUT.Tests.UnitTests.HITS
         }
 
         [Fact]
+        [TestPriority(2)]
         public void CheckingHITSFormEditAndUpdateToPositive()
         {
             using var driver = _driverFactory.CreateDriver();
@@ -329,6 +333,7 @@ namespace AFUT.Tests.UnitTests.HITS
         }
 
         [Fact]
+        [TestPriority(3)]
         public void CheckingHITSFormDeleteWithCancelAndConfirm()
         {
             using var driver = _driverFactory.CreateDriver();
