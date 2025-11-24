@@ -611,23 +611,13 @@ namespace AFUT.Tests.UnitTests.AuditC
 
         private static void SelectByTextOrValue(SelectElement selectElement, string optionText, string? optionValue)
         {
-            try
-            {
-                selectElement.SelectByText(optionText);
-                return;
-            }
-            catch (NoSuchElementException)
-            {
-                // try value next
-            }
-
             if (!string.IsNullOrWhiteSpace(optionValue))
             {
                 selectElement.SelectByValue(optionValue);
                 return;
             }
 
-            throw new InvalidOperationException($"Option '{optionText}' was not found in dropdown '{selectElement.WrappedElement?.GetAttribute("id")}'.");
+            selectElement.SelectByText(optionText);
         }
 
         private string? SubmitAndCaptureValidation(IPookieWebDriver driver)
@@ -837,20 +827,12 @@ namespace AFUT.Tests.UnitTests.AuditC
             var end = DateTime.Now.AddSeconds(timeoutSeconds);
             while (DateTime.Now <= end)
             {
-                try
+                var modal = driver.FindElements(By.CssSelector("div#divDeleteAuditCModal, div.dc-confirmation-modal.modal"))
+                    .FirstOrDefault(IsModalDisplayed);
+                
+                if (modal != null)
                 {
-                    // Try finding modal by specific ID globally first
-                    var modal = driver.FindElements(By.CssSelector("div#divDeleteAuditCModal, div.dc-confirmation-modal.modal"))
-                        .FirstOrDefault(IsModalDisplayed);
-                    
-                    if (modal != null)
-                    {
-                        return modal;
-                    }
-                }
-                catch (StaleElementReferenceException)
-                {
-                    // Ignore and retry
+                    return modal;
                 }
 
                 Thread.Sleep(200);
@@ -916,16 +898,9 @@ namespace AFUT.Tests.UnitTests.AuditC
                 return false;
             }
 
-            try
+            if (modal.Displayed)
             {
-                if (modal.Displayed)
-                {
-                    return true;
-                }
-            }
-            catch (StaleElementReferenceException)
-            {
-                return false;
+                return true;
             }
 
             var classAttr = modal.GetAttribute("class") ?? string.Empty;
@@ -986,42 +961,34 @@ namespace AFUT.Tests.UnitTests.AuditC
         private IWebElement FindElementInModalOrPage(IPookieWebDriver driver, string cssSelector, string description, int timeoutSeconds = 10)
         {
             var endTime = DateTime.Now.AddSeconds(timeoutSeconds);
-            Exception? lastException = null;
 
             while (DateTime.Now <= endTime)
             {
-                try
+                var modal = driver.FindElements(By.CssSelector(".modal.show, .modal.in, .modal[style*='display: block'], .modal.fade.in"))
+                    .FirstOrDefault(el => el.Displayed);
+                if (modal != null)
                 {
-                    var modal = driver.FindElements(By.CssSelector(".modal.show, .modal.in, .modal[style*='display: block'], .modal.fade.in"))
+                    var withinModal = modal.FindElements(By.CssSelector(cssSelector))
                         .FirstOrDefault(el => el.Displayed);
-                    if (modal != null)
+                    if (withinModal != null)
                     {
-                        var withinModal = modal.FindElements(By.CssSelector(cssSelector))
-                            .FirstOrDefault(el => el.Displayed);
-                        if (withinModal != null)
-                        {
-                            _output.WriteLine($"[INFO] Located '{description}' inside modal using selector '{cssSelector}'.");
-                            return withinModal;
-                        }
-                    }
-
-                    var fallback = driver.FindElements(By.CssSelector(cssSelector))
-                        .FirstOrDefault(el => el.Displayed);
-                    if (fallback != null)
-                    {
-                        _output.WriteLine($"[INFO] Located '{description}' on page using selector '{cssSelector}'.");
-                        return fallback;
+                        _output.WriteLine($"[INFO] Located '{description}' inside modal using selector '{cssSelector}'.");
+                        return withinModal;
                     }
                 }
-                catch (Exception ex)
+
+                var fallback = driver.FindElements(By.CssSelector(cssSelector))
+                    .FirstOrDefault(el => el.Displayed);
+                if (fallback != null)
                 {
-                    lastException = ex;
+                    _output.WriteLine($"[INFO] Located '{description}' on page using selector '{cssSelector}'.");
+                    return fallback;
                 }
 
                 Thread.Sleep(200);
             }
 
-            throw new InvalidOperationException($"'{description}' was not found within the expected time.", lastException);
+            throw new InvalidOperationException($"'{description}' was not found within the expected time.");
         }
 
         private void SetInputValue(IPookieWebDriver driver, IWebElement input, string value, string fieldDescription, bool triggerBlur = false)
@@ -1031,18 +998,9 @@ namespace AFUT.Tests.UnitTests.AuditC
                 throw new ArgumentNullException(nameof(input));
             }
 
-            try
-            {
-                _output.WriteLine($"[INFO] Setting '{fieldDescription}' via standard send keys.");
-                input.Clear();
-                input.SendKeys(value);
-            }
-            catch (ElementNotInteractableException ex)
-            {
-                _output.WriteLine($"[WARN] '{fieldDescription}' not interactable. Falling back to JavaScript. Details: {ex.Message}");
-                var js = (IJavaScriptExecutor)driver;
-                js.ExecuteScript("arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('change', { bubbles: true }));", input, value);
-            }
+            _output.WriteLine($"[INFO] Setting '{fieldDescription}' via standard send keys.");
+            input.Clear();
+            input.SendKeys(value);
 
             var finalValue = input.GetAttribute("value")?.Trim() ?? string.Empty;
             if (!string.Equals(finalValue, value, StringComparison.OrdinalIgnoreCase))
@@ -1070,14 +1028,7 @@ namespace AFUT.Tests.UnitTests.AuditC
 
             if (triggerBlur)
             {
-                try
-                {
-                    input.SendKeys(Keys.Tab);
-                }
-                catch (InvalidElementStateException)
-                {
-                }
-
+                input.SendKeys(Keys.Tab);
                 var js = (IJavaScriptExecutor)driver;
                 js.ExecuteScript("arguments[0].dispatchEvent(new Event('blur', { bubbles: true }));", input);
                 Thread.Sleep(200);
