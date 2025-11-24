@@ -784,9 +784,7 @@ namespace AFUT.Tests.UnitTests.AuditC
             var modal = OpenDeleteModal(driver, auditcpk);
 
             var cancelButton = FindModalElement(modal,
-                "button.btn.btn-default[data-dismiss='modal']",
-                "button.btn.btn-default",
-                ".modal-footer button.btn-default");
+                "button.btn.btn-default");
 
             CommonTestHelper.ClickElement(driver, cancelButton);
             WaitForModalToClose(modal);
@@ -798,9 +796,9 @@ namespace AFUT.Tests.UnitTests.AuditC
             var modal = OpenDeleteModal(driver, auditcpk);
 
             var confirmButton = FindModalElement(modal,
-                "a#lbConfirmDelete.btn.btn-primary",
-                "a[id$='lbConfirmDelete'].btn.btn-primary",
-                ".modal-footer a.btn.btn-primary");
+                "a.modal-delete",
+                "a[id$='lbDeleteAuditC']",
+                "a.btn.btn-danger");
 
             CommonTestHelper.ClickElement(driver, confirmButton);
             driver.WaitForUpdatePanel(30);
@@ -841,8 +839,10 @@ namespace AFUT.Tests.UnitTests.AuditC
             {
                 try
                 {
-                    var modal = row.FindElements(By.CssSelector("div.dc-confirmation-modal.modal"))
+                    // Try finding modal by specific ID globally first
+                    var modal = driver.FindElements(By.CssSelector("div#divDeleteAuditCModal, div.dc-confirmation-modal.modal"))
                         .FirstOrDefault(IsModalDisplayed);
+                    
                     if (modal != null)
                     {
                         return modal;
@@ -850,7 +850,7 @@ namespace AFUT.Tests.UnitTests.AuditC
                 }
                 catch (StaleElementReferenceException)
                 {
-                    row = WaitForAuditCRowByPk(driver, auditcpk);
+                    // Ignore and retry
                 }
 
                 Thread.Sleep(200);
