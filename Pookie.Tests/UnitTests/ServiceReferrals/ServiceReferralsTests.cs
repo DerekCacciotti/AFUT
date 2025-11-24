@@ -3,7 +3,9 @@ using System.Linq;
 using System.Threading;
 using AFUT.Tests.Config;
 using AFUT.Tests.Driver;
+using AFUT.Tests.Helpers;
 using AFUT.Tests.Pages;
+using AFUT.Tests.UnitTests.Attributes;
 using Microsoft.Extensions.DependencyInjection;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Support.UI;
@@ -15,12 +17,12 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
     [TestCaseOrderer("AFUT.Tests.UnitTests.Attributes.PriorityOrderer", "AFUT.Tests")]
     public class ServiceReferralsTests : IClassFixture<AppConfig>
     {
-        private const string EditButtonSelector = "a#lnkEditButton.btn.btn-sm.btn-default, a[id$='lnkEditButton']";
-        private const string DeleteButtonSelector = "div.delete-control a#lbDelete.btn.btn-danger, div.delete-control a[id$='lbDelete'], a.btn.btn-danger[id$='lbDelete']";
+        private const string EditButtonSelector = "a.btn.btn-sm.btn-default[id$='lnkEditButton']";
+        private const string DeleteButtonSelector = ".delete-control a.btn.btn-danger[id$='lbDelete']";
         private readonly AppConfig _config;
         private readonly IPookieDriverFactory _driverFactory;
         private readonly ITestOutputHelper _output;
-        private const string TargetPc1Id = "EC01001408989";
+        private string TargetPc1Id => _config.TestPc1Id;
 
         public ServiceReferralsTests(AppConfig config, ITestOutputHelper output)
         {
@@ -33,9 +35,19 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
             CaseHomePage.ConfigureDefaultTabs(_config.CaseHomeTabs);
         }
 
-        [Fact]
+        /// <summary>
+        /// Provides test PC1 IDs from configuration for parameterized tests
+        /// </summary>
+        public static IEnumerable<object[]> GetTestPc1Ids()
+        {
+            var config = new AppConfig();
+            return config.TestPc1Ids.Select(id => new object[] { id });
+        }
+
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
         [TestPriority(1)]
-        public void CheckingTheAddNewOfServiceReferralForm()
+        public void CheckingTheAddNewOfServiceReferralForm(string pc1Id)
         {
             using var driver = _driverFactory.CreateDriver();
 
@@ -44,18 +56,19 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
             Assert.NotNull(homePage);
             Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
 
-            NavigateToServiceReferrals(driver);
+            NavigateToServiceReferrals(driver, pc1Id);
 
-            var pc1Display = FindPc1Display(driver, TargetPc1Id);
-            Assert.False(string.IsNullOrWhiteSpace(pc1Display), "Unable to locate PC1 ID on Service Referrals page.");
-            Assert.Contains(TargetPc1Id, pc1Display, StringComparison.OrdinalIgnoreCase);
+            var pc1Display = FindPc1Display(driver, pc1Id);
+            Assert.False(string.IsNullOrWhiteSpace(pc1Display), $"Unable to locate PC1 ID {pc1Id} on Service Referrals page.");
+            Assert.Contains(pc1Id, pc1Display, StringComparison.OrdinalIgnoreCase);
 
             CreateNewReferralEntry(driver);
         }
 
-        [Fact]
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
         [TestPriority(4)]
-        public void CheckingServiceReferralFormValidationAndSubmission()
+        public void CheckingServiceReferralFormValidationAndSubmission(string pc1Id)
         {
             using var driver = _driverFactory.CreateDriver();
 
@@ -64,11 +77,11 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
             Assert.NotNull(homePage);
             Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
 
-            NavigateToServiceReferrals(driver);
+            NavigateToServiceReferrals(driver, pc1Id);
 
-            var pc1Display = FindPc1Display(driver, TargetPc1Id);
-            Assert.False(string.IsNullOrWhiteSpace(pc1Display), "Unable to locate PC1 ID on Service Referrals page.");
-            Assert.Contains(TargetPc1Id, pc1Display, StringComparison.OrdinalIgnoreCase);
+            var pc1Display = FindPc1Display(driver, pc1Id);
+            Assert.False(string.IsNullOrWhiteSpace(pc1Display), $"Unable to locate PC1 ID {pc1Id} on Service Referrals page.");
+            Assert.Contains(pc1Id, pc1Display, StringComparison.OrdinalIgnoreCase);
 
             CreateNewReferralEntry(driver);
 
@@ -108,15 +121,16 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
             validationText = SubmitAndCaptureValidation(driver);
             Assert.True(string.IsNullOrWhiteSpace(validationText));
 
-            WaitForToastMessage(driver, TargetPc1Id);
+            WaitForToastMessage(driver, pc1Id);
 
             var referralRow = FindServiceReferralRow(driver, "11/20/25", "Anonymized");
             Assert.NotNull(referralRow);
         }
 
-        [Fact]
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
         [TestPriority(3)]
-        public void CheckingServiceReferralConditionalFields()
+        public void CheckingServiceReferralConditionalFields(string pc1Id)
         {
             using var driver = _driverFactory.CreateDriver();
 
@@ -124,11 +138,11 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
             Assert.NotNull(homePage);
             Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
 
-            NavigateToServiceReferrals(driver);
+            NavigateToServiceReferrals(driver, pc1Id);
 
-            var pc1Display = FindPc1Display(driver, TargetPc1Id);
-            Assert.False(string.IsNullOrWhiteSpace(pc1Display), "Unable to locate PC1 ID on Service Referrals page.");
-            Assert.Contains(TargetPc1Id, pc1Display, StringComparison.OrdinalIgnoreCase);
+            var pc1Display = FindPc1Display(driver, pc1Id);
+            Assert.False(string.IsNullOrWhiteSpace(pc1Display), $"Unable to locate PC1 ID {pc1Id} on Service Referrals page.");
+            Assert.Contains(pc1Id, pc1Display, StringComparison.OrdinalIgnoreCase);
 
             CreateNewReferralEntry(driver);
             PopulateMinimumRequiredServiceReferralFields(driver);
@@ -136,29 +150,30 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
             SelectServicesReceived(driver, true);
             var startDateInput = FindElementInModalOrPage(
                 driver,
-                "input#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_startdate",
+                "input[id$='startdate']",
                 "Start date input",
                 10);
             Assert.True(startDateInput.Displayed);
 
             SetInputValue(driver, startDateInput, "11/21/25", "Start date", triggerBlur: true);
-            Assert.False(IsElementDisplayed(driver, "#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_reasonnotreceived"));
+            Assert.False(IsElementDisplayed(driver, "[id$='reasonnotreceived']"));
 
             SelectServicesReceived(driver, false);
             var reasonDropdown = FindElementInModalOrPage(
                 driver,
-                "select#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_reasonnotreceived",
+                "select[id$='reasonnotreceived']",
                 "Reason not received dropdown",
                 10);
             Assert.True(reasonDropdown.Displayed);
-            SelectDropdownOption(driver, reasonDropdown, "Reason not received dropdown", "2. Participant not eligible for service", "02");
+            WebElementHelper.SelectDropdownOption(driver, reasonDropdown, "Reason not received dropdown", "2. Participant not eligible for service", "02");
 
-            Assert.False(IsElementDisplayed(driver, "#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_startdate"));
+            Assert.False(IsElementDisplayed(driver, "[id$='startdate']"));
         }
 
-        [Fact]
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
         [TestPriority(5)]
-        public void CheckEditButton()
+        public void CheckEditButton(string pc1Id)
         {
             using var driver = _driverFactory.CreateDriver();
 
@@ -166,11 +181,11 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
             Assert.NotNull(homePage);
             Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
 
-            NavigateToServiceReferrals(driver);
+            NavigateToServiceReferrals(driver, pc1Id);
 
-            var pc1Display = FindPc1Display(driver, TargetPc1Id);
-            Assert.False(string.IsNullOrWhiteSpace(pc1Display), "Unable to locate PC1 ID on Service Referrals page.");
-            Assert.Contains(TargetPc1Id, pc1Display, StringComparison.OrdinalIgnoreCase);
+            var pc1Display = FindPc1Display(driver, pc1Id);
+            Assert.False(string.IsNullOrWhiteSpace(pc1Display), $"Unable to locate PC1 ID {pc1Id} on Service Referrals page.");
+            Assert.Contains(pc1Id, pc1Display, StringComparison.OrdinalIgnoreCase);
 
             var referralRow = GetExistingEditableReferralRow(driver);
             var editButton = referralRow.FindElements(By.CssSelector(EditButtonSelector))
@@ -188,18 +203,18 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
             SelectServicesReceived(driver, true);
             var startDateInput = FindElementInModalOrPage(
                 driver,
-                "input#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_startdate",
+                "input[id$='startdate']",
                 "Start date input",
                 10);
             SetInputValue(driver, startDateInput, "11/20/25", "Start date", triggerBlur: true);
 
-            var reasonDropdown = driver.FindElements(By.CssSelector("#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_reasonnotreceived"))
+            var reasonDropdown = driver.FindElements(By.CssSelector("select[id$='reasonnotreceived']"))
                 .FirstOrDefault();
             Assert.True(reasonDropdown == null || !reasonDropdown.Displayed, "Reason not received should not be visible when services received is Yes.");
 
             var validationText = SubmitAndCaptureValidation(driver);
             Assert.True(string.IsNullOrWhiteSpace(validationText));
-            WaitForToastMessage(driver, TargetPc1Id);
+            WaitForToastMessage(driver, pc1Id);
             driver.WaitForReady(10);
             driver.WaitForUpdatePanel(10);
             Thread.Sleep(500);
@@ -211,9 +226,10 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
             }
         }
 
-        [Fact]
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
         [TestPriority(6)]
-        public void CheckDeleteButton()
+        public void CheckDeleteButton(string pc1Id)
         {
             using var driver = _driverFactory.CreateDriver();
 
@@ -221,11 +237,11 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
             Assert.NotNull(homePage);
             Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
 
-            NavigateToServiceReferrals(driver);
+            NavigateToServiceReferrals(driver, pc1Id);
 
-            var pc1Display = FindPc1Display(driver, TargetPc1Id);
-            Assert.False(string.IsNullOrWhiteSpace(pc1Display), "Unable to locate PC1 ID on Service Referrals page.");
-            Assert.Contains(TargetPc1Id, pc1Display, StringComparison.OrdinalIgnoreCase);
+            var pc1Display = FindPc1Display(driver, pc1Id);
+            Assert.False(string.IsNullOrWhiteSpace(pc1Display), $"Unable to locate PC1 ID {pc1Id} on Service Referrals page.");
+            Assert.Contains(pc1Id, pc1Display, StringComparison.OrdinalIgnoreCase);
 
             var referralRow = GetExistingEditableReferralRow(driver);
             var editLink = referralRow.FindElements(By.CssSelector(EditButtonSelector))
@@ -234,7 +250,7 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
                        ?? throw new InvalidOperationException("Unable to determine srpk for the selected referral row.");
 
             CancelDeleteFlow(driver, srpk);
-            ConfirmDeleteFlow(driver, srpk);
+            ConfirmDeleteFlow(driver, srpk, pc1Id);
         }
 
         private HomePage SignInAsDataEntry(IPookieWebDriver driver)
@@ -256,11 +272,11 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
             return (HomePage)landingPage;
         }
 
-        private void NavigateToServiceReferrals(IPookieWebDriver driver)
+        private void NavigateToServiceReferrals(IPookieWebDriver driver, string pc1Id)
         {
-            var formsPane = NavigateToFormsTab(driver, TargetPc1Id);
+            var formsPane = NavigateToFormsTab(driver, pc1Id);
 
-            var serviceReferralLink = formsPane.FindElements(By.CssSelector("a#ctl00_ContentPlaceHolder1_ucForms_lnkServiceReferral.moreInfo, a[data-formtype='sr'].moreInfo"))
+            var serviceReferralLink = formsPane.FindElements(By.CssSelector("a.moreInfo[data-formtype='sr'], a.moreInfo[id$='lnkServiceReferral']"))
                 .FirstOrDefault(el => el.Displayed)
                 ?? throw new InvalidOperationException("Service Referrals link was not found inside the Forms tab.");
 
@@ -272,7 +288,7 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
 
         private void CreateNewReferralEntry(IPookieWebDriver driver, string referralDate = "11/20/25", bool expectSuccess = true)
         {
-            var newReferralButton = driver.FindElements(By.CssSelector("a#btnAdd.btn.btn-default.pull-right"))
+            var newReferralButton = driver.FindElements(By.CssSelector("a.btn.btn-default.pull-right[id$='btnAdd']"))
                 .FirstOrDefault(el => el.Displayed)
                 ?? throw new InvalidOperationException("New Referral button was not found on the Service Referrals page.");
 
@@ -281,9 +297,8 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
 
             var referralDateInput = FindElementInModalOrPage(
                 driver,
-                "input#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_txtReferralDate.form-control, " +
-                "input#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_txtServiceDate.form-control, " +
-                "input#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_txtServiceReferralDate.form-control, " +
+                "input.form-control[id*='ReferralDate'], " +
+                "input.form-control[id*='ServiceDate'], " +
                 "input.mon-year, input.date, input[type='date']",
                 "Referral date input",
                 15);
@@ -292,7 +307,7 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
 
             var addNewButton = FindElementInModalOrPage(
                 driver,
-                "a#btnSubmit.btn.btn-primary, input#btnSubmit.btn.btn-primary, button#btnSubmit.btn.btn-primary, .modal-footer .btn-primary",
+                ".modal-footer .btn.btn-primary[id$='btnSubmit']",
                 "Add New button",
                 10);
 
@@ -307,9 +322,10 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
             }
         }
 
-        [Fact]
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
         [TestPriority(2)]
-        public void CheckingReferralDateCannotBeEarlierThanCaseStart()
+        public void CheckingReferralDateCannotBeEarlierThanCaseStart(string pc1Id)
         {
             using var driver = _driverFactory.CreateDriver();
 
@@ -317,11 +333,11 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
             Assert.NotNull(homePage);
             Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
 
-            NavigateToServiceReferrals(driver);
+            NavigateToServiceReferrals(driver, pc1Id);
 
-            var pc1Display = FindPc1Display(driver, TargetPc1Id);
-            Assert.False(string.IsNullOrWhiteSpace(pc1Display), "Unable to locate PC1 ID on Service Referrals page.");
-            Assert.Contains(TargetPc1Id, pc1Display, StringComparison.OrdinalIgnoreCase);
+            var pc1Display = FindPc1Display(driver, pc1Id);
+            Assert.False(string.IsNullOrWhiteSpace(pc1Display), $"Unable to locate PC1 ID {pc1Id} on Service Referrals page.");
+            Assert.Contains(pc1Id, pc1Display, StringComparison.OrdinalIgnoreCase);
 
             CreateNewReferralEntry(driver, "10/16/23", expectSuccess: false);
 
@@ -332,10 +348,9 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
 
         private void SelectWorker(IPookieWebDriver driver, string workerText, string workerValue)
         {
-            SelectDropdownOption(
+            WebElementHelper.SelectDropdownOption(
                 driver,
-                "select#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_ddlWorker, " +
-                "select[id$='_ddlWorker'], select[id*='ddlCaseWorker'], select[id*='ddlFSW']",
+                "select[id$='ddlWorker'], select[id*='ddlCaseWorker'], select[id*='ddlFSW']",
                 "Worker dropdown",
                 workerText,
                 workerValue);
@@ -343,11 +358,9 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
 
         private void SelectServiceCode(IPookieWebDriver driver, string optionText, string optionValue)
         {
-            SelectDropdownOption(
+            WebElementHelper.SelectDropdownOption(
                 driver,
-                "select#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_servicecode, " +
-                "select#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_ddlServiceCode, " +
-                "select[id$='_ddlServiceCode'], select[id$='servicecode'], select[id*='ddlService']",
+                "select[id$='ddlServiceCode'], select[id$='servicecode'], select[id*='ddlService']",
                 "Service code dropdown",
                 optionText,
                 optionValue);
@@ -355,11 +368,9 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
 
         private void SelectFamilyMemberReferred(IPookieWebDriver driver, string optionText, string optionValue)
         {
-            SelectDropdownOption(
+            WebElementHelper.SelectDropdownOption(
                 driver,
-                "select#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_familymember, " +
-                "select#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_ddlFamilyMember, " +
-                "select[id$='_familymember'], select[id$='_ddlFamilyMember'], select[id*='familymember']",
+                "select[id$='familymember'], select[id$='ddlFamilyMember'], select[id*='familymember']",
                 "Family member referred dropdown",
                 optionText,
                 optionValue);
@@ -367,10 +378,9 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
 
         private void SelectNatureOfReferral(IPookieWebDriver driver, string optionText, string? optionValue)
         {
-            SelectDropdownOption(
+            WebElementHelper.SelectDropdownOption(
                 driver,
-                "select#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_ddlNatureOfReferral, " +
-                "select[id$='_ddlNatureOfReferral'], select[id*='ddlNature']",
+                "select[id$='ddlNatureOfReferral'], select[id*='ddlNature']",
                 "Nature of referral dropdown",
                 optionText,
                 optionValue);
@@ -378,10 +388,9 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
 
         private void SelectAgencyReferredTo(IPookieWebDriver driver, string optionText, string? optionValue)
         {
-            SelectDropdownOption(
+            WebElementHelper.SelectDropdownOption(
                 driver,
-                "select#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_ddlAgency, " +
-                "select[id$='_ddlAgency'], select[id*='ddlAgency']",
+                "select[id$='ddlAgency'], select[id*='ddlAgency']",
                 "Agency referred to dropdown",
                 optionText,
                 optionValue);
@@ -391,7 +400,7 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
         {
             var dropdown = FindElementInModalOrPage(
                 driver,
-                "select#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_servicesreceived, select[id$='_servicesreceived']",
+                "select[id$='servicesreceived']",
                 "Services received dropdown",
                 10);
 
@@ -403,41 +412,7 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
             Thread.Sleep(500);
         }
 
-        private void SelectDropdownOption(IPookieWebDriver driver, string cssSelector, string description, string optionText, string? optionValue)
-        {
-            var dropdown = FindElementInModalOrPage(driver, cssSelector, description, 15);
-            SelectDropdownOption(driver, dropdown, description, optionText, optionValue);
-        }
-
-        private void SelectDropdownOption(IPookieWebDriver driver, IWebElement dropdown, string description, string optionText, string? optionValue)
-        {
-            var select = new SelectElement(dropdown);
-            SelectByTextOrValue(select, optionText, optionValue);
-            driver.WaitForUpdatePanel(5);
-            driver.WaitForReady(5);
-            Thread.Sleep(250);
-        }
-
-        private static void SelectByTextOrValue(SelectElement selectElement, string optionText, string? optionValue)
-        {
-            try
-            {
-                selectElement.SelectByText(optionText);
-                return;
-            }
-            catch (NoSuchElementException)
-            {
-                // try value next
-            }
-
-            if (!string.IsNullOrWhiteSpace(optionValue))
-            {
-                selectElement.SelectByValue(optionValue);
-                return;
-            }
-
-            throw new InvalidOperationException($"Option '{optionText}' was not found in dropdown '{selectElement.WrappedElement?.GetAttribute("id")}'.");
-        }
+        // SelectDropdownOption and SelectByTextOrValue have been moved to WebElementHelper for reusability across tests
 
         private string? SubmitAndCaptureValidation(IPookieWebDriver driver)
         {
@@ -449,10 +424,8 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
         {
             var submitButton = FindElementInModalOrPage(
                 driver,
-                "a#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_Submit1_LoginView1_btnSubmit.btn.btn-primary, " +
-                "a[id$='_Submit1_LoginView1_btnSubmit'].btn.btn-primary, " +
-                "a#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_Submit1_btnSubmit.btn.btn-primary, " +
-                "button[id$='_btnSubmit'].btn.btn-primary",
+                "a.btn.btn-primary[id*='Submit1'][id$='btnSubmit'], " +
+                "button.btn.btn-primary[id$='btnSubmit']",
                 "Service referral Submit button",
                 15);
 
@@ -474,8 +447,7 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
 
         private string? GetValidationSummaryText(IPookieWebDriver driver)
         {
-            var summary = driver.FindElements(By.CssSelector("#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_ValidationSummary1.validation-summary, " +
-                                                              ".validation-summary.alert.alert-danger"))
+            var summary = driver.FindElements(By.CssSelector(".validation-summary.alert.alert-danger"))
                 .FirstOrDefault(el => el.Displayed && !string.IsNullOrWhiteSpace(el.Text));
 
             return summary?.Text.Trim();
@@ -493,8 +465,7 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
 
         private IWebElement? FindServiceReferralRow(IPookieWebDriver driver, string formDateText, string detailText)
         {
-            var grid = driver.WaitforElementToBeInDOM(By.CssSelector("#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_grServiceReferrals, " +
-                                                                     "table[id*='grServiceReferral'], table[id*='gvServiceReferral']"), 20);
+            var grid = driver.WaitforElementToBeInDOM(By.CssSelector("table[id*='grServiceReferral'], table[id*='gvServiceReferral']"), 20);
             if (grid == null)
             {
                 return null;
@@ -517,8 +488,7 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
 
         private IWebElement GetExistingEditableReferralRow(IPookieWebDriver driver)
         {
-            var grid = driver.WaitforElementToBeInDOM(By.CssSelector("#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_grServiceReferrals, " +
-                                                                     "table[id*='grServiceReferral'], table[id*='gvServiceReferral']"), 20)
+            var grid = driver.WaitforElementToBeInDOM(By.CssSelector("table[id*='grServiceReferral'], table[id*='gvServiceReferral']"), 20)
                        ?? throw new InvalidOperationException("Service Referrals grid was not found.");
 
             var rows = grid.FindElements(By.CssSelector("tr"))
@@ -549,8 +519,7 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
 
         private IWebElement? FindReferralRowBySrpk(IPookieWebDriver driver, string srpk)
         {
-            var grid = driver.WaitforElementToBeInDOM(By.CssSelector("#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_grServiceReferrals, " +
-                                                                     "table[id*='grServiceReferral'], table[id*='gvServiceReferral']"), 20);
+            var grid = driver.WaitforElementToBeInDOM(By.CssSelector("table[id*='grServiceReferral'], table[id*='gvServiceReferral']"), 20);
             if (grid == null)
             {
                 return null;
@@ -577,9 +546,7 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
         private void AssertReferralRowShowsServicesReceivedYes(IWebElement row)
         {
             var servicesReceivedText = GetRowText(row,
-                "span#Label3",
-                "span[id*='Label4']",
-                "span[id$='Label3']",
+                "span[id*='Label']",
                 "span[id*='lblServiceReceived']",
                 "td:nth-child(5) span",
                 "td:nth-child(6) span",
@@ -603,13 +570,12 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
             WaitForReferralRowBySrpk(driver, srpk);
         }
 
-        private void ConfirmDeleteFlow(IPookieWebDriver driver, string srpk)
+        private void ConfirmDeleteFlow(IPookieWebDriver driver, string srpk, string pc1Id)
         {
             var modal = OpenDeleteModal(driver, srpk);
 
             var confirmButton = FindModalElement(modal,
-                "a#lbConfirmDelete.btn.btn-primary",
-                "a[id$='lbConfirmDelete'].btn.btn-primary",
+                "a.btn.btn-primary[id$='lbConfirmDelete']",
                 ".modal-footer a.btn.btn-primary");
 
             ClickElement(driver, confirmButton);
@@ -618,7 +584,7 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
             Thread.Sleep(1500);
 
             WaitForModalToClose(modal);
-            WaitForDeleteToastMessage(driver, TargetPc1Id);
+            WaitForDeleteToastMessage(driver, pc1Id);
             WaitForReferralRowRemoval(driver, srpk, 25);
         }
 
@@ -839,25 +805,25 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
             pc1Input.Clear();
             pc1Input.SendKeys(targetPc1Id);
 
-            var searchButton = driver.WaitforElementToBeInDOM(By.CssSelector("a#ctl00_ContentPlaceHolder1_btSearch"), 5)
+            var searchButton = driver.WaitforElementToBeInDOM(By.CssSelector("a[id$='btSearch']"), 5)
                 ?? throw new InvalidOperationException("Search button was not found on the Search Cases page.");
 
             searchButton.Click();
             driver.WaitForUpdatePanel(30);
             driver.WaitForReady(30);
 
-            var formsTab = driver.WaitforElementToBeInDOM(By.CssSelector("a#formstab[data-toggle='tab'][href='#forms']"), 10)
+            var formsTab = driver.WaitforElementToBeInDOM(By.CssSelector("a[data-toggle='tab'][href='#forms'][id*='formstab']"), 10)
                 ?? throw new InvalidOperationException("Forms tab was not found on the Search Cases results.");
             formsTab.Click();
             driver.WaitForReady(5);
 
-            var formsPane = driver.WaitforElementToBeInDOM(By.CssSelector(".tab-pane#forms"), 5)
+            var formsPane = driver.WaitforElementToBeInDOM(By.CssSelector(".tab-pane[id='forms']"), 5)
                 ?? throw new InvalidOperationException("Forms tab content was not found.");
             if (!formsPane.Displayed || !formsPane.GetAttribute("class").Contains("active", StringComparison.OrdinalIgnoreCase))
             {
                 formsTab.Click();
                 driver.WaitForReady(3);
-                formsPane = driver.WaitforElementToBeInDOM(By.CssSelector(".tab-pane#forms"), 5)
+                formsPane = driver.WaitforElementToBeInDOM(By.CssSelector(".tab-pane[id='forms']"), 5)
                     ?? throw new InvalidOperationException("Forms tab content was not found after activation.");
             }
             return formsPane;
