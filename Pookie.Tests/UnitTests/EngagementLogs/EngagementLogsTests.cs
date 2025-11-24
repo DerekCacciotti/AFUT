@@ -13,6 +13,7 @@ using Xunit.Abstractions;
 
 namespace AFUT.Tests.UnitTests.EngagementLogs
 {
+    [TestCaseOrderer("AFUT.Tests.UnitTests.EngagementLogs.PriorityOrderer", "AFUT.Tests")]
     public class EngagementLogsTests : IClassFixture<AppConfig>
     {
         private readonly AppConfig _config;
@@ -32,6 +33,7 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
         }
 
         [Fact]
+        [TestPriority(1)]
         public void CheckingTheEngagementLogButton()
         {
             using var driver = _driverFactory.CreateDriver();
@@ -84,6 +86,7 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
         }
 
         [Fact]
+        [TestPriority(2)]
         public void CheckingValdiationOneMonthIsOver()
         {
             using var driver = _driverFactory.CreateDriver();
@@ -129,6 +132,7 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
         }
 
         [Fact]
+        [TestPriority(3)]
         public void CheckingAdditionalQuestionsAppearWhenCaseStatusTwoSelected()
         {
             using var driver = _driverFactory.CreateDriver();
@@ -172,6 +176,7 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
         }
 
         [Fact]
+        [TestPriority(4)]
         public void CheckingTerminationFieldsAppearWhenCaseStatusTwoAndCaseNotAssigned()
         {
             using var driver = _driverFactory.CreateDriver();
@@ -218,6 +223,7 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
         }
 
         [Fact]
+        [TestPriority(5)]
         public void CheckingTerminationFieldsAppearWhenCaseStatusThreeSelected()
         {
             using var driver = _driverFactory.CreateDriver();
@@ -262,6 +268,7 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
         }
 
         [Fact]
+        [TestPriority(6)]
         public void CheckingCaseStatusThreeSubmissionAppearsInGrid()
         {
             using var driver = _driverFactory.CreateDriver();
@@ -317,6 +324,7 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
         }
 
         [Fact]
+        [TestPriority(7)]
         public void CheckingDeletingPreassessmentRecordRequiresConfirmation()
         {
             using var driver = _driverFactory.CreateDriver();
@@ -378,6 +386,7 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
         }
 
         [Fact]
+        [TestPriority(9)]
         public void CheckingDuplicateMonthValidationDisplayedWhenFormExists()
         {
             using var driver = _driverFactory.CreateDriver();
@@ -409,6 +418,7 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
         }
 
         [Fact]
+        [TestPriority(8)]
         public void CheckingAssignedCaseStatusTwoSubmitsToGrid()
         {
             using var driver = _driverFactory.CreateDriver();
@@ -562,42 +572,34 @@ namespace AFUT.Tests.UnitTests.EngagementLogs
         private IWebElement FindElementInModalOrPage(IPookieWebDriver driver, string cssSelector, string description, int timeoutSeconds = 10)
         {
             var endTime = DateTime.Now.AddSeconds(timeoutSeconds);
-            Exception? lastException = null;
 
             while (DateTime.Now <= endTime)
             {
-                try
+                var modal = driver.FindElements(By.CssSelector(".modal.show, .modal.in, .modal[style*='display: block'], .modal.fade.in"))
+                    .FirstOrDefault(el => el.Displayed);
+                if (modal != null)
                 {
-                    var modal = driver.FindElements(By.CssSelector(".modal.show, .modal.in, .modal[style*='display: block'], .modal.fade.in"))
+                    var withinModal = modal.FindElements(By.CssSelector(cssSelector))
                         .FirstOrDefault(el => el.Displayed);
-                    if (modal != null)
+                    if (withinModal != null)
                     {
-                        var withinModal = modal.FindElements(By.CssSelector(cssSelector))
-                            .FirstOrDefault(el => el.Displayed);
-                        if (withinModal != null)
-                        {
-                            _output.WriteLine($"[INFO] Located '{description}' inside modal using selector '{cssSelector}'.");
-                            return withinModal;
-                        }
-                    }
-
-                    var fallback = driver.FindElements(By.CssSelector(cssSelector))
-                        .FirstOrDefault(el => el.Displayed);
-                    if (fallback != null)
-                    {
-                        _output.WriteLine($"[INFO] Located '{description}' on page using selector '{cssSelector}'.");
-                        return fallback;
+                        _output.WriteLine($"[INFO] Located '{description}' inside modal using selector '{cssSelector}'.");
+                        return withinModal;
                     }
                 }
-                catch (Exception ex)
+
+                var fallback = driver.FindElements(By.CssSelector(cssSelector))
+                    .FirstOrDefault(el => el.Displayed);
+                if (fallback != null)
                 {
-                    lastException = ex;
+                    _output.WriteLine($"[INFO] Located '{description}' on page using selector '{cssSelector}'.");
+                    return fallback;
                 }
 
                 Thread.Sleep(200);
             }
 
-            throw new InvalidOperationException($"'{description}' was not found within the expected time.", lastException);
+            throw new InvalidOperationException($"'{description}' was not found within the expected time.");
         }
 
         private IWebElement EnsureCaseStatusDropdown(IPookieWebDriver driver, List<(string Action, string Result)> steps)
