@@ -545,11 +545,11 @@ namespace AFUT.Tests.UnitTests.ServiceReferrals
 
         private void AssertReferralRowShowsServicesReceivedYes(IWebElement row)
         {
+            // Try specific column positions first, then fallback to label selectors
             var servicesReceivedText = GetRowText(row,
-                "span[id*='Label']",
-                "span[id*='lblServiceReceived']",
-                "td:nth-child(5) span",
-                "td:nth-child(6) span",
+                "td:nth-child(5) span",  // Column 5 first
+                "td:nth-child(6) span",  // Column 6 as fallback
+                "span[id*='lblServiceReceived']",  // Specific label for services received
                 "td:nth-child(5)",
                 "td:nth-child(6)");
 
