@@ -231,6 +231,103 @@ namespace AFUT.Tests.UnitTests.HITS
             _output.WriteLine("[INFO] ✓ HITS form successfully created and verified in the table!");
         }
 
+        [Fact]
+        public void CheckingHITSFormEditAndUpdateToPositive()
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            // Use common helper for the navigation flow
+            var (homePage, formsPane) = CommonTestHelper.NavigateToFormsTab(driver, _config, TargetPc1Id);
+
+            Assert.NotNull(homePage);
+            Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
+
+            // Navigate to HITS
+            NavigateToHITS(driver, formsPane);
+
+            var pc1Display = CommonTestHelper.FindPc1Display(driver, TargetPc1Id);
+            Assert.False(string.IsNullOrWhiteSpace(pc1Display), "Unable to locate PC1 ID on HITS page.");
+            Assert.Contains(TargetPc1Id, pc1Display, StringComparison.OrdinalIgnoreCase);
+
+            // Step 1: Click Edit button on the first HITS form in the table
+            _output.WriteLine("[INFO] Step 1: Clicking Edit button on existing HITS form...");
+            EditExistingHITSEntry(driver);
+
+            var pc1DisplayOnEdit = CommonTestHelper.FindPc1Display(driver, TargetPc1Id);
+            Assert.False(string.IsNullOrWhiteSpace(pc1DisplayOnEdit), "Unable to locate PC1 ID on HITS edit page.");
+
+            // Step 2: Change question 4 to "Frequently"
+            _output.WriteLine("[INFO] Step 2: Changing question 4 to 'Frequently'...");
+            SelectHITSQuestion(driver, "ddlHITSHurt", "5. Frequently", "05");
+            driver.WaitForUpdatePanel(10);
+            driver.WaitForReady(10);
+            Thread.Sleep(500);
+
+            // Step 3: Change question 5 to "Frequently"
+            _output.WriteLine("[INFO] Step 3: Changing question 5 to 'Frequently'...");
+            SelectHITSQuestion(driver, "ddlHITSInsult", "5. Frequently", "05");
+            driver.WaitForUpdatePanel(10);
+            driver.WaitForReady(10);
+            Thread.Sleep(500);
+
+            // Step 4: Change question 6 to "Frequently"
+            _output.WriteLine("[INFO] Step 4: Changing question 6 to 'Frequently'...");
+            SelectHITSQuestion(driver, "ddlHITSThreaten", "5. Frequently", "05");
+            driver.WaitForUpdatePanel(10);
+            driver.WaitForReady(10);
+            Thread.Sleep(500);
+
+            // Step 5: Change question 7 to "Frequently"
+            _output.WriteLine("[INFO] Step 5: Changing question 7 to 'Frequently'...");
+            SelectHITSQuestion(driver, "ddlHITSScream", "5. Frequently", "05");
+            driver.WaitForUpdatePanel(10);
+            driver.WaitForReady(10);
+            Thread.Sleep(500);
+
+            // Step 6: Verify HITS Score = 20, Result = Positive
+            _output.WriteLine("[INFO] Step 6: Verifying updated HITS calculations...");
+            var scoreText = GetHITSScore(driver);
+            Assert.Contains("20", scoreText, StringComparison.OrdinalIgnoreCase);
+            _output.WriteLine($"[INFO] HITS Total Score: {scoreText}");
+
+            var resultText = GetHITSResult(driver);
+            Assert.Contains("Positive", resultText, StringComparison.OrdinalIgnoreCase);
+            _output.WriteLine($"[INFO] HITS Result: {resultText}");
+
+            // Step 7: Submit the updated form
+            _output.WriteLine("[INFO] Step 7: Submitting updated form...");
+            SubmitHITSForm(driver);
+            driver.WaitForUpdatePanel(30);
+            driver.WaitForReady(30);
+            Thread.Sleep(2000);
+
+            // Verify success toast message
+            _output.WriteLine("[INFO] Verifying success toast message...");
+            var toastMessage = GetToastMessage(driver);
+            Assert.Contains("Form Saved", toastMessage, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("HITS", toastMessage, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("successfully saved", toastMessage, StringComparison.OrdinalIgnoreCase);
+            _output.WriteLine($"[INFO] Success toast: {toastMessage}");
+
+            // Step 8: Verify updated form in the table
+            _output.WriteLine("[INFO] Step 8: Verifying updated form in the table...");
+            var tableRows = driver.FindElements(By.CssSelector("table#tblHITSs tbody tr"));
+            Assert.NotEmpty(tableRows);
+
+            var updatedRow = tableRows.FirstOrDefault();
+            Assert.NotNull(updatedRow);
+
+            var scoreCell = updatedRow.FindElement(By.CssSelector("td:nth-child(4)"));
+            Assert.Contains("20", scoreCell.Text);
+            _output.WriteLine($"[INFO] Table Total Score: {scoreCell.Text}");
+
+            var positiveCell = updatedRow.FindElement(By.CssSelector("td:nth-child(5)"));
+            Assert.Contains("True", positiveCell.Text, StringComparison.OrdinalIgnoreCase);
+            _output.WriteLine($"[INFO] Table Positive?: {positiveCell.Text}");
+
+            _output.WriteLine("[INFO] ✓ HITS form successfully edited and updated to Positive!");
+        }
+
         #region Helper Methods
 
         private void NavigateToHITS(IPookieWebDriver driver, IWebElement formsPane)
@@ -252,6 +349,29 @@ namespace AFUT.Tests.UnitTests.HITS
                 ?? throw new InvalidOperationException("New HITS button was not found on the HITS page.");
 
             CommonTestHelper.ClickElement(driver, newHITSButton);
+            driver.WaitForReady(30);
+            driver.WaitForUpdatePanel(30);
+            Thread.Sleep(1000);
+        }
+
+        private void EditExistingHITSEntry(IPookieWebDriver driver)
+        {
+            // Wait for the table to be present
+            Thread.Sleep(1000);
+            
+            // Find the table first
+            var table = driver.FindElements(By.CssSelector("table#tblHITSs, table[id*='tblHITS']"))
+                .FirstOrDefault(el => el.Displayed)
+                ?? throw new InvalidOperationException("HITS table was not found on the page.");
+
+            // Find the Edit button within the table - must have 'edit-HITS' class
+            var editButton = table.FindElements(By.CssSelector("a.edit-HITS, a[id*='lnkEditHITS']"))
+                .FirstOrDefault(el => el.Displayed && el.Text.Contains("Edit", StringComparison.OrdinalIgnoreCase))
+                ?? throw new InvalidOperationException("Edit HITS button was not found in the HITS table.");
+
+            _output.WriteLine($"[INFO] Found Edit button with href: {editButton.GetAttribute("href")}");
+            
+            CommonTestHelper.ClickElement(driver, editButton);
             driver.WaitForReady(30);
             driver.WaitForUpdatePanel(30);
             Thread.Sleep(1000);
