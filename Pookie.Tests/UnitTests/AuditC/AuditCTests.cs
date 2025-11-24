@@ -14,8 +14,8 @@ namespace AFUT.Tests.UnitTests.AuditC
 {
     public class AuditCTests : IClassFixture<AppConfig>
     {
-        private const string EditButtonSelector = "a#lnkEditButton.btn.btn-sm.btn-default, a[id$='lnkEditButton']";
-        private const string DeleteButtonSelector = "div.delete-control a#lbDelete.btn.btn-danger, div.delete-control a[id$='lbDelete'], a.btn.btn-danger[id$='lbDelete']";
+        private const string EditButtonSelector = "a[id$='lnkEditAuditC'], a.edit-auditc, a#lnkEditButton.btn.btn-sm.btn-default, a[id$='lnkEditButton']";
+        private const string DeleteButtonSelector = "button[id$='btnDeleteAuditC'], .delete-auditc, div.delete-control a#lbDelete.btn.btn-danger, div.delete-control a[id$='lbDelete'], a.btn.btn-danger[id$='lbDelete']";
         private readonly AppConfig _config;
         private readonly IPookieDriverFactory _driverFactory;
         private readonly ITestOutputHelper _output;
@@ -346,20 +346,36 @@ namespace AFUT.Tests.UnitTests.AuditC
             driver.WaitForUpdatePanel(30);
             Thread.Sleep(1000);
 
-            // Edit some fields
-            SelectWorker(driver, "Test, Derek", "3489");
+            // Change "Daily Drinks" (Question 5) to "Option 4: 7 to 9 (3)"
+            SelectAuditCDailyDrinks(driver, "4. 7 to 9 (3)", "9");
+            driver.WaitForUpdatePanel(10);
+            driver.WaitForReady(10);
+            Thread.Sleep(500);
 
             var validationText = SubmitAndCaptureValidation(driver);
             Assert.True(string.IsNullOrWhiteSpace(validationText));
+            
             WaitForToastMessage(driver, TargetPc1Id);
             driver.WaitForReady(10);
             driver.WaitForUpdatePanel(10);
-            Thread.Sleep(500);
+            Thread.Sleep(1000);
 
             if (!string.IsNullOrWhiteSpace(auditcpk))
             {
+                // Verify row shows Total Score 7 and Positive True
                 var updatedRow = WaitForAuditCRowByPk(driver, auditcpk, 20);
                 Assert.NotNull(updatedRow);
+
+                var rowText = updatedRow.Text;
+                _output.WriteLine($"[INFO] Updated row text: {rowText}");
+
+                // Check Total Score is 7
+                // Note: Score is in the 4th column (index 3) usually
+                Assert.Contains("7", rowText, StringComparison.OrdinalIgnoreCase);
+                
+                // Check Positive? is True
+                // Looking for "True" in the row text (Positive? column)
+                Assert.Contains("True", rowText, StringComparison.OrdinalIgnoreCase);
             }
         }
 
@@ -704,7 +720,8 @@ namespace AFUT.Tests.UnitTests.AuditC
 
         private IWebElement GetExistingEditableAuditCRow(IPookieWebDriver driver)
         {
-            var grid = driver.WaitforElementToBeInDOM(By.CssSelector("#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_grAuditC, " +
+            var grid = driver.WaitforElementToBeInDOM(By.CssSelector("#tblAuditCs, " +
+                                                                     "#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_grAuditC, " +
                                                                      "table[id*='grAuditC'], table[id*='gvAuditC']"), 20)
                        ?? throw new InvalidOperationException("Audit-C grid was not found.");
 
@@ -736,7 +753,8 @@ namespace AFUT.Tests.UnitTests.AuditC
 
         private IWebElement? FindAuditCRowByPk(IPookieWebDriver driver, string auditcpk)
         {
-            var grid = driver.WaitforElementToBeInDOM(By.CssSelector("#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_grAuditC, " +
+            var grid = driver.WaitforElementToBeInDOM(By.CssSelector("#tblAuditCs, " +
+                                                                     "#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_grAuditC, " +
                                                                      "table[id*='grAuditC'], table[id*='gvAuditC']"), 20);
             if (grid == null)
             {
