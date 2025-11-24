@@ -4,6 +4,7 @@ using System.Threading;
 using AFUT.Tests.Config;
 using AFUT.Tests.Driver;
 using AFUT.Tests.Pages;
+using AFUT.Tests.UnitTests.Attributes;
 using Microsoft.Extensions.DependencyInjection;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Support.UI;
@@ -12,7 +13,7 @@ using Xunit.Abstractions;
 
 namespace AFUT.Tests.UnitTests.AuditC
 {
-    [TestCaseOrderer("AFUT.Tests.UnitTests.AuditC.PriorityOrderer", "AFUT.Tests")]
+    [TestCaseOrderer("AFUT.Tests.UnitTests.Attributes.PriorityOrderer", "AFUT.Tests")]
     public class AuditCTests : IClassFixture<AppConfig>
     {
         private const string EditButtonSelector = "a[id$='lnkEditAuditC'], a.edit-auditc, a#lnkEditButton.btn.btn-sm.btn-default, a[id$='lnkEditButton']";
