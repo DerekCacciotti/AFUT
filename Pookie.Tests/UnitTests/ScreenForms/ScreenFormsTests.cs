@@ -508,40 +508,32 @@ namespace AFUT.Tests.UnitTests.ScreenForms
                 
                 foreach (var toast in toastElements)
                 {
-                    try
+                    // Check if toast has success icon
+                    if (toast.GetAttribute("class").Contains("jq-icon-success"))
                     {
-                        // Check if toast has success icon
-                        if (toast.GetAttribute("class").Contains("jq-icon-success"))
+                        var heading = "";
+                        var body = "";
+                        
+                        var headingElements = toast.FindElements(OpenQA.Selenium.By.CssSelector(".jq-toast-heading"));
+                        if (headingElements.Any())
                         {
-                            var heading = "";
-                            var body = "";
-                            
-                            try
-                            {
-                                var headingElement = toast.FindElement(OpenQA.Selenium.By.CssSelector(".jq-toast-heading"));
-                                heading = headingElement.Text.Trim();
-                            }
-                            catch { }
-                            
-                            // Get full text and remove heading to get body
-                            body = toast.Text.Trim();
-                            if (!string.IsNullOrEmpty(heading))
-                            {
-                                body = body.Replace(heading, "").Trim();
-                                // Remove the close button 'x' if present
-                                body = body.TrimStart('×').Trim();
-                            }
-                            
-                            _output.WriteLine($"[INFO] Success toast detected!");
-                            _output.WriteLine($"[INFO] Toast heading: '{heading}'");
-                            _output.WriteLine($"[INFO] Toast body: '{body}'");
-                            
-                            return new System.Collections.Generic.List<string> { heading, body };
+                            heading = headingElements.First().Text.Trim();
                         }
-                    }
-                    catch (OpenQA.Selenium.StaleElementReferenceException)
-                    {
-                        continue;
+                        
+                        // Get full text and remove heading to get body
+                        body = toast.Text.Trim();
+                        if (!string.IsNullOrEmpty(heading))
+                        {
+                            body = body.Replace(heading, "").Trim();
+                            // Remove the close button 'x' if present
+                            body = body.TrimStart('×').Trim();
+                        }
+                        
+                        _output.WriteLine($"[INFO] Success toast detected!");
+                        _output.WriteLine($"[INFO] Toast heading: '{heading}'");
+                        _output.WriteLine($"[INFO] Toast body: '{body}'");
+                        
+                        return new System.Collections.Generic.List<string> { heading, body };
                     }
                 }
 
@@ -551,19 +543,15 @@ namespace AFUT.Tests.UnitTests.ScreenForms
             _output.WriteLine($"[WARN] No toast notification detected within {timeoutSeconds} seconds.");
             
             // For debugging can be removed, but would be useful in case something changes
-            try
+            var allAlerts = driver.FindElements(OpenQA.Selenium.By.CssSelector("[role='alert'], .alert, .jq-toast-single"));
+            if (allAlerts.Any())
             {
-                var allAlerts = driver.FindElements(OpenQA.Selenium.By.CssSelector("[role='alert'], .alert, .jq-toast-single"));
-                if (allAlerts.Any())
+                _output.WriteLine($"[DEBUG] Found {allAlerts.Count} alert-like elements:");
+                foreach (var alert in allAlerts)
                 {
-                    _output.WriteLine($"[DEBUG] Found {allAlerts.Count} alert-like elements:");
-                    foreach (var alert in allAlerts)
-                    {
-                        _output.WriteLine($"  - class='{alert.GetAttribute("class")}', text='{alert.Text}'");
-                    }
+                    _output.WriteLine($"  - class='{alert.GetAttribute("class")}', text='{alert.Text}'");
                 }
             }
-            catch { }
 
             throw new TimeoutException("Timed out waiting for success toast notification.");
         }
@@ -631,14 +619,7 @@ namespace AFUT.Tests.UnitTests.ScreenForms
                 throw new InvalidOperationException($"Unable to set {questionDescription} to '{choice}'.");
             }
 
-            try
-            {
-                js.ExecuteScript("arguments[0].dispatchEvent(new Event('change', { bubbles: true }));", dropdown);
-            }
-            catch (OpenQA.Selenium.WebDriverException)
-            {
-                // Dispatch best-effort.
-            }
+            js.ExecuteScript("arguments[0].dispatchEvent(new Event('change', { bubbles: true }));", dropdown);
 
             driver.WaitForReady(5);
             System.Threading.Thread.Sleep(250);
@@ -723,15 +704,8 @@ namespace AFUT.Tests.UnitTests.ScreenForms
                     continue;
                 }
 
-                try
-                {
-                    js.ExecuteScript("arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('change', { bubbles: true }));", dropdown, candidate);
-                    return true;
-                }
-                catch (OpenQA.Selenium.WebDriverException)
-                {
-                    // Try next candidate.
-                }
+                js.ExecuteScript("arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('change', { bubbles: true }));", dropdown, candidate);
+                return true;
             }
 
             return false;
@@ -761,17 +735,7 @@ namespace AFUT.Tests.UnitTests.ScreenForms
         {
             var options = dropdown.FindElements(OpenQA.Selenium.By.TagName("option"));
 
-            var selected = options.FirstOrDefault(opt =>
-            {
-                try
-                {
-                    return opt.Selected;
-                }
-                catch
-                {
-                    return false;
-                }
-            });
+            var selected = options.FirstOrDefault(opt => opt.Selected);
 
             if (selected != null)
             {
