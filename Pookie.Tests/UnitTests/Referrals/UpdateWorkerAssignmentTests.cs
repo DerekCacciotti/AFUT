@@ -218,16 +218,13 @@ namespace AFUT.Tests.UnitTests.Referrals
                     continue;
                 }
 
-                try
+                var options = workerSelect.Options.Select(o => o.Text).ToList();
+                if (options.Contains(workerName))
                 {
                     workerSelect.SelectByText(workerName);
                     _output.WriteLine($"[PASS] Selected worker: {workerName}");
                     workerChanged = true;
                     break;
-                }
-                catch (NoSuchElementException)
-                {
-                    // Ignore and try next worker
                 }
             }
 
@@ -289,21 +286,14 @@ namespace AFUT.Tests.UnitTests.Referrals
 
             foreach (var selector in toastSelectors)
             {
-                try
-                {
-                    var toastElements = driver.FindElements(selector);
-                    var visibleToast = toastElements.FirstOrDefault(t => t.Displayed && !string.IsNullOrWhiteSpace(t.Text));
+                var toastElements = driver.FindElements(selector);
+                var visibleToast = toastElements.FirstOrDefault(t => t.Displayed && !string.IsNullOrWhiteSpace(t.Text));
 
-                    if (visibleToast != null)
-                    {
-                        var message = visibleToast.Text?.Trim() ?? "";
-                        _output.WriteLine($"[PASS] Toast notification found: '{message}'");
-                        return message;
-                    }
-                }
-                catch
+                if (visibleToast != null)
                 {
-                    // Continue trying other selectors
+                    var message = visibleToast.Text?.Trim() ?? "";
+                    _output.WriteLine($"[PASS] Toast notification found: '{message}'");
+                    return message;
                 }
             }
 
@@ -311,21 +301,14 @@ namespace AFUT.Tests.UnitTests.Referrals
             System.Threading.Thread.Sleep(2000);
             foreach (var selector in toastSelectors)
             {
-                try
-                {
-                    var toastElements = driver.FindElements(selector);
-                    var visibleToast = toastElements.FirstOrDefault(t => t.Displayed && !string.IsNullOrWhiteSpace(t.Text));
+                var toastElements = driver.FindElements(selector);
+                var visibleToast = toastElements.FirstOrDefault(t => t.Displayed && !string.IsNullOrWhiteSpace(t.Text));
 
-                    if (visibleToast != null)
-                    {
-                        var message = visibleToast.Text?.Trim() ?? "";
-                        _output.WriteLine($"[PASS] Toast notification found after wait: '{message}'");
-                        return message;
-                    }
-                }
-                catch
+                if (visibleToast != null)
                 {
-                    // Continue trying other selectors
+                    var message = visibleToast.Text?.Trim() ?? "";
+                    _output.WriteLine($"[PASS] Toast notification found after wait: '{message}'");
+                    return message;
                 }
             }
 
@@ -349,28 +332,21 @@ namespace AFUT.Tests.UnitTests.Referrals
             var foundValidationError = false;
             foreach (var selector in validationSelectors)
             {
-                try
-                {
-                    var validationElements = driver.FindElements(selector);
-                    var visibleValidations = validationElements
-                        .Where(v => v.Displayed && !string.IsNullOrWhiteSpace(v.Text))
-                        .ToList();
+                var validationElements = driver.FindElements(selector);
+                var visibleValidations = validationElements
+                    .Where(v => v.Displayed && !string.IsNullOrWhiteSpace(v.Text))
+                    .ToList();
 
-                    foreach (var validation in visibleValidations)
-                    {
-                        var validationText = validation.Text?.Trim() ?? "";
-                        _output.WriteLine($"  - {validationText}");
-                        
-                        if (validationText.Contains(expectedError, StringComparison.OrdinalIgnoreCase))
-                        {
-                            foundValidationError = true;
-                            _output.WriteLine($"[PASS] ✓ Found expected validation error: '{validationText}'");
-                        }
-                    }
-                }
-                catch
+                foreach (var validation in visibleValidations)
                 {
-                    // Continue trying other selectors
+                    var validationText = validation.Text?.Trim() ?? "";
+                    _output.WriteLine($"  - {validationText}");
+                    
+                    if (validationText.Contains(expectedError, StringComparison.OrdinalIgnoreCase))
+                    {
+                        foundValidationError = true;
+                        _output.WriteLine($"[PASS] ✓ Found expected validation error: '{validationText}'");
+                    }
                 }
             }
 
