@@ -20,6 +20,8 @@ namespace AFUT.Tests.Config
         
         public IReadOnlyList<string> TestPc1Ids => _config.GetSection("TestPc1Ids").Get<string[]>() ?? new[] { "EC01001408989" };
         
+        public string TestDate => _config["TestDate"] ?? "10/25/25";
+        
         public ServiceProvider ServiceProvider { get; }
         public IReadOnlyList<string> CaseHomeTabs { get; }
 
