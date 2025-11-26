@@ -22,7 +22,6 @@ namespace AFUT.Tests.UnitTests.AuditC
         private readonly AppConfig _config;
         private readonly IPookieDriverFactory _driverFactory;
         private readonly ITestOutputHelper _output;
-        private const string TargetPc1Id = "EC01001408989";
 
         public AuditCTests(AppConfig config, ITestOutputHelper output)
         {
@@ -35,14 +34,21 @@ namespace AFUT.Tests.UnitTests.AuditC
             CaseHomePage.ConfigureDefaultTabs(_config.CaseHomeTabs);
         }
 
-        [Fact]
+        public static IEnumerable<object[]> GetTestPc1Ids()
+        {
+            var config = new AppConfig();
+            return config.TestPc1Ids.Select(id => new object[] { id });
+        }
+
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
         [TestPriority(1)]
-        public void CheckingTheAddNewOfAuditCForm()
+        public void CheckingTheAddNewOfAuditCForm(string pc1Id)
         {
             using var driver = _driverFactory.CreateDriver();
 
             // Use common helper for the navigation flow
-            var (homePage, formsPane) = CommonTestHelper.NavigateToFormsTab(driver, _config, TargetPc1Id);
+            var (homePage, formsPane) = CommonTestHelper.NavigateToFormsTab(driver, _config, pc1Id);
 
             Assert.NotNull(homePage);
             Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
@@ -50,30 +56,31 @@ namespace AFUT.Tests.UnitTests.AuditC
             // Navigate to Audit-C
             NavigateToAuditC(driver, formsPane);
 
-            var pc1Display = CommonTestHelper.FindPc1Display(driver, TargetPc1Id);
+            var pc1Display = CommonTestHelper.FindPc1Display(driver, pc1Id);
             Assert.False(string.IsNullOrWhiteSpace(pc1Display), "Unable to locate PC1 ID on Audit-C page.");
-            Assert.Contains(TargetPc1Id, pc1Display, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(pc1Id, pc1Display, StringComparison.OrdinalIgnoreCase);
 
             // Click New Audit-C button
             CreateNewAuditCEntry(driver);
         }
 
-        [Fact]
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
         [TestPriority(2)]
-        public void CheckingAuditCFormValidationAndSubmission()
+        public void CheckingAuditCFormValidationAndSubmission(string pc1Id)
         {
             using var driver = _driverFactory.CreateDriver();
 
-            var (homePage, formsPane) = CommonTestHelper.NavigateToFormsTab(driver, _config, TargetPc1Id);
+            var (homePage, formsPane) = CommonTestHelper.NavigateToFormsTab(driver, _config, pc1Id);
 
             Assert.NotNull(homePage);
             Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
 
             NavigateToAuditC(driver, formsPane);
 
-            var pc1Display = CommonTestHelper.FindPc1Display(driver, TargetPc1Id);
+            var pc1Display = CommonTestHelper.FindPc1Display(driver, pc1Id);
             Assert.False(string.IsNullOrWhiteSpace(pc1Display), "Unable to locate PC1 ID on Audit-C page.");
-            Assert.Contains(TargetPc1Id, pc1Display, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(pc1Id, pc1Display, StringComparison.OrdinalIgnoreCase);
 
             CreateNewAuditCEntry(driver);
 
@@ -293,7 +300,7 @@ namespace AFUT.Tests.UnitTests.AuditC
             _output.WriteLine($"[INFO] Final validation check after submit: '{validationText}'");
             Assert.True(string.IsNullOrWhiteSpace(validationText), $"Unexpected validation errors: {validationText}");
 
-            WaitForToastMessage(driver, TargetPc1Id);
+            WaitForToastMessage(driver, pc1Id);
             driver.WaitForReady(10);
             driver.WaitForUpdatePanel(10);
             Thread.Sleep(1000); // Increased sleep to allow grid refresh
@@ -322,22 +329,23 @@ namespace AFUT.Tests.UnitTests.AuditC
             _output.WriteLine("[INFO] Audit-C record successfully appeared in the grid.");
         }
 
-        [Fact]
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
         [TestPriority(3)]
-        public void CheckEditButton()
+        public void CheckEditButton(string pc1Id)
         {
             using var driver = _driverFactory.CreateDriver();
 
-            var (homePage, formsPane) = CommonTestHelper.NavigateToFormsTab(driver, _config, TargetPc1Id);
+            var (homePage, formsPane) = CommonTestHelper.NavigateToFormsTab(driver, _config, pc1Id);
 
             Assert.NotNull(homePage);
             Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
 
             NavigateToAuditC(driver, formsPane);
 
-            var pc1Display = CommonTestHelper.FindPc1Display(driver, TargetPc1Id);
+            var pc1Display = CommonTestHelper.FindPc1Display(driver, pc1Id);
             Assert.False(string.IsNullOrWhiteSpace(pc1Display), "Unable to locate PC1 ID on Audit-C page.");
-            Assert.Contains(TargetPc1Id, pc1Display, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(pc1Id, pc1Display, StringComparison.OrdinalIgnoreCase);
 
             var auditCRow = GetExistingEditableAuditCRow(driver);
             var editButton = auditCRow.FindElements(By.CssSelector(EditButtonSelector))
@@ -361,7 +369,7 @@ namespace AFUT.Tests.UnitTests.AuditC
             var validationText = SubmitAndCaptureValidation(driver);
             Assert.True(string.IsNullOrWhiteSpace(validationText));
             
-            WaitForToastMessage(driver, TargetPc1Id);
+            WaitForToastMessage(driver, pc1Id);
             driver.WaitForReady(10);
             driver.WaitForUpdatePanel(10);
             Thread.Sleep(1000);
@@ -385,22 +393,23 @@ namespace AFUT.Tests.UnitTests.AuditC
             }
         }
 
-        [Fact]
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
         [TestPriority(4)]
-        public void CheckDeleteButton()
+        public void CheckDeleteButton(string pc1Id)
         {
             using var driver = _driverFactory.CreateDriver();
 
-            var (homePage, formsPane) = CommonTestHelper.NavigateToFormsTab(driver, _config, TargetPc1Id);
+            var (homePage, formsPane) = CommonTestHelper.NavigateToFormsTab(driver, _config, pc1Id);
 
             Assert.NotNull(homePage);
             Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
 
             NavigateToAuditC(driver, formsPane);
 
-            var pc1Display = CommonTestHelper.FindPc1Display(driver, TargetPc1Id);
+            var pc1Display = CommonTestHelper.FindPc1Display(driver, pc1Id);
             Assert.False(string.IsNullOrWhiteSpace(pc1Display), "Unable to locate PC1 ID on Audit-C page.");
-            Assert.Contains(TargetPc1Id, pc1Display, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(pc1Id, pc1Display, StringComparison.OrdinalIgnoreCase);
 
             var auditCRow = GetExistingEditableAuditCRow(driver);
             var editLink = auditCRow.FindElements(By.CssSelector(EditButtonSelector))
@@ -409,7 +418,7 @@ namespace AFUT.Tests.UnitTests.AuditC
                            ?? throw new InvalidOperationException("Unable to determine AuditCPK for the selected Audit-C row.");
 
             CancelDeleteFlow(driver, auditcpk);
-            ConfirmDeleteFlow(driver, auditcpk);
+            ConfirmDeleteFlow(driver, auditcpk, pc1Id);
         }
 
         private void NavigateToAuditC(IPookieWebDriver driver, IWebElement formsPane)
@@ -755,7 +764,7 @@ namespace AFUT.Tests.UnitTests.AuditC
             WaitForAuditCRowByPk(driver, auditcpk);
         }
 
-        private void ConfirmDeleteFlow(IPookieWebDriver driver, string auditcpk)
+        private void ConfirmDeleteFlow(IPookieWebDriver driver, string auditcpk, string pc1Id)
         {
             var modal = OpenDeleteModal(driver, auditcpk);
 
@@ -770,7 +779,7 @@ namespace AFUT.Tests.UnitTests.AuditC
             Thread.Sleep(1500);
 
             WaitForModalToClose(modal);
-            WaitForDeleteToastMessage(driver, TargetPc1Id);
+            WaitForDeleteToastMessage(driver, pc1Id);
             WaitForAuditCRowRemoval(driver, auditcpk, 25);
         }
 
