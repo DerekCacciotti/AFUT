@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading;
 using AFUT.Tests.Config;
 using AFUT.Tests.Driver;
+using AFUT.Tests.Helpers;
 using AFUT.Tests.Pages;
 using AFUT.Tests.UnitTests.Attributes;
 using Microsoft.Extensions.DependencyInjection;
@@ -77,7 +78,7 @@ namespace AFUT.Tests.UnitTests.HITS
 
             // Step 3: Select worker 105
             _output.WriteLine("[INFO] Step 3: Selecting worker 105...");
-            SelectWorker(driver, "105");
+            WebElementHelper.SelectWorker(driver, "Worker 105", "105");
             driver.WaitForUpdatePanel(10);
             driver.WaitForReady(10);
             Thread.Sleep(500);
@@ -205,7 +206,7 @@ namespace AFUT.Tests.UnitTests.HITS
 
             // Verify success toast message
             _output.WriteLine("[INFO] Verifying success toast message...");
-            var toastMessage = GetToastMessage(driver);
+            var toastMessage = WebElementHelper.GetToastMessage(driver);
             Assert.Contains("Form Saved", toastMessage, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("HITS", toastMessage, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("successfully saved", toastMessage, StringComparison.OrdinalIgnoreCase);
@@ -307,7 +308,7 @@ namespace AFUT.Tests.UnitTests.HITS
 
             // Verify success toast message
             _output.WriteLine("[INFO] Verifying success toast message...");
-            var toastMessage = GetToastMessage(driver);
+            var toastMessage = WebElementHelper.GetToastMessage(driver);
             Assert.Contains("Form Saved", toastMessage, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("HITS", toastMessage, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("successfully saved", toastMessage, StringComparison.OrdinalIgnoreCase);
@@ -392,7 +393,7 @@ namespace AFUT.Tests.UnitTests.HITS
 
             // Step 5: Verify success toast message
             _output.WriteLine("[INFO] Step 5: Verifying success toast message...");
-            var toastMessage = GetToastMessage(driver);
+            var toastMessage = WebElementHelper.GetToastMessage(driver);
             Assert.Contains("Form Deleted", toastMessage, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("HITS", toastMessage, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("successfully deleted", toastMessage, StringComparison.OrdinalIgnoreCase);
@@ -549,18 +550,6 @@ namespace AFUT.Tests.UnitTests.HITS
             _output.WriteLine($"[INFO] Set {fieldName} to: {value}");
         }
 
-        private void SelectWorker(IPookieWebDriver driver, string workerValue)
-        {
-            var workerDropdown = FindElementInModalOrPage(
-                driver,
-                "select#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_ddlWorker, select[id$='ddlWorker']",
-                "Worker dropdown",
-                10);
-
-            var selectElement = new SelectElement(workerDropdown);
-            selectElement.SelectByValue(workerValue);
-            _output.WriteLine($"[INFO] Selected worker: {workerValue}");
-        }
 
         private void SelectHITSQuestion(IPookieWebDriver driver, string dropdownId, string optionText, string optionValue)
         {
@@ -599,15 +588,6 @@ namespace AFUT.Tests.UnitTests.HITS
             return validityElement?.Text?.Trim() ?? string.Empty;
         }
 
-        private string GetToastMessage(IPookieWebDriver driver)
-        {
-            Thread.Sleep(1000); // Wait for toast to appear
-            
-            var toastElements = driver.FindElements(By.CssSelector("div.jq-toast-single, div[class*='toast'], div.alert.alert-success"));
-            var toastElement = toastElements.FirstOrDefault(el => !string.IsNullOrWhiteSpace(el.Text));
-
-            return toastElement?.Text?.Trim() ?? string.Empty;
-        }
 
         #endregion
     }
