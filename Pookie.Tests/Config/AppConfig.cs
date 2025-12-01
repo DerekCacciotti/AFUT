@@ -15,6 +15,15 @@ namespace AFUT.Tests.Config
         public string UserName => _config["UserName"];
 
         public string Password => _config["Password"];
+        
+        public string TestPc1Id => _config["TestPc1Id"] ?? "EC01001408989";
+        
+        public IReadOnlyList<string> TestPc1Ids => _config.GetSection("TestPc1Ids").Get<string[]>() ?? new[] { "EC01001408989" };
+        
+        public string TestWorkerName => _config["TestWorkerName"] ?? "Worker 105";
+
+        public string TestWorkerId => _config["TestWorkerId"] ?? "105";
+        
         public ServiceProvider ServiceProvider { get; }
         public IReadOnlyList<string> CaseHomeTabs { get; }
 
