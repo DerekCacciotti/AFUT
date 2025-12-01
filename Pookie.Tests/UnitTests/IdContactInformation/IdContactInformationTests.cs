@@ -139,6 +139,476 @@ namespace AFUT.Tests.UnitTests.IdContactInformation
             _output.WriteLine("\n[PASS] All 5 tabs successfully clicked and verified!");
         }
 
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
+        [TestPriority(3)]
+        public void CheckingValidationOnInformedConsentTab(string pc1Id)
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            // Use common helper for the navigation flow
+            var (homePage, formsPane) = CommonTestHelper.NavigateToFormsTab(driver, _config, pc1Id);
+
+            Assert.NotNull(homePage);
+            Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
+            _output.WriteLine("[PASS] Successfully navigated to Forms tab");
+
+            // Navigate to Identification and Contact Information
+            NavigateToIdContactInformation(driver, formsPane, pc1Id);
+            _output.WriteLine("[PASS] Successfully navigated to Identification and Contact Information page");
+
+            // Click "Edit Primary Caregiver 1" button, verify edit page, and submit
+            ClickEditPrimaryCaregiver1Button(driver);
+            _output.WriteLine("[PASS] Clicked Edit Primary Caregiver 1 button and submitted form");
+
+            // Navigate to the last tab (Informed Consent)
+            _output.WriteLine("\n[INFO] Navigating to Informed Consent tab");
+            ClickAndVerifyTab(driver, "Agreement", "Informed Consent");
+            _output.WriteLine("[PASS] Informed Consent tab is now active");
+
+            // Click the Submit button on the Informed Consent tab
+            _output.WriteLine("\n[INFO] Attempting to submit without signing confidentiality agreement");
+            ClickSubmitButtonOnInformedConsentTab(driver);
+            _output.WriteLine("[INFO] Clicked Submit button");
+
+            // Wait for validation to complete
+            Thread.Sleep(2000);
+
+            // First, let's log all validation errors we can find
+            var allValidationErrors = driver.FindElements(By.CssSelector(
+                "span[style*='color:Red'], " +
+                "span[style*='color: red'], " +
+                ".text-danger, " +
+                "span.text-danger, " +
+                "div.alert.alert-danger, " +
+                "div.validation-summary-errors"))
+                .Where(el => el.Displayed && !string.IsNullOrWhiteSpace(el.Text))
+                .ToList();
+
+            _output.WriteLine($"[DEBUG] Found {allValidationErrors.Count} validation error elements");
+            foreach (var error in allValidationErrors)
+            {
+                _output.WriteLine($"[DEBUG] Validation error text: {error.Text.Trim()}");
+            }
+
+            // Look for the confidentiality agreement validation error
+            var validationError = allValidationErrors
+                .FirstOrDefault(el => el.Text.Contains("confidentiality agreement", StringComparison.OrdinalIgnoreCase));
+
+            Assert.NotNull(validationError);
+            var validationText = validationError.Text.Trim();
+            _output.WriteLine($"[INFO] Validation message: {validationText}");
+
+            Assert.Contains("22", validationText, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("confidentiality agreement", validationText, StringComparison.OrdinalIgnoreCase);
+            _output.WriteLine("[PASS] Confidentiality agreement validation message displayed correctly");
+        }
+
+        /// <summary>
+        /// Tests the complete workflow of filling out the Identification and Contact Information form
+        /// including OBP and PC2 assignment, removal, and final submission.
+        /// 
+        /// IMPORTANT: This test will fail if the form has already been submitted for the test PC1 ID,
+        /// as it expects to start with a blank/new form. If the form data already exists from a previous run,
+        /// the test should be run after cleaning the test data or use Test 5 to edit existing data.
+        /// </summary>
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
+        [TestPriority(4)]
+        public void CheckingSuccessfulSubmissionAfterAnsweringAllRequiredQuestions(string pc1Id)
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            // Important warning message for test execution
+            _output.WriteLine("================================================================================");
+            _output.WriteLine("[WARN] This test expects a BLANK/NEW form for PC1 ID: " + pc1Id);
+            _output.WriteLine("[WARN] If form data already exists from a previous run, this test will FAIL.");
+            _output.WriteLine("[WARN] Please ensure test data is clean OR run Test 5 to edit existing data.");
+            _output.WriteLine("================================================================================");
+            _output.WriteLine("");
+
+            // Use common helper for the navigation flow
+            var (homePage, formsPane) = CommonTestHelper.NavigateToFormsTab(driver, _config, pc1Id);
+
+            Assert.NotNull(homePage);
+            Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
+            _output.WriteLine("[PASS] Successfully navigated to Forms tab");
+
+            // Navigate to Identification and Contact Information
+            NavigateToIdContactInformation(driver, formsPane, pc1Id);
+            _output.WriteLine("[PASS] Successfully navigated to Identification and Contact Information page");
+
+            // Click "Edit Primary Caregiver 1" button, verify edit page, and submit
+            ClickEditPrimaryCaregiver1Button(driver);
+            _output.WriteLine("[PASS] Clicked Edit Primary Caregiver 1 button and submitted form");
+
+            // Navigate to the last tab (Informed Consent)
+            _output.WriteLine("\n[INFO] Navigating to Informed Consent tab");
+            ClickAndVerifyTab(driver, "Agreement", "Informed Consent");
+            _output.WriteLine("[PASS] Informed Consent tab is now active");
+
+            // Answer question 22: Signed confidentiality agreement with "Yes"
+            _output.WriteLine("\n[INFO] Selecting 'Yes' for Signed Confidentiality Agreement (Question 22)");
+            SelectConfidentialityAgreement(driver, "Yes");
+            _output.WriteLine("[PASS] Selected 'Yes' for confidentiality agreement");
+
+            // Click the Submit button - should show 2 validation errors (OBP and PC2)
+            _output.WriteLine("\n[INFO] Submitting form - expecting validation errors for OBP and PC2 tabs");
+            ClickSubmitButtonOnInformedConsentTab(driver);
+            _output.WriteLine("[INFO] Clicked Submit button");
+
+            // Wait for validation to complete
+            Thread.Sleep(2000);
+
+            // Verify TWO validation errors appear
+            var validationErrors = GetAllValidationErrors(driver);
+            _output.WriteLine($"[INFO] Found {validationErrors.Count} validation error(s)");
+            
+            var obpError = validationErrors.FirstOrDefault(e => 
+                e.Contains("OBP", StringComparison.OrdinalIgnoreCase) && 
+                e.Contains("Other Biological Parent", StringComparison.OrdinalIgnoreCase));
+            var pc2Error = validationErrors.FirstOrDefault(e => 
+                e.Contains("PC2", StringComparison.OrdinalIgnoreCase) && 
+                e.Contains("Primary Caregiver 2", StringComparison.OrdinalIgnoreCase));
+
+            Assert.NotNull(obpError);
+            Assert.NotNull(pc2Error);
+            _output.WriteLine($"[PASS] OBP validation error: {obpError}");
+            _output.WriteLine($"[PASS] PC2 validation error: {pc2Error}");
+
+            // Go to Other Biological Parent tab and answer the question
+            _output.WriteLine("\n[INFO] Navigating to Other Biological Parent tab");
+            ClickAndVerifyTab(driver, "OBP", "Other Biological Parent");
+            _output.WriteLine("[PASS] Other Biological Parent tab is now active");
+
+            // Always select Yes first to test the complete OBP flow
+            _output.WriteLine("[INFO] Selecting 'Yes' for 'Does OBP live in the Household at Enrollment?'");
+            SelectSpecificRadioButton(driver, "OBPLiveInHouse", true);
+            _output.WriteLine("[PASS] Selected Yes for OBP household question");
+
+            // Go back to Informed Consent tab and submit again
+            _output.WriteLine("\n[INFO] Returning to Informed Consent tab");
+            ClickAndVerifyTab(driver, "Agreement", "Informed Consent");
+            _output.WriteLine("[INFO] Submitting form - expecting 'OBP is missing' validation error");
+            ClickSubmitButtonOnInformedConsentTab(driver);
+            Thread.Sleep(2000);
+
+            // Check validation errors - should see "OBP is missing" and PC2 error
+            validationErrors = GetAllValidationErrors(driver);
+            _output.WriteLine($"[INFO] Found {validationErrors.Count} validation error(s) after selecting Yes for OBP");
+            
+            var obpMissingError = validationErrors.FirstOrDefault(e => 
+                e.Contains("OBP is missing", StringComparison.OrdinalIgnoreCase));
+            pc2Error = validationErrors.FirstOrDefault(e => 
+                e.Contains("PC2", StringComparison.OrdinalIgnoreCase) && 
+                e.Contains("Primary Caregiver 2", StringComparison.OrdinalIgnoreCase));
+
+            Assert.NotNull(obpMissingError);
+            Assert.NotNull(pc2Error);
+            _output.WriteLine($"[PASS] OBP is missing error present: {obpMissingError}");
+            _output.WriteLine($"[PASS] PC2 validation error still present: {pc2Error}");
+
+            // Need to assign an OBP
+            _output.WriteLine("\n[INFO] Need to assign OBP - navigating back to OBP tab");
+            ClickAndVerifyTab(driver, "OBP", "Other Biological Parent");
+            
+            // Click "Assign Other Biological Parent" button and search for "spider"
+            AssignOtherBiologicalParent(driver, "spider");
+            _output.WriteLine("[PASS] Successfully assigned OBP (spider)");
+
+            // Go back to Informed Consent tab
+            _output.WriteLine("\n[INFO] Returning to Informed Consent tab after assigning OBP");
+            ClickAndVerifyTab(driver, "Agreement", "Informed Consent");
+            
+            // Check if confidentiality agreement needs to be selected again (might have been reset)
+            _output.WriteLine("[INFO] Checking if confidentiality agreement needs to be reselected");
+            ClickSubmitButtonOnInformedConsentTab(driver);
+            Thread.Sleep(2000);
+
+            // Check if confidentiality agreement validation appears
+            validationErrors = GetAllValidationErrors(driver);
+            var confidentialityError = validationErrors.FirstOrDefault(e => 
+                e.Contains("22", StringComparison.OrdinalIgnoreCase) && 
+                e.Contains("confidentiality agreement", StringComparison.OrdinalIgnoreCase));
+
+            if (confidentialityError != null)
+            {
+                _output.WriteLine($"[INFO] Confidentiality agreement validation appeared: {confidentialityError}");
+                
+                // Navigate back to Informed Consent tab (Agreement tab) to access the dropdown
+                _output.WriteLine("[INFO] Navigating back to Informed Consent tab to reselect confidentiality agreement");
+                ClickAndVerifyTab(driver, "Agreement", "Informed Consent");
+                Thread.Sleep(500);
+                
+                _output.WriteLine("[INFO] Reselecting 'Yes' for confidentiality agreement");
+                SelectConfidentialityAgreement(driver, "Yes");
+                _output.WriteLine("[PASS] Reselected 'Yes' for confidentiality agreement");
+
+                // Submit again after reselecting
+                _output.WriteLine("[INFO] Submitting form again after reselecting confidentiality agreement");
+                ClickSubmitButtonOnInformedConsentTab(driver);
+                Thread.Sleep(2000);
+            }
+            else
+            {
+                _output.WriteLine("[INFO] Confidentiality agreement still valid, no need to reselect");
+            }
+
+            // Verify OBP missing error is gone, only PC2 error remains
+            validationErrors = GetAllValidationErrors(driver);
+            _output.WriteLine($"[INFO] Found {validationErrors.Count} validation error(s) after assigning OBP");
+            
+            obpMissingError = validationErrors.FirstOrDefault(e => 
+                e.Contains("OBP is missing", StringComparison.OrdinalIgnoreCase));
+            pc2Error = validationErrors.FirstOrDefault(e => 
+                e.Contains("PC2", StringComparison.OrdinalIgnoreCase) && 
+                e.Contains("Primary Caregiver 2", StringComparison.OrdinalIgnoreCase));
+            
+            Assert.Null(obpMissingError);
+            Assert.NotNull(pc2Error);
+            _output.WriteLine("[PASS] OBP is missing error is gone after assigning OBP");
+            _output.WriteLine($"[PASS] PC2 validation error still present: {pc2Error}");
+
+            // Remove the OBP and select No instead
+            _output.WriteLine("\n[INFO] Removing OBP and selecting No");
+            ClickAndVerifyTab(driver, "OBP", "Other Biological Parent");
+            RemoveOtherBiologicalParent(driver);
+            _output.WriteLine("[PASS] Successfully removed OBP");
+
+            // Select No for OBP household question
+            SelectSpecificRadioButton(driver, "OBPLiveInHouse", false);
+            _output.WriteLine("[PASS] Selected No for OBP household question");
+
+            // Go to Primary Caregiver 2 tab and do the same flow as OBP
+            _output.WriteLine("\n[INFO] Navigating to Primary Caregiver 2 tab");
+            ClickAndVerifyTab(driver, "PC2", "Primary Caregiver 2");
+            _output.WriteLine("[PASS] Primary Caregiver 2 tab is now active");
+
+            // Always select Yes first to test the complete PC2 flow
+            _output.WriteLine("[INFO] Selecting 'Yes' for 'Is there a PC2 in the home at enrollment?'");
+            SelectSpecificRadioButton(driver, "PC2LiveInHouse", true);
+            _output.WriteLine("[PASS] Selected Yes for PC2 household question");
+
+            // Go back to Informed Consent tab and submit
+            _output.WriteLine("\n[INFO] Returning to Informed Consent tab");
+            ClickAndVerifyTab(driver, "Agreement", "Informed Consent");
+            _output.WriteLine("[INFO] Submitting form - checking validation");
+            ClickSubmitButtonOnInformedConsentTab(driver);
+            Thread.Sleep(2000);
+
+            // Check if confidentiality agreement validation appears first
+            validationErrors = GetAllValidationErrors(driver);
+            confidentialityError = validationErrors.FirstOrDefault(e => 
+                e.Contains("22", StringComparison.OrdinalIgnoreCase) && 
+                e.Contains("confidentiality agreement", StringComparison.OrdinalIgnoreCase));
+
+            if (confidentialityError != null)
+            {
+                _output.WriteLine($"[INFO] Confidentiality agreement validation appeared: {confidentialityError}");
+                
+                // Navigate back to Informed Consent tab to access the dropdown
+                _output.WriteLine("[INFO] Navigating back to Informed Consent tab to reselect confidentiality agreement");
+                ClickAndVerifyTab(driver, "Agreement", "Informed Consent");
+                Thread.Sleep(500);
+                
+                _output.WriteLine("[INFO] Reselecting 'Yes' for confidentiality agreement");
+                SelectConfidentialityAgreement(driver, "Yes");
+                _output.WriteLine("[PASS] Reselected 'Yes' for confidentiality agreement");
+
+                // Submit again after reselecting
+                _output.WriteLine("[INFO] Submitting form again after reselecting confidentiality agreement");
+                ClickSubmitButtonOnInformedConsentTab(driver);
+                Thread.Sleep(2000);
+            }
+
+            // Now check for PC2 missing error
+            validationErrors = GetAllValidationErrors(driver);
+            var pc2MissingError = validationErrors.FirstOrDefault(e => 
+                e.Contains("PC2 is missing", StringComparison.OrdinalIgnoreCase));
+
+            Assert.NotNull(pc2MissingError);
+            _output.WriteLine($"[PASS] PC2 is missing error present: {pc2MissingError}");
+
+            // Need to assign a PC2
+            _output.WriteLine("\n[INFO] Need to assign PC2 - navigating back to PC2 tab");
+            ClickAndVerifyTab(driver, "PC2", "Primary Caregiver 2");
+            
+            // Click "Assign Primary Caregiver 2" button and search for "unit"
+            AssignPrimaryCaregiver2(driver, "unit");
+            _output.WriteLine("[PASS] Successfully assigned PC2 (unit)");
+
+            // Go back to Informed Consent tab
+            _output.WriteLine("\n[INFO] Returning to Informed Consent tab after assigning PC2");
+            ClickAndVerifyTab(driver, "Agreement", "Informed Consent");
+            
+            // Check if confidentiality agreement needs to be selected again
+            _output.WriteLine("[INFO] Checking if confidentiality agreement needs to be reselected");
+            ClickSubmitButtonOnInformedConsentTab(driver);
+            Thread.Sleep(2000);
+
+            // Check if confidentiality agreement validation appears
+            validationErrors = GetAllValidationErrors(driver);
+            confidentialityError = validationErrors.FirstOrDefault(e => 
+                e.Contains("22", StringComparison.OrdinalIgnoreCase) && 
+                e.Contains("confidentiality agreement", StringComparison.OrdinalIgnoreCase));
+
+            if (confidentialityError != null)
+            {
+                _output.WriteLine($"[INFO] Confidentiality agreement validation appeared: {confidentialityError}");
+                
+                // Navigate back to Informed Consent tab to access the dropdown
+                _output.WriteLine("[INFO] Navigating back to Informed Consent tab to reselect confidentiality agreement");
+                ClickAndVerifyTab(driver, "Agreement", "Informed Consent");
+                Thread.Sleep(500);
+                
+                _output.WriteLine("[INFO] Reselecting 'Yes' for confidentiality agreement");
+                SelectConfidentialityAgreement(driver, "Yes");
+                _output.WriteLine("[PASS] Reselected 'Yes' for confidentiality agreement");
+
+                // Submit again after reselecting
+                _output.WriteLine("[INFO] Submitting form again after reselecting confidentiality agreement");
+                ClickSubmitButtonOnInformedConsentTab(driver);
+                Thread.Sleep(2000);
+            }
+            else
+            {
+                _output.WriteLine("[INFO] Confidentiality agreement still valid, no need to reselect");
+            }
+
+            // Verify PC2 missing error is gone
+            validationErrors = GetAllValidationErrors(driver);
+            pc2MissingError = validationErrors.FirstOrDefault(e => 
+                e.Contains("PC2 is missing", StringComparison.OrdinalIgnoreCase));
+            
+            Assert.Null(pc2MissingError);
+            _output.WriteLine("[PASS] PC2 is missing error is gone after assigning PC2");
+
+            // Remove the PC2 and select No instead
+            _output.WriteLine("\n[INFO] Removing PC2 and selecting No");
+            ClickAndVerifyTab(driver, "PC2", "Primary Caregiver 2");
+            RemovePrimaryCaregiver2(driver);
+            _output.WriteLine("[PASS] Successfully removed PC2");
+
+            // Select No for PC2 household question
+            SelectSpecificRadioButton(driver, "PC2LiveInHouse", false);
+            _output.WriteLine("[PASS] Selected No for PC2 household question");
+
+            // Go back to Informed Consent tab and submit - should succeed now
+            _output.WriteLine("\n[INFO] Returning to Informed Consent tab for final submission");
+            ClickAndVerifyTab(driver, "Agreement", "Informed Consent");
+            _output.WriteLine("[INFO] Submitting form - expecting success with toast message");
+            ClickSubmitButtonOnInformedConsentTab(driver);
+            Thread.Sleep(2000);
+
+            // Verify success toast message - look for the toast heading specifically
+            var toastHeading = driver.FindElements(By.CssSelector(
+                ".jq-toast-heading, " +
+                "h2.jq-toast-heading"))
+                .FirstOrDefault(el => el.Displayed && !string.IsNullOrWhiteSpace(el.Text));
+
+            if (toastHeading != null)
+            {
+                var headingText = toastHeading.Text.Trim();
+                _output.WriteLine($"[INFO] Toast heading: {headingText}");
+                Assert.Contains("Form Saved", headingText, StringComparison.OrdinalIgnoreCase);
+                _output.WriteLine("[PASS] Form saved successfully - toast heading confirmed");
+
+                // Also verify the PC1 ID is in the toast message body
+                var toastBody = driver.FindElements(By.CssSelector(".jq-toast-single"))
+                    .FirstOrDefault(el => el.Displayed && !string.IsNullOrWhiteSpace(el.Text));
+                
+                if (toastBody != null)
+                {
+                    var bodyText = toastBody.Text;
+                    _output.WriteLine($"[INFO] Toast body contains PC1 ID: {bodyText.Contains(pc1Id, StringComparison.OrdinalIgnoreCase)}");
+                    Assert.Contains(pc1Id, bodyText, StringComparison.OrdinalIgnoreCase);
+                    Assert.Contains("Identification and Contact Information", bodyText, StringComparison.OrdinalIgnoreCase);
+                    _output.WriteLine("[PASS] Toast message confirmed form type and PC1 ID");
+                }
+            }
+            else
+            {
+                // Fallback: verify no validation errors remain
+                validationErrors = GetAllValidationErrors(driver);
+                _output.WriteLine($"[INFO] No toast found. Found {validationErrors.Count} validation error(s)");
+                Assert.Empty(validationErrors);
+                _output.WriteLine("[PASS] Form saved successfully - no validation errors present");
+            }
+
+            _output.WriteLine("\n[PASS] Successfully submitted Identification and Contact Information form after completing all required fields!");
+        }
+
+        /// <summary>
+        /// Tests editing an already-submitted Identification and Contact Information form
+        /// by opening it and saving without making changes.
+        /// 
+        /// NOTE: This test expects the form to have been previously submitted (e.g., by Test 4).
+        /// It validates that the form can be opened and saved again successfully.
+        /// </summary>
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
+        [TestPriority(5)]
+        public void CheckingEditingAlreadySubmittedForm(string pc1Id)
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            // Use common helper for the navigation flow
+            var (homePage, formsPane) = CommonTestHelper.NavigateToFormsTab(driver, _config, pc1Id);
+
+            Assert.NotNull(homePage);
+            Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
+            _output.WriteLine("[PASS] Successfully navigated to Forms tab");
+
+            // Navigate to Identification and Contact Information (already submitted form)
+            NavigateToIdContactInformation(driver, formsPane, pc1Id);
+            _output.WriteLine("[PASS] Successfully navigated to Identification and Contact Information page");
+
+            // Verify we're on the form page
+            var currentUrl = driver.Url;
+            Assert.Contains("IdContactInformation.aspx", currentUrl, StringComparison.OrdinalIgnoreCase);
+            _output.WriteLine($"[INFO] On form page: {currentUrl}");
+
+            // Click Submit button without making any changes (testing edit of existing form)
+            _output.WriteLine("\n[INFO] Submitting already-submitted form without changes");
+            var submitButton = driver.FindElements(By.CssSelector(
+                "a.btn.btn-primary[title*='Save changes'], " +
+                "a.btn.btn-primary .glyphicon-save"))
+                .Select(el => el.TagName == "span" ? el.FindElement(By.XPath("./parent::a")) : el)
+                .FirstOrDefault(btn => btn.Displayed && btn.Text.Contains("Submit", StringComparison.OrdinalIgnoreCase))
+                ?? throw new InvalidOperationException("Submit button was not found on the form page.");
+
+            _output.WriteLine($"[INFO] Clicking Submit button: {submitButton.Text?.Trim()}");
+            CommonTestHelper.ClickElement(driver, submitButton);
+            driver.WaitForUpdatePanel(30);
+            driver.WaitForReady(30);
+            Thread.Sleep(2000);
+
+            // Verify success toast message
+            var toastHeading = driver.FindElements(By.CssSelector(
+                ".jq-toast-heading, " +
+                "h2.jq-toast-heading"))
+                .FirstOrDefault(el => el.Displayed && !string.IsNullOrWhiteSpace(el.Text));
+
+            Assert.NotNull(toastHeading);
+            var headingText = toastHeading.Text.Trim();
+            _output.WriteLine($"[INFO] Toast heading: {headingText}");
+            Assert.Contains("Form Saved", headingText, StringComparison.OrdinalIgnoreCase);
+            _output.WriteLine("[PASS] Form saved successfully - toast heading confirmed");
+
+            // Verify the PC1 ID is in the toast message body
+            var toastBody = driver.FindElements(By.CssSelector(".jq-toast-single"))
+                .FirstOrDefault(el => el.Displayed && !string.IsNullOrWhiteSpace(el.Text));
+            
+            Assert.NotNull(toastBody);
+            var bodyText = toastBody.Text;
+            _output.WriteLine($"[INFO] Toast message: {bodyText}");
+            Assert.Contains(pc1Id, bodyText, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Identification and Contact Information", bodyText, StringComparison.OrdinalIgnoreCase);
+            _output.WriteLine("[PASS] Toast message confirmed form type and PC1 ID");
+
+            _output.WriteLine("\n[PASS] Successfully edited and saved already-submitted Identification and Contact Information form!");
+        }
+
         #region Helper Methods
 
         /// <summary>
@@ -232,6 +702,360 @@ namespace AFUT.Tests.UnitTests.IdContactInformation
             var parentClass = parentLi.GetAttribute("class") ?? string.Empty;
             Assert.Contains("active", parentClass, StringComparison.OrdinalIgnoreCase);
             _output.WriteLine($"[INFO] Tab '{tabTitle}' is now active");
+        }
+
+        /// <summary>
+        /// Clicks the Submit button on the Informed Consent tab
+        /// </summary>
+        private void ClickSubmitButtonOnInformedConsentTab(IPookieWebDriver driver)
+        {
+            // Find the Submit button using CSS classes and semantic attributes (not ASP.NET IDs)
+            var submitButton = driver.FindElements(By.CssSelector(
+                "a.btn.btn-primary[title*='Save changes'], " +
+                "a.btn.btn-primary .glyphicon-save"))
+                .Select(el => el.TagName == "span" ? el.FindElement(By.XPath("./parent::a")) : el)
+                .FirstOrDefault(btn => btn.Displayed && btn.Text.Contains("Submit", StringComparison.OrdinalIgnoreCase))
+                ?? throw new InvalidOperationException("Submit button was not found on the Informed Consent tab.");
+
+            _output.WriteLine($"[INFO] Clicking Submit button: {submitButton.Text?.Trim()}");
+            CommonTestHelper.ClickElement(driver, submitButton);
+            driver.WaitForUpdatePanel(30);
+            driver.WaitForReady(30);
+            Thread.Sleep(1500);
+        }
+
+        /// <summary>
+        /// Selects Yes/No for the Signed Confidentiality Agreement dropdown (Question 22)
+        /// </summary>
+        private void SelectConfidentialityAgreement(IPookieWebDriver driver, string answer)
+        {
+            // Find the confidentiality agreement dropdown using CSS classes (not ASP.NET IDs)
+            var dropdown = driver.FindElements(By.CssSelector(
+                "select.form-control"))
+                .FirstOrDefault(el => el.Displayed && 
+                    el.FindElements(By.CssSelector("option[value='1']")).Any() &&
+                    el.FindElements(By.CssSelector("option[value='0']")).Any())
+                ?? throw new InvalidOperationException("Signed Confidentiality Agreement dropdown was not found.");
+
+            var selectElement = new SelectElement(dropdown);
+            
+            // Select based on the answer (Yes = 1, No = 0)
+            if (answer.Equals("Yes", StringComparison.OrdinalIgnoreCase))
+            {
+                WebElementHelper.SelectByTextOrValue(selectElement, "Yes", "1");
+            }
+            else if (answer.Equals("No", StringComparison.OrdinalIgnoreCase))
+            {
+                WebElementHelper.SelectByTextOrValue(selectElement, "No", "0");
+            }
+            else
+            {
+                throw new ArgumentException($"Invalid answer '{answer}'. Must be 'Yes' or 'No'.");
+            }
+
+            driver.WaitForUpdatePanel(10);
+            driver.WaitForReady(10);
+            Thread.Sleep(500);
+            
+            _output.WriteLine($"[INFO] Selected '{answer}' for Signed Confidentiality Agreement");
+        }
+
+        /// <summary>
+        /// Gets all validation error messages from the page
+        /// </summary>
+        private List<string> GetAllValidationErrors(IPookieWebDriver driver)
+        {
+            var validationElements = driver.FindElements(By.CssSelector(
+                "span[style*='color:Red'], " +
+                "span[style*='color: red'], " +
+                ".text-danger, " +
+                "span.text-danger, " +
+                "div.alert.alert-danger, " +
+                "div.validation-summary-errors"))
+                .Where(el => el.Displayed && !string.IsNullOrWhiteSpace(el.Text))
+                .ToList();
+
+            var errors = new List<string>();
+            foreach (var element in validationElements)
+            {
+                var text = element.Text.Trim();
+                errors.Add(text);
+                _output.WriteLine($"[DEBUG] Validation error: {text}");
+            }
+
+            return errors;
+        }
+
+        /// <summary>
+        /// Selects a random Yes/No radio button for a given radio group name
+        /// Returns true if "Yes" was selected, false if "No" was selected
+        /// </summary>
+        private bool SelectRandomRadioButton(IPookieWebDriver driver, string radioGroupName)
+        {
+            // Find radio buttons by name attribute using partial match (avoids ASP.NET ID prefixes)
+            var radioButtons = driver.FindElements(By.CssSelector(
+                $"input[type='radio'][name*='{radioGroupName}']"))
+                .Where(el => el.Displayed)
+                .ToList();
+
+            if (radioButtons.Count < 2)
+            {
+                throw new InvalidOperationException($"Expected at least 2 radio buttons for group '{radioGroupName}', but found {radioButtons.Count}");
+            }
+
+            // Randomly select Yes or No (0 or 1)
+            var random = new Random();
+            var selectedButton = radioButtons[random.Next(radioButtons.Count)];
+            
+            // Get the label text to know what we're selecting
+            var labelFor = selectedButton.GetAttribute("id");
+            var label = driver.FindElements(By.CssSelector($"label[for='{labelFor}']"))
+                .FirstOrDefault();
+            var labelText = label?.Text ?? "Unknown";
+
+            _output.WriteLine($"[INFO] Randomly selected: {labelText}");
+            CommonTestHelper.ClickElement(driver, selectedButton);
+            driver.WaitForUpdatePanel(10);
+            driver.WaitForReady(10);
+            Thread.Sleep(500);
+
+            // Return true if Yes was selected
+            return labelText.Equals("Yes", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Selects a specific Yes/No radio button for a given radio group name
+        /// </summary>
+        private void SelectSpecificRadioButton(IPookieWebDriver driver, string radioGroupName, bool selectYes)
+        {
+            // Find radio buttons by name attribute using partial match
+            var radioButtons = driver.FindElements(By.CssSelector(
+                $"input[type='radio'][name*='{radioGroupName}']"))
+                .Where(el => el.Displayed)
+                .ToList();
+
+            if (radioButtons.Count < 2)
+            {
+                throw new InvalidOperationException($"Expected at least 2 radio buttons for group '{radioGroupName}', but found {radioButtons.Count}");
+            }
+
+            // Find the Yes or No button based on the parameter
+            foreach (var button in radioButtons)
+            {
+                var labelFor = button.GetAttribute("id");
+                var label = driver.FindElements(By.CssSelector($"label[for='{labelFor}']"))
+                    .FirstOrDefault();
+                var labelText = label?.Text ?? "";
+
+                bool isYesButton = labelText.Equals("Yes", StringComparison.OrdinalIgnoreCase);
+                bool isNoButton = labelText.Equals("No", StringComparison.OrdinalIgnoreCase);
+
+                if ((selectYes && isYesButton) || (!selectYes && isNoButton))
+                {
+                    _output.WriteLine($"[INFO] Selecting: {labelText}");
+                    CommonTestHelper.ClickElement(driver, button);
+                    driver.WaitForUpdatePanel(10);
+                    driver.WaitForReady(10);
+                    Thread.Sleep(500);
+                    return;
+                }
+            }
+
+            throw new InvalidOperationException($"Could not find {(selectYes ? "Yes" : "No")} button for group '{radioGroupName}'");
+        }
+
+        /// <summary>
+        /// Assigns an Other Biological Parent by searching and selecting
+        /// </summary>
+        private void AssignOtherBiologicalParent(IPookieWebDriver driver, string firstName)
+        {
+            // Click "Assign Other Biological Parent" button
+            var assignButton = driver.FindElements(By.CssSelector(
+                "a.btn.btn-default .glyphicon-copy"))
+                .Select(icon => icon.FindElement(By.XPath("./parent::a")))
+                .FirstOrDefault(btn => btn.Displayed && btn.Text.Contains("Assign Other Biological Parent", StringComparison.OrdinalIgnoreCase))
+                ?? throw new InvalidOperationException("Assign Other Biological Parent button was not found.");
+
+            _output.WriteLine($"[INFO] Clicking: {assignButton.Text?.Trim()}");
+            CommonTestHelper.ClickElement(driver, assignButton);
+            driver.WaitForUpdatePanel(30);
+            driver.WaitForReady(30);
+            Thread.Sleep(1500);
+
+            // Enter first name in search field
+            var firstNameInput = driver.FindElements(By.CssSelector("input.form-control[type='text']"))
+                .FirstOrDefault(el => el.Displayed)
+                ?? throw new InvalidOperationException("OBP First Name input was not found.");
+
+            firstNameInput.Clear();
+            firstNameInput.SendKeys(firstName);
+            _output.WriteLine($"[INFO] Entered '{firstName}' in search field");
+
+            // Click Search button
+            var searchButton = driver.FindElements(By.CssSelector(
+                "a.btn.btn-primary .glyphicon-search"))
+                .Select(icon => icon.FindElement(By.XPath("./parent::a")))
+                .FirstOrDefault(btn => btn.Displayed && btn.Text.Contains("Search", StringComparison.OrdinalIgnoreCase))
+                ?? throw new InvalidOperationException("Search button was not found.");
+
+            _output.WriteLine("[INFO] Clicking Search button");
+            CommonTestHelper.ClickElement(driver, searchButton);
+            driver.WaitForUpdatePanel(30);
+            driver.WaitForReady(30);
+            Thread.Sleep(1500);
+
+            // Click Select link in the results
+            var selectLink = driver.FindElements(By.TagName("a"))
+                .FirstOrDefault(el => el.Displayed && el.Text.Equals("Select", StringComparison.OrdinalIgnoreCase))
+                ?? throw new InvalidOperationException("Select link was not found in search results.");
+
+            _output.WriteLine("[INFO] Clicking Select link");
+            CommonTestHelper.ClickElement(driver, selectLink);
+            driver.WaitForUpdatePanel(30);
+            driver.WaitForReady(30);
+            Thread.Sleep(1500);
+        }
+
+        /// <summary>
+        /// Assigns a Primary Caregiver 2 by searching and selecting
+        /// </summary>
+        private void AssignPrimaryCaregiver2(IPookieWebDriver driver, string firstName)
+        {
+            // Click "Assign Primary Caregiver 2" button
+            var assignButton = driver.FindElements(By.CssSelector(
+                "a.btn.btn-default .glyphicon-copy"))
+                .Select(icon => icon.FindElement(By.XPath("./parent::a")))
+                .FirstOrDefault(btn => btn.Displayed && btn.Text.Contains("Assign Primary Caregiver 2", StringComparison.OrdinalIgnoreCase))
+                ?? throw new InvalidOperationException("Assign Primary Caregiver 2 button was not found.");
+
+            _output.WriteLine($"[INFO] Clicking: {assignButton.Text?.Trim()}");
+            CommonTestHelper.ClickElement(driver, assignButton);
+            driver.WaitForUpdatePanel(30);
+            driver.WaitForReady(30);
+            Thread.Sleep(1500);
+
+            // Enter first name in search field
+            var firstNameInput = driver.FindElements(By.CssSelector("input.form-control[type='text']"))
+                .FirstOrDefault(el => el.Displayed)
+                ?? throw new InvalidOperationException("PC2 First Name input was not found.");
+
+            firstNameInput.Clear();
+            firstNameInput.SendKeys(firstName);
+            _output.WriteLine($"[INFO] Entered '{firstName}' in search field");
+
+            // Click Search button
+            var searchButton = driver.FindElements(By.CssSelector(
+                "a.btn.btn-primary .glyphicon-search"))
+                .Select(icon => icon.FindElement(By.XPath("./parent::a")))
+                .FirstOrDefault(btn => btn.Displayed && btn.Text.Contains("Search", StringComparison.OrdinalIgnoreCase))
+                ?? throw new InvalidOperationException("Search button was not found.");
+
+            _output.WriteLine("[INFO] Clicking Search button");
+            CommonTestHelper.ClickElement(driver, searchButton);
+            driver.WaitForUpdatePanel(30);
+            driver.WaitForReady(30);
+            Thread.Sleep(1500);
+
+            // Click Select link in the results
+            var selectLink = driver.FindElements(By.TagName("a"))
+                .FirstOrDefault(el => el.Displayed && el.Text.Equals("Select", StringComparison.OrdinalIgnoreCase))
+                ?? throw new InvalidOperationException("Select link was not found in search results.");
+
+            _output.WriteLine("[INFO] Clicking Select link");
+            CommonTestHelper.ClickElement(driver, selectLink);
+            driver.WaitForUpdatePanel(30);
+            driver.WaitForReady(30);
+            Thread.Sleep(1500);
+        }
+
+        /// <summary>
+        /// Removes the Primary Caregiver 2 and verifies the toast message
+        /// </summary>
+        private void RemovePrimaryCaregiver2(IPookieWebDriver driver)
+        {
+            // Click "Remove Primary Caregiver 2" button
+            var removeButton = driver.FindElements(By.CssSelector(
+                "a.btn.btn-danger .glyphicon-remove-sign"))
+                .Select(icon => icon.FindElement(By.XPath("./parent::a")))
+                .FirstOrDefault(btn => btn.Displayed && btn.Text.Contains("Remove Primary Caregiver 2", StringComparison.OrdinalIgnoreCase))
+                ?? throw new InvalidOperationException("Remove Primary Caregiver 2 button was not found.");
+
+            _output.WriteLine($"[INFO] Clicking: {removeButton.Text?.Trim()}");
+            CommonTestHelper.ClickElement(driver, removeButton);
+            driver.WaitForUpdatePanel(30);
+            driver.WaitForReady(30);
+            Thread.Sleep(2000);
+
+            // Verify toast message - look for the toast heading specifically
+            var toastHeading = driver.FindElements(By.CssSelector(
+                ".jq-toast-heading, " +
+                "h2.jq-toast-heading"))
+                .FirstOrDefault(el => el.Displayed && !string.IsNullOrWhiteSpace(el.Text));
+
+            if (toastHeading != null)
+            {
+                var headingText = toastHeading.Text.Trim();
+                _output.WriteLine($"[INFO] Toast heading: {headingText}");
+                Assert.Contains("PC2 Removed", headingText, StringComparison.OrdinalIgnoreCase);
+                _output.WriteLine("[PASS] PC2 removed successfully - toast message confirmed");
+            }
+            else
+            {
+                // Fallback to general toast message check
+                var toastMessage = WebElementHelper.GetToastMessage(driver, 1000);
+                Assert.False(string.IsNullOrWhiteSpace(toastMessage), "Remove toast message was not displayed.");
+                _output.WriteLine($"[INFO] Toast message: {toastMessage}");
+                Assert.True(
+                    toastMessage.Contains("PC2 Removed", StringComparison.OrdinalIgnoreCase) ||
+                    toastMessage.Contains("removed", StringComparison.OrdinalIgnoreCase),
+                    "Toast message did not confirm PC2 removal");
+                _output.WriteLine("[PASS] PC2 removed successfully - toast message confirmed");
+            }
+        }
+
+        /// <summary>
+        /// Removes the Other Biological Parent and verifies the toast message
+        /// </summary>
+        private void RemoveOtherBiologicalParent(IPookieWebDriver driver)
+        {
+            // Click "Remove Other Biological Parent" button
+            var removeButton = driver.FindElements(By.CssSelector(
+                "a.btn.btn-danger .glyphicon-remove-sign"))
+                .Select(icon => icon.FindElement(By.XPath("./parent::a")))
+                .FirstOrDefault(btn => btn.Displayed && btn.Text.Contains("Remove Other Biological Parent", StringComparison.OrdinalIgnoreCase))
+                ?? throw new InvalidOperationException("Remove Other Biological Parent button was not found.");
+
+            _output.WriteLine($"[INFO] Clicking: {removeButton.Text?.Trim()}");
+            CommonTestHelper.ClickElement(driver, removeButton);
+            driver.WaitForUpdatePanel(30);
+            driver.WaitForReady(30);
+            Thread.Sleep(2000);
+
+            // Verify toast message - look for the toast heading specifically
+            var toastHeading = driver.FindElements(By.CssSelector(
+                ".jq-toast-heading, " +
+                "h2.jq-toast-heading"))
+                .FirstOrDefault(el => el.Displayed && !string.IsNullOrWhiteSpace(el.Text));
+
+            if (toastHeading != null)
+            {
+                var headingText = toastHeading.Text.Trim();
+                _output.WriteLine($"[INFO] Toast heading: {headingText}");
+                Assert.Contains("OBP Removed", headingText, StringComparison.OrdinalIgnoreCase);
+                _output.WriteLine("[PASS] OBP removed successfully - toast message confirmed");
+            }
+            else
+            {
+                // Fallback to general toast message check
+                var toastMessage = WebElementHelper.GetToastMessage(driver, 1000);
+                Assert.False(string.IsNullOrWhiteSpace(toastMessage), "Remove toast message was not displayed.");
+                _output.WriteLine($"[INFO] Toast message: {toastMessage}");
+                Assert.True(
+                    toastMessage.Contains("OBP Removed", StringComparison.OrdinalIgnoreCase) ||
+                    toastMessage.Contains("removed", StringComparison.OrdinalIgnoreCase),
+                    "Toast message did not confirm OBP removal");
+                _output.WriteLine("[PASS] OBP removed successfully - toast message confirmed");
+            }
         }
 
         /// <summary>
