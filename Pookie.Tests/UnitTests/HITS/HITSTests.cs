@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using AFUT.Tests.Config;
@@ -20,7 +21,9 @@ namespace AFUT.Tests.UnitTests.HITS
         private readonly AppConfig _config;
         private readonly IPookieDriverFactory _driverFactory;
         private readonly ITestOutputHelper _output;
-        private const string TargetPc1Id = "EC01001408989";
+
+        private string HitsWorkerName => _config.TestWorkerName;
+        private string HitsWorkerId => _config.TestWorkerId;
 
         public HITSTests(AppConfig config, ITestOutputHelper output)
         {
@@ -33,14 +36,21 @@ namespace AFUT.Tests.UnitTests.HITS
             CaseHomePage.ConfigureDefaultTabs(_config.CaseHomeTabs);
         }
 
-        [Fact]
+        public static IEnumerable<object[]> GetTestPc1Ids()
+        {
+            var config = new AppConfig();
+            return config.TestPc1Ids.Select(id => new object[] { id });
+        }
+
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
         [TestPriority(1)]
-        public void CheckingHITSFormValidationAndSubmission()
+        public void CheckingHITSFormValidationAndSubmission(string pc1Id)
         {
             using var driver = _driverFactory.CreateDriver();
 
             // Use common helper for the navigation flow
-            var (homePage, formsPane) = CommonTestHelper.NavigateToFormsTab(driver, _config, TargetPc1Id);
+            var (homePage, formsPane) = CommonTestHelper.NavigateToFormsTab(driver, _config, pc1Id);
 
             Assert.NotNull(homePage);
             Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
@@ -48,9 +58,9 @@ namespace AFUT.Tests.UnitTests.HITS
             // Navigate to HITS
             NavigateToHITS(driver, formsPane);
 
-            var pc1Display = CommonTestHelper.FindPc1Display(driver, TargetPc1Id);
+            var pc1Display = CommonTestHelper.FindPc1Display(driver, pc1Id);
             Assert.False(string.IsNullOrWhiteSpace(pc1Display), "Unable to locate PC1 ID on HITS page.");
-            Assert.Contains(TargetPc1Id, pc1Display, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(pc1Id, pc1Display, StringComparison.OrdinalIgnoreCase);
 
             // Click New HITS button
             CreateNewHITSEntry(driver);
@@ -78,7 +88,7 @@ namespace AFUT.Tests.UnitTests.HITS
 
             // Step 3: Select worker 105
             _output.WriteLine("[INFO] Step 3: Selecting worker 105...");
-            WebElementHelper.SelectWorker(driver, "Worker 105", "105");
+            WebElementHelper.SelectWorker(driver, HitsWorkerName, HitsWorkerId);
             driver.WaitForUpdatePanel(10);
             driver.WaitForReady(10);
             Thread.Sleep(500);
@@ -235,14 +245,15 @@ namespace AFUT.Tests.UnitTests.HITS
             _output.WriteLine("[INFO] ✓ HITS form successfully created and verified in the table!");
         }
 
-        [Fact]
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
         [TestPriority(2)]
-        public void CheckingHITSFormEditAndUpdateToPositive()
+        public void CheckingHITSFormEditAndUpdateToPositive(string pc1Id)
         {
             using var driver = _driverFactory.CreateDriver();
 
             // Use common helper for the navigation flow
-            var (homePage, formsPane) = CommonTestHelper.NavigateToFormsTab(driver, _config, TargetPc1Id);
+            var (homePage, formsPane) = CommonTestHelper.NavigateToFormsTab(driver, _config, pc1Id);
 
             Assert.NotNull(homePage);
             Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
@@ -250,15 +261,15 @@ namespace AFUT.Tests.UnitTests.HITS
             // Navigate to HITS
             NavigateToHITS(driver, formsPane);
 
-            var pc1Display = CommonTestHelper.FindPc1Display(driver, TargetPc1Id);
+            var pc1Display = CommonTestHelper.FindPc1Display(driver, pc1Id);
             Assert.False(string.IsNullOrWhiteSpace(pc1Display), "Unable to locate PC1 ID on HITS page.");
-            Assert.Contains(TargetPc1Id, pc1Display, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(pc1Id, pc1Display, StringComparison.OrdinalIgnoreCase);
 
             // Step 1: Click Edit button on the first HITS form in the table
             _output.WriteLine("[INFO] Step 1: Clicking Edit button on existing HITS form...");
             EditExistingHITSEntry(driver);
 
-            var pc1DisplayOnEdit = CommonTestHelper.FindPc1Display(driver, TargetPc1Id);
+            var pc1DisplayOnEdit = CommonTestHelper.FindPc1Display(driver, pc1Id);
             Assert.False(string.IsNullOrWhiteSpace(pc1DisplayOnEdit), "Unable to locate PC1 ID on HITS edit page.");
 
             // Step 2: Change question 4 to "Frequently"
@@ -333,14 +344,15 @@ namespace AFUT.Tests.UnitTests.HITS
             _output.WriteLine("[INFO] ✓ HITS form successfully edited and updated to Positive!");
         }
 
-        [Fact]
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
         [TestPriority(3)]
-        public void CheckingHITSFormDeleteWithCancelAndConfirm()
+        public void CheckingHITSFormDeleteWithCancelAndConfirm(string pc1Id)
         {
             using var driver = _driverFactory.CreateDriver();
 
             // Use common helper for the navigation flow
-            var (homePage, formsPane) = CommonTestHelper.NavigateToFormsTab(driver, _config, TargetPc1Id);
+            var (homePage, formsPane) = CommonTestHelper.NavigateToFormsTab(driver, _config, pc1Id);
 
             Assert.NotNull(homePage);
             Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
@@ -348,9 +360,9 @@ namespace AFUT.Tests.UnitTests.HITS
             // Navigate to HITS
             NavigateToHITS(driver, formsPane);
 
-            var pc1Display = CommonTestHelper.FindPc1Display(driver, TargetPc1Id);
+            var pc1Display = CommonTestHelper.FindPc1Display(driver, pc1Id);
             Assert.False(string.IsNullOrWhiteSpace(pc1Display), "Unable to locate PC1 ID on HITS page.");
-            Assert.Contains(TargetPc1Id, pc1Display, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(pc1Id, pc1Display, StringComparison.OrdinalIgnoreCase);
 
             // Get initial count of HITS forms (only count rows with delete buttons)
             var initialTableRows = driver.FindElements(By.CssSelector("table#tblHITSs tbody tr"))
