@@ -278,6 +278,64 @@ namespace AFUT.Tests.UnitTests.PC1Medical
             _output.WriteLine("[PASS] Dashboard summary and grid counts decreased by one after deletion.");
         }
 
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
+        [TestPriority(7)]
+        public void PrenatalCheckupModalValidatesAndUpdatesDashboard(string pc1Id)
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            var (_, formsPane) = CommonTestHelper.NavigateToFormsTab(driver, _config, pc1Id);
+            _output.WriteLine("[PASS] Successfully navigated to Forms tab");
+
+            NavigateToPc1MedicalPage(driver, formsPane, pc1Id);
+            var initialPrenatalValue = GetPrenatalDashboardValue(driver);
+            _output.WriteLine($"[INFO] Initial prenatal dashboard value: {initialPrenatalValue ?? "<null>"}");
+
+            // Open the edit modal so we can exercise validation and persistence flow.
+            var prenatalModal = OpenPrenatalModal(driver);
+            _output.WriteLine($"[INFO] Prenatal modal opened (id: {prenatalModal.GetAttribute("id") ?? "<none>"}).");
+
+            // Submit without entering a value to trigger validation
+            var prenatalSubmitButton = GetPrenatalSubmitButton(driver);
+            _output.WriteLine("[INFO] Submitting blank prenatal modal");
+            CommonTestHelper.ClickElement(driver, prenatalSubmitButton);
+            driver.WaitForUpdatePanel(10);
+            driver.WaitForReady(10);
+            Thread.Sleep(500);
+
+            // Expect client/server validation to enforce required input.
+            var validationText = WaitForPrenatalValidationMessage(driver);
+            Assert.Contains("Field is required", validationText, StringComparison.OrdinalIgnoreCase);
+            _output.WriteLine($"[PASS] Prenatal validation displayed: {validationText}");
+
+            // Enter a random value between -1 and 5 inclusive
+            var prenatalValue = GenerateRandomPrenatalValue();
+            // Apply the value inside the modal; this must clear the validation state.
+            SetPrenatalInputValue(driver, prenatalValue);
+            _output.WriteLine($"[INFO] Setting prenatal checkup value to {prenatalValue}");
+
+            prenatalSubmitButton = GetPrenatalSubmitButton(driver);
+            CommonTestHelper.ClickElement(driver, prenatalSubmitButton);
+            driver.WaitForUpdatePanel(30);
+            driver.WaitForReady(30);
+            Thread.Sleep(1000);
+
+            // Toast should confirm persistence server-side.
+            var toastText = WaitForPrenatalSaveToast(driver);
+            Assert.Contains("Record Saved", toastText, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Prenatal", toastText, StringComparison.OrdinalIgnoreCase);
+            _output.WriteLine($"[PASS] Prenatal toast displayed: {toastText}");
+
+            // Ensure validation helper text is not visible anymore.
+            Assert.True(IsPrenatalValidationCleared(driver), "Prenatal validation message should be hidden after entering a value.");
+
+            // Dashboard badge should now show the saved value.
+            var dashboardValue = GetPrenatalDashboardValue(driver);
+            Assert.Equal(prenatalValue, dashboardValue);
+            _output.WriteLine($"[PASS] Prenatal dashboard updated to {dashboardValue}");
+        }
+
         private static readonly MedicalTypeOption[] MedicalTypeOptions =
         {
             new("Ob/Gyn Visit", "01", "#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_lblOBGYN"),
@@ -569,6 +627,123 @@ namespace AFUT.Tests.UnitTests.PC1Medical
         private static int GetDictionaryValue(IDictionary<string, int> source, string key)
         {
             return source.TryGetValue(key, out var value) ? value : 0;
+        }
+
+        private IWebElement OpenPrenatalModal(IPookieWebDriver driver, int timeoutSeconds = 10)
+        {
+            var editButton = driver.WaitforElementToBeInDOM(By.CssSelector(
+                    "a#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_editPrenatalRec, " +
+                    "a.btn.btn-default[onclick*='Prenatal'], " +
+                    "a.btn.btn-default[href='#'][id*='editPrenatal']"),
+                10)
+                ?? throw new InvalidOperationException("Prenatal edit button was not found on the PC1 Medical page.");
+
+            CommonTestHelper.ClickElement(driver, editButton);
+            driver.WaitForReady(5);
+
+            return WaitForPrenatalModal(driver, timeoutSeconds);
+        }
+
+        private IWebElement WaitForPrenatalModal(IPookieWebDriver driver, int timeoutSeconds = 10)
+        {
+            var end = DateTime.Now.AddSeconds(timeoutSeconds);
+            while (DateTime.Now <= end)
+            {
+                var modal = FindPrenatalModal(driver);
+                if (modal != null)
+                {
+                    return modal;
+                }
+
+                Thread.Sleep(200);
+            }
+
+            throw new InvalidOperationException("Prenatal modal did not appear.");
+        }
+
+        private IWebElement? FindPrenatalModal(IPookieWebDriver driver)
+        {
+            return driver.FindElements(By.CssSelector("div.modal, div.modal.in, div.modal.show"))
+                .FirstOrDefault(modal =>
+                    IsModalDisplayed(modal) &&
+                    modal.FindElements(By.CssSelector("input[id*='txtPrenatalCheckup']")).Any());
+        }
+
+        private IWebElement GetPrenatalSubmitButton(IPookieWebDriver driver)
+        {
+            return WebElementHelper.FindElementInModalOrPage(
+                driver,
+                "button#btnSavePrenatalCheckup, button[id*='btnSavePrenatalCheckup'], input[id*='btnSavePrenatalCheckupB4']",
+                "Prenatal Submit button",
+                15);
+        }
+
+        private string WaitForPrenatalValidationMessage(IPookieWebDriver driver, int timeoutSeconds = 5)
+        {
+            var end = DateTime.Now.AddSeconds(timeoutSeconds);
+            while (DateTime.Now <= end)
+            {
+                var validation = driver.FindElements(By.CssSelector("span[id*='rfvPrenatal'], span.error_field[id*='Prenatal']"))
+                    .FirstOrDefault(el => el.Displayed && !string.IsNullOrWhiteSpace(el.Text));
+                if (validation != null)
+                {
+                    return validation.Text.Trim();
+                }
+
+                Thread.Sleep(200);
+            }
+
+            throw new InvalidOperationException("Prenatal validation message did not display.");
+        }
+
+        private void SetPrenatalInputValue(IPookieWebDriver driver, string value)
+        {
+            var input = WebElementHelper.FindElementInModalOrPage(
+                driver,
+                "input#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_txtPrenatalCheckupB4, input[id*='txtPrenatalCheckupB4']",
+                "Prenatal Checkup input",
+                15);
+
+            WebElementHelper.SetInputValue(driver, input, value, "Prenatal Checkup input", triggerBlur: true);
+            driver.WaitForReady(5);
+            Thread.Sleep(250);
+        }
+
+        private string GenerateRandomPrenatalValue()
+        {
+            var random = new Random();
+            var value = random.Next(-1, 6); // inclusive range [-1,5]
+            return value.ToString(CultureInfo.InvariantCulture);
+        }
+
+        private bool IsPrenatalValidationCleared(IPookieWebDriver driver)
+        {
+            var validation = driver.FindElements(By.CssSelector("span[id*='rfvPrenatal'], span.error_field[id*='Prenatal']"))
+                .FirstOrDefault();
+
+            if (validation == null)
+            {
+                return true;
+            }
+
+            return !validation.Displayed || string.IsNullOrWhiteSpace(validation.Text);
+        }
+
+        private string? GetPrenatalDashboardValue(IPookieWebDriver driver)
+        {
+            var label = driver.FindElements(By.CssSelector("#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_lblPrenatalCheckupB4, span#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_lblPrenatalCheckupB4"))
+                .FirstOrDefault(el => el.Displayed);
+
+            return label?.Text?.Trim();
+        }
+
+        private string WaitForPrenatalSaveToast(IPookieWebDriver driver, int timeoutSeconds = 15)
+        {
+            var toast = driver.WaitforElementToBeInDOM(By.CssSelector(".jq-toast-single"), timeoutSeconds)
+                ?? throw new InvalidOperationException("Prenatal save toast was not displayed.");
+
+            var toastText = toast.Text?.Trim() ?? string.Empty;
+            return toastText;
         }
 
         private IWebElement OpenPc1MedicalDeleteModal(IPookieWebDriver driver, string dateText, string typeText, int timeoutSeconds = 10)
