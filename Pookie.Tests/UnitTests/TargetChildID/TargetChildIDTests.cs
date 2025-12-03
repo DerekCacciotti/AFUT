@@ -38,6 +38,8 @@ namespace AFUT.Tests.UnitTests.TargetChildID
         private const string LastNameInputSelector = "input.form-control[id$='txtTCLastName']";
         private const string ParityDropdownSelector = "select.form-control[id$='ddlParity']";
         private const string GestationalAgeInputSelector = "input.form-control[id$='txtGestationalAge']";
+        private const string BirthWeightLbsInputSelector = "input.form-control[id$='txtBirthWtLbs']";
+        private const string BirthWeightOzInputSelector = "input.form-control[id$='txtBirthWtOz']";
         private const string PrenatalCareInputSelector =
             "input.form-control[id*='Prenatal'][type='text'], " +
             "input.form-control[name*='Prenatal'], " +
@@ -232,6 +234,46 @@ namespace AFUT.Tests.UnitTests.TargetChildID
             _output.WriteLine("[PASS] Existing TCID saved successfully after correcting prenatal care date.");
         }
 
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
+        [TestPriority(5)]
+        public void ExistingTcidBirthWeightValidation(string pc1Id)
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            var (homePage, formsPane) = CommonTestHelper.NavigateToFormsTab(driver, _config, pc1Id);
+            Assert.NotNull(homePage);
+            Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
+
+            NavigateToTargetChildPage(driver, formsPane, pc1Id);
+            OpenExistingTcidEntry(driver);
+
+            const string targetChildTab = "#TargetChild";
+            const string miechvTab = "#MIECHV";
+
+            ValidateBirthWeight(driver, targetChildTab, miechvTab, "-1", "-2");
+            ValidateBirthWeight(driver, targetChildTab, miechvTab, "20", "20");
+            ValidateBirthWeight(driver, targetChildTab, miechvTab, "17", "16");
+
+            var validLbs = Randomizer.Next(0, 17);
+            var validOz = Randomizer.Next(0, 16);
+
+            SwitchToTab(driver, targetChildTab, "Target Child");
+            SetBirthWeight(driver, validLbs.ToString(), validOz.ToString());
+
+            SwitchToTab(driver, miechvTab, "MIECHV");
+            SubmitForm(driver, expectValidation: false);
+
+            var toastMessage = WebElementHelper.GetToastMessage(driver, 2000);
+            Assert.False(string.IsNullOrWhiteSpace(toastMessage), "Success toast message was not displayed after saving birth weight updates.");
+            _output.WriteLine($"[INFO] Toast message: {toastMessage}");
+
+            Assert.Contains("Form Saved", toastMessage, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Target Child Identification", toastMessage, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(pc1Id, toastMessage, StringComparison.OrdinalIgnoreCase);
+            _output.WriteLine("[PASS] Existing TCID saved successfully after entering valid birth weight.");
+        }
+
         private void NavigateToTargetChildPage(IPookieWebDriver driver, IWebElement formsPane, string pc1Id)
         {
             var targetChildLink = formsPane.FindElements(By.CssSelector(TargetChildLinkSelector))
@@ -361,6 +403,34 @@ namespace AFUT.Tests.UnitTests.TargetChildID
 
             WebElementHelper.SetInputValue(driver, prenatalInput, dateValue, "First Prenatal Care Visit date", triggerBlur: true);
             _output.WriteLine($"[INFO] Set prenatal care date to {dateValue}");
+        }
+
+        private void ValidateBirthWeight(IPookieWebDriver driver, string targetTab, string miechvTab, string pounds, string ounces)
+        {
+            SwitchToTab(driver, targetTab, "Target Child");
+            SetBirthWeight(driver, pounds, ounces);
+
+            SwitchToTab(driver, miechvTab, "MIECHV");
+            var summaryText = SubmitForm(driver);
+
+            Assert.Contains("Birth weight pounds must be less than 17", summaryText, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Birth weight ounces must be less than 16", summaryText, StringComparison.OrdinalIgnoreCase);
+            _output.WriteLine($"[PASS] Birth weight validation displayed for values lbs={pounds}, oz={ounces}");
+        }
+
+        private void SetBirthWeight(IPookieWebDriver driver, string pounds, string ounces)
+        {
+            var lbsInput = driver.FindElements(By.CssSelector(BirthWeightLbsInputSelector))
+                .FirstOrDefault(el => el.Displayed)
+                ?? throw new InvalidOperationException("Birth weight pounds input was not found.");
+
+            var ozInput = driver.FindElements(By.CssSelector(BirthWeightOzInputSelector))
+                .FirstOrDefault(el => el.Displayed)
+                ?? throw new InvalidOperationException("Birth weight ounces input was not found.");
+
+            WebElementHelper.SetInputValue(driver, lbsInput, pounds, "Birth weight pounds", triggerBlur: true);
+            WebElementHelper.SetInputValue(driver, ozInput, ounces, "Birth weight ounces", triggerBlur: true);
+            _output.WriteLine($"[INFO] Set birth weight to {pounds} lbs {ounces} oz");
         }
 
         private static int CountOccurrences(string text, string value)
