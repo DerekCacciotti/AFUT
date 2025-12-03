@@ -19,6 +19,7 @@ namespace AFUT.Tests.UnitTests.TargetChildID
             "a.list-group-item.moreInfo[href*='TCIDs.aspx'], " +
             "a.moreInfo[data-formtype='TCIBO'], " +
             "a.list-group-item[title*='Target Child Information']";
+        private const string InfoAlertSelector = "div.alert.alert-info";
 
         private readonly AppConfig _config;
         private readonly IPookieDriverFactory _driverFactory;
@@ -53,6 +54,48 @@ namespace AFUT.Tests.UnitTests.TargetChildID
             Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
             _output.WriteLine("[PASS] Successfully navigated to Forms tab.");
 
+            NavigateToTargetChildPage(driver, formsPane, pc1Id);
+        }
+
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
+        [TestPriority(2)]
+        public void NewTcidButtonDisplaysInfoAlert(string pc1Id)
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            var (homePage, formsPane) = CommonTestHelper.NavigateToFormsTab(driver, _config, pc1Id);
+            Assert.NotNull(homePage);
+            Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
+
+            NavigateToTargetChildPage(driver, formsPane, pc1Id);
+
+            var newTcidButton = driver.FindElements(By.CssSelector("div.panel-heading a.btn.btn-default.pull-right, div.panel-heading a.btn.btn-default"))
+                .FirstOrDefault(el => el.Displayed && el.Text.Contains("New TCID", StringComparison.OrdinalIgnoreCase))
+                ?? throw new InvalidOperationException("New TCID button was not found on the Target Child Information page.");
+
+            _output.WriteLine("[INFO] Clicking New TCID button.");
+            CommonTestHelper.ClickElement(driver, newTcidButton);
+            driver.WaitForUpdatePanel(30);
+            driver.WaitForReady(30);
+            Thread.Sleep(1000);
+
+            var infoAlert = driver.WaitforElementToBeInDOM(By.CssSelector(InfoAlertSelector), 10)
+                ?? throw new InvalidOperationException("Info alert did not appear after opening New TCID form.");
+
+            var alertText = infoAlert.Text?.Trim() ?? string.Empty;
+            _output.WriteLine($"[INFO] Info alert text: {alertText}");
+            Assert.Contains("Complete this form upon the birth of the target child", alertText, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("target child is the newborn", alertText, StringComparison.OrdinalIgnoreCase);
+
+            var validationSummary = driver.FindElements(By.CssSelector("div[id$='ValidationSummary1'], div.validation-summary"))
+                .FirstOrDefault();
+            Assert.NotNull(validationSummary);
+            _output.WriteLine("[PASS] Validation summary container located on the New TCID form.");
+        }
+
+        private void NavigateToTargetChildPage(IPookieWebDriver driver, IWebElement formsPane, string pc1Id)
+        {
             var targetChildLink = formsPane.FindElements(By.CssSelector(TargetChildLinkSelector))
                 .FirstOrDefault(el => el.Displayed)
                 ?? throw new InvalidOperationException("Target Child Information and Birth Outcomes link was not found in the Forms tab.");
