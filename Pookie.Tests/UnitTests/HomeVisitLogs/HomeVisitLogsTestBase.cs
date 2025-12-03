@@ -67,6 +67,19 @@ namespace AFUT.Tests.UnitTests.HomeVisitLogs
             Thread.Sleep(500);
         }
 
+        protected void OpenExistingHomeVisitLog(IPookieWebDriver driver)
+        {
+            var editLink = driver.FindElements(By.CssSelector("table[id$='grHVLogs'] a.btn.btn-default.btn-sm[href*='HomeVisitLog.aspx'][title*='Edit']"))
+                .FirstOrDefault(el => el.Displayed)
+                ?? throw new InvalidOperationException("Home Visit Log Edit link was not found.");
+
+            _output.WriteLine("[INFO] Opening existing Home Visit Log via Edit link.");
+            CommonTestHelper.ClickElement(driver, editLink);
+            driver.WaitForUpdatePanel(30);
+            driver.WaitForReady(30);
+            Thread.Sleep(500);
+        }
+
         protected static void ClickSubmit(IPookieWebDriver driver)
         {
             var submitButton = WebElementHelper.FindElementInModalOrPage(

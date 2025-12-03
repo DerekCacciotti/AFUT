@@ -1,0 +1,182 @@
+using System.Linq;
+using System.Threading;
+using AFUT.Tests.Config;
+using AFUT.Tests.Driver;
+using AFUT.Tests.Helpers;
+using AFUT.Tests.UnitTests.Attributes;
+using OpenQA.Selenium.Support.UI;
+using OpenQA.Selenium;
+using Xunit.Abstractions;
+
+namespace AFUT.Tests.UnitTests.HomeVisitLogs
+{
+    public class HomeVisitLogsCheersTabTests : HomeVisitLogsTestBase
+    {
+        public HomeVisitLogsCheersTabTests(AppConfig config, ITestOutputHelper output)
+            : base(config, output)
+        {
+        }
+
+        [Theory]
+        [MemberData(nameof(HomeVisitLogsTestBase.GetTestPc1Ids), MemberType = typeof(HomeVisitLogsTestBase))]
+        [TestPriority(4)]
+        public void CheersTabDisplaysKeySections(string pc1Id)
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            _output.WriteLine($"[INFO] Starting CHEERS tab test for PC1 {pc1Id}.");
+            NavigateToHomeVisitLogs(driver, pc1Id);
+            OpenExistingHomeVisitLog(driver);
+
+            var cheersTabLink = driver.WaitforElementToBeInDOM(By.CssSelector("a#lnkcheers"), 10)
+                ?? throw new InvalidOperationException("CHEERS tab link was not found.");
+            cheersTabLink.Click();
+            driver.WaitForReady(5);
+            Thread.Sleep(300);
+
+            var cheersPane = driver.WaitforElementToBeInDOM(By.CssSelector("div#cheers"), 10)
+                ?? throw new InvalidOperationException("CHEERS tab content was not found.");
+
+            var cheersHeader = cheersPane.FindElements(By.CssSelector(".panel-body span"))
+                .FirstOrDefault();
+            var headerText = cheersHeader?.Text?.Trim() ?? string.Empty;
+            Assert.Contains("CHEERS", headerText, StringComparison.OrdinalIgnoreCase);
+
+            _output.WriteLine("[PASS] CHEERS tab content visible via edit flow.");
+        }
+
+        [Theory]
+        [MemberData(nameof(HomeVisitLogsTestBase.GetTestPc1Ids), MemberType = typeof(HomeVisitLogsTestBase))]
+        [TestPriority(5)]
+        public void CheersAutoTextPrefillsAllTextAreas(string pc1Id)
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            _output.WriteLine($"[INFO] Starting CHEERS auto-text test for PC1 {pc1Id}.");
+            NavigateToHomeVisitLogs(driver, pc1Id);
+            OpenExistingHomeVisitLog(driver);
+
+            var cheersTabLink = driver.WaitforElementToBeInDOM(By.CssSelector("a#lnkcheers"), 10)
+                ?? throw new InvalidOperationException("CHEERS tab link was not found.");
+            cheersTabLink.Click();
+            driver.WaitForReady(5);
+
+            var cheersPane = driver.WaitforElementToBeInDOM(By.CssSelector("div#cheers"), 10)
+                ?? throw new InvalidOperationException("CHEERS tab content was not found.");
+
+            var autoTextCheckbox = cheersPane.FindElement(By.CssSelector("input[id$='chkCCIAutoText']"));
+            if (!autoTextCheckbox.Selected)
+            {
+                autoTextCheckbox.Click();
+                driver.WaitForUpdatePanel(10);
+                driver.WaitForReady(10);
+                Thread.Sleep(300);
+            }
+
+            string[] textAreaSelectors =
+            {
+                "textarea[id$='txtCHEERSCues']",
+                "textarea[id$='txtCHEERSHolding']",
+                "textarea[id$='txtCHEERSExpression']",
+                "textarea[id$='txtCHEERSRhythmReciprocity']",
+                "textarea[id$='txtCHEERSSmiles']"
+            };
+
+            foreach (var selector in textAreaSelectors)
+            {
+                var textarea = cheersPane.FindElement(By.CssSelector(selector));
+                var value = textarea.GetAttribute("value") ?? textarea.Text;
+                Assert.False(string.IsNullOrWhiteSpace(value),
+                    $"Expected CHEERS textarea '{selector}' to be pre-filled when auto-text is selected.");
+            }
+
+            var autoTextOptions = cheersPane.FindElements(By.CssSelector("table[id$='cblCheersAutoTextOptions'] input[type='checkbox']"));
+            Assert.NotEmpty(autoTextOptions);
+
+            for (var i = 0; i < autoTextOptions.Count; i++)
+            {
+                var option = autoTextOptions[i];
+                option.Click();
+                driver.WaitForUpdatePanel(5);
+                driver.WaitForReady(5);
+                Thread.Sleep(200);
+
+                foreach (var selector in textAreaSelectors)
+                {
+                    var textarea = cheersPane.FindElement(By.CssSelector(selector));
+                    var value = textarea.GetAttribute("value") ?? textarea.Text;
+                    Assert.False(string.IsNullOrWhiteSpace(value),
+                        $"Textarea '{selector}' should remain populated after toggling auto-text option {i}.");
+                }
+
+                option.Click();
+                driver.WaitForUpdatePanel(5);
+                driver.WaitForReady(5);
+                Thread.Sleep(200);
+            }
+
+            _output.WriteLine("[PASS] CHEERS auto-text populated all text areas.");
+        }
+
+        [Theory]
+        [MemberData(nameof(HomeVisitLogsTestBase.GetTestPc1Ids), MemberType = typeof(HomeVisitLogsTestBase))]
+        [TestPriority(6)]
+        public void CheersDropdownSelectionsAppendToTextAreas(string pc1Id)
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            _output.WriteLine($"[INFO] Starting CHEERS dropdown test for PC1 {pc1Id}.");
+            NavigateToHomeVisitLogs(driver, pc1Id);
+            OpenExistingHomeVisitLog(driver);
+
+            var cheersTabLink = driver.WaitforElementToBeInDOM(By.CssSelector("a#lnkcheers"), 10)
+                ?? throw new InvalidOperationException("CHEERS tab link was not found.");
+            cheersTabLink.Click();
+            driver.WaitForReady(5);
+
+            var cheersPane = driver.WaitforElementToBeInDOM(By.CssSelector("div#cheers"), 10)
+                ?? throw new InvalidOperationException("CHEERS tab content was not found.");
+
+            var autoTextCheckbox = cheersPane.FindElement(By.CssSelector("input[id$='chkCCIAutoText']"));
+            if (!autoTextCheckbox.Selected)
+            {
+                autoTextCheckbox.Click();
+                driver.WaitForUpdatePanel(5);
+                driver.WaitForReady(5);
+                Thread.Sleep(200);
+            }
+
+            var dropdownSelectors = new[]
+            {
+                ("select[id$='ddlCHEERSCues']", "textarea[id$='txtCHEERSCues']"),
+                ("select[id$='ddlCHEERSHolding']", "textarea[id$='txtCHEERSHolding']"),
+                ("select[id$='ddlCHEERSExpression']", "textarea[id$='txtCHEERSExpression']"),
+                ("select[id$='ddlCHEERSEmpathy']", "textarea[id$='txtCHEERSEmpathy']"),
+                ("select[id$='ddlCHEERSRhythmReciprocity']", "textarea[id$='txtCHEERSRhythmReciprocity']"),
+                ("select[id$='ddlCHEERSSmiles']", "textarea[id$='txtCHEERSSmiles']")
+            };
+
+            foreach (var (dropdownSelector, textareaSelector) in dropdownSelectors)
+            {
+                var dropdown = cheersPane.FindElement(By.CssSelector(dropdownSelector));
+                var textarea = cheersPane.FindElement(By.CssSelector(textareaSelector));
+
+                var options = new SelectElement(dropdown).Options.Where(o => !string.IsNullOrWhiteSpace(o.Text) && !o.Text.Contains("--", StringComparison.OrdinalIgnoreCase)).ToList();
+                Assert.NotEmpty(options);
+
+                foreach (var option in options)
+                {
+                    WebElementHelper.SelectDropdownOption(driver, dropdown, dropdownSelector, option.Text.Trim(), option.GetAttribute("value"));
+                    driver.WaitForReady(1);
+                    Thread.Sleep(150);
+
+                    var value = textarea.GetAttribute("value") ?? textarea.Text ?? string.Empty;
+                    Assert.Contains(option.Text.Trim(), value, StringComparison.OrdinalIgnoreCase);
+                }
+            }
+
+            _output.WriteLine("[PASS] CHEERS dropdown selections appended expected text.");
+        }
+    }
+}
+
