@@ -124,6 +124,21 @@ namespace AFUT.Tests.UnitTests.HomeVisitLogs
             }
         }
 
+        protected static void UnselectVisitTypeOption(IPookieWebDriver driver, int optionIndex)
+        {
+            var checkbox = driver.FindElements(By.CssSelector($"input[type='checkbox'][id$='cblVisitType_{optionIndex}']"))
+                .FirstOrDefault(el => el.Displayed)
+                ?? throw new InvalidOperationException($"Visit type checkbox with index {optionIndex} was not found for unselection.");
+
+            if (checkbox.Selected)
+            {
+                checkbox.Click();
+                driver.WaitForUpdatePanel(10);
+                driver.WaitForReady(10);
+                Thread.Sleep(250);
+            }
+        }
+
         protected static IWebElement WaitForDateOfVisitInput(IPookieWebDriver driver)
         {
             var selectors = new[]
@@ -191,6 +206,16 @@ namespace AFUT.Tests.UnitTests.HomeVisitLogs
 
             targetOption.Click();
             driver.WaitForReady(2);
+        }
+
+        protected static void SetVisitLengthMinutes(IPookieWebDriver driver, string minutesValue)
+        {
+            var minutesInput = WebElementHelper.FindElementInModalOrPage(
+                driver,
+                "input.form-control[id$='txtVisitLengthMinute'], input.number-2.form-control[id*='txtVisitLengthMinute']",
+                "Visit length minutes input",
+                10);
+            WebElementHelper.SetInputValue(driver, minutesInput, minutesValue, "Visit length minutes", triggerBlur: true);
         }
     }
 }
