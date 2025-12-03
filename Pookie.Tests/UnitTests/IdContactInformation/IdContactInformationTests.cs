@@ -166,6 +166,10 @@ namespace AFUT.Tests.UnitTests.IdContactInformation
             ClickAndVerifyTab(driver, "Agreement", "Informed Consent");
             _output.WriteLine("[PASS] Informed Consent tab is now active");
 
+            _output.WriteLine("[INFO] Clearing Signed Confidentiality Agreement selection to trigger validation");
+            ClearConfidentialityAgreementSelection(driver);
+            _output.WriteLine("[PASS] Signed Confidentiality Agreement selection cleared");
+
             // Click the Submit button on the Informed Consent tab
             _output.WriteLine("\n[INFO] Attempting to submit without signing confidentiality agreement");
             ClickSubmitButtonOnInformedConsentTab(driver);
@@ -378,6 +382,7 @@ namespace AFUT.Tests.UnitTests.IdContactInformation
             // Select No for OBP household question
             SelectSpecificRadioButton(driver, "OBPLiveInHouse", false);
             _output.WriteLine("[PASS] Selected No for OBP household question");
+            VerifyAssignButtonVisibility(driver, "Assign Other Biological Parent", shouldBeVisible: false);
 
             // Go to Primary Caregiver 2 tab and do the same flow as OBP
             _output.WriteLine("\n[INFO] Navigating to Primary Caregiver 2 tab");
@@ -492,6 +497,7 @@ namespace AFUT.Tests.UnitTests.IdContactInformation
             // Select No for PC2 household question
             SelectSpecificRadioButton(driver, "PC2LiveInHouse", false);
             _output.WriteLine("[PASS] Selected No for PC2 household question");
+            VerifyAssignButtonVisibility(driver, "Assign Primary Caregiver 2", shouldBeVisible: false);
 
             // Go back to Informed Consent tab and submit - should succeed now
             _output.WriteLine("\n[INFO] Returning to Informed Consent tab for final submission");
@@ -567,6 +573,13 @@ namespace AFUT.Tests.UnitTests.IdContactInformation
             var currentUrl = driver.Url;
             Assert.Contains("IdContactInformation.aspx", currentUrl, StringComparison.OrdinalIgnoreCase);
             _output.WriteLine($"[INFO] On form page: {currentUrl}");
+
+            // Verify only Signed MIS Contact field is editable on Informed Consent tab
+            _output.WriteLine("[INFO] Verifying edit permissions on Informed Consent tab");
+            ClickAndVerifyTab(driver, "Agreement", "Informed Consent");
+            VerifyInformedConsentEditPermissions(driver);
+            _output.WriteLine("[PASS] Informed Consent tab enforces correct edit permissions");
+            ClickAndVerifyTab(driver, "PC1", "Primary Caregiver 1");
 
             // Click Submit button without making any changes (testing edit of existing form)
             _output.WriteLine("\n[INFO] Submitting already-submitted form without changes");
@@ -724,20 +737,21 @@ namespace AFUT.Tests.UnitTests.IdContactInformation
             Thread.Sleep(1500);
         }
 
+        private IWebElement GetConfidentialityDropdown(IPookieWebDriver driver)
+        {
+            return driver.FindElements(By.CssSelector("select.form-control"))
+                .FirstOrDefault(el => el.Displayed &&
+                    el.FindElements(By.CssSelector("option[value='1']")).Any() &&
+                    el.FindElements(By.CssSelector("option[value='0']")).Any())
+                ?? throw new InvalidOperationException("Signed Confidentiality Agreement dropdown was not found.");
+        }
+
         /// <summary>
         /// Selects Yes/No for the Signed Confidentiality Agreement dropdown (Question 22)
         /// </summary>
         private void SelectConfidentialityAgreement(IPookieWebDriver driver, string answer)
         {
-            // Find the confidentiality agreement dropdown using CSS classes (not ASP.NET IDs)
-            var dropdown = driver.FindElements(By.CssSelector(
-                "select.form-control"))
-                .FirstOrDefault(el => el.Displayed && 
-                    el.FindElements(By.CssSelector("option[value='1']")).Any() &&
-                    el.FindElements(By.CssSelector("option[value='0']")).Any())
-                ?? throw new InvalidOperationException("Signed Confidentiality Agreement dropdown was not found.");
-
-            var selectElement = new SelectElement(dropdown);
+            var selectElement = new SelectElement(GetConfidentialityDropdown(driver));
             
             // Select based on the answer (Yes = 1, No = 0)
             if (answer.Equals("Yes", StringComparison.OrdinalIgnoreCase))
@@ -758,6 +772,34 @@ namespace AFUT.Tests.UnitTests.IdContactInformation
             Thread.Sleep(500);
             
             _output.WriteLine($"[INFO] Selected '{answer}' for Signed Confidentiality Agreement");
+        }
+
+        /// <summary>
+        /// Clears the Signed Confidentiality Agreement selection (sets it to the placeholder option)
+        /// </summary>
+        private void ClearConfidentialityAgreementSelection(IPookieWebDriver driver)
+        {
+            var selectElement = new SelectElement(GetConfidentialityDropdown(driver));
+
+            var placeholderOption = selectElement.Options.FirstOrDefault(opt =>
+                string.IsNullOrWhiteSpace(opt.GetAttribute("value")) ||
+                opt.Text.Contains("select", StringComparison.OrdinalIgnoreCase));
+
+            if (placeholderOption == null)
+            {
+                throw new InvalidOperationException("Placeholder option for Signed Confidentiality Agreement was not found.");
+            }
+
+            WebElementHelper.SelectByTextOrValue(
+                selectElement,
+                placeholderOption.Text.Trim(),
+                placeholderOption.GetAttribute("value"));
+
+            driver.WaitForUpdatePanel(10);
+            driver.WaitForReady(10);
+            Thread.Sleep(500);
+
+            _output.WriteLine("[INFO] Cleared Signed Confidentiality Agreement selection");
         }
 
         /// <summary>
@@ -862,6 +904,39 @@ namespace AFUT.Tests.UnitTests.IdContactInformation
             }
 
             throw new InvalidOperationException($"Could not find {(selectYes ? "Yes" : "No")} button for group '{radioGroupName}'");
+        }
+
+        /// <summary>
+        /// Verifies whether an assign button remains visible or hidden after selecting Yes/No.
+        /// </summary>
+        private void VerifyAssignButtonVisibility(IPookieWebDriver driver, string buttonText, bool shouldBeVisible)
+        {
+            driver.WaitForReady(5);
+            Thread.Sleep(500);
+
+            var buttons = driver.FindElements(By.CssSelector(
+                    "a.btn.btn-default .glyphicon-copy"))
+                .Select(icon => icon.FindElement(By.XPath("./parent::a")))
+                .Where(btn => (btn.Text ?? string.Empty).Contains(buttonText, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (shouldBeVisible)
+            {
+                var visibleButton = buttons.FirstOrDefault(btn => btn.Displayed);
+                Assert.NotNull(visibleButton);
+                _output.WriteLine($"[PASS] '{buttonText}' button is visible as expected.");
+                return;
+            }
+
+            if (buttons.Count == 0)
+            {
+                _output.WriteLine($"[PASS] '{buttonText}' button removed from DOM as expected when hidden.");
+                return;
+            }
+
+            var anyDisplayed = buttons.Any(btn => btn.Displayed);
+            Assert.False(anyDisplayed, $"'{buttonText}' button should be hidden after selecting 'No'.");
+            _output.WriteLine($"[PASS] '{buttonText}' button is hidden as expected.");
         }
 
         /// <summary>
@@ -1217,6 +1292,38 @@ namespace AFUT.Tests.UnitTests.IdContactInformation
 
             Assert.True(contentElements.Count > 0, "Expected to find content in Informed Consent tab");
             _output.WriteLine($"[INFO] Found {contentElements.Count} content elements in Informed Consent tab");
+        }
+
+        /// <summary>
+        /// Ensures that only the Signed MIS Contact dropdown remains editable on the Informed Consent tab.
+        /// </summary>
+        private void VerifyInformedConsentEditPermissions(IPookieWebDriver driver)
+        {
+            var consentTab = driver.FindElements(By.CssSelector("div.tab-pane.active"))
+                .FirstOrDefault(el =>
+                {
+                    var id = el.GetAttribute("id") ?? string.Empty;
+                    return id.Contains("Agreement", StringComparison.OrdinalIgnoreCase);
+                })
+                ?? driver.FindElements(By.CssSelector("div.tab-pane.active"))
+                    .FirstOrDefault()
+                ?? throw new InvalidOperationException("Informed Consent tab content was not found.");
+
+            var misContactDateInput = consentTab.FindElements(By.CssSelector(".input-group.date input.form-control"))
+                .FirstOrDefault(el => el.Displayed)
+                ?? throw new InvalidOperationException("Signed MIS contact date input was not found on the Informed Consent tab.");
+
+            Assert.False(misContactDateInput.Enabled, "Signed MIS contact date input should be read-only.");
+            var disabledAttr = misContactDateInput.GetAttribute("disabled") ?? string.Empty;
+            Assert.True(!string.IsNullOrWhiteSpace(disabledAttr), "Signed MIS contact date input should have the disabled attribute set.");
+            _output.WriteLine("[INFO] Signed MIS contact date input is disabled as expected.");
+
+            var signedConfidentialityDropdown = GetConfidentialityDropdown(driver);
+
+            Assert.True(signedConfidentialityDropdown.Enabled, "Signed MIS contact dropdown should remain editable.");
+            var selectElement = new SelectElement(signedConfidentialityDropdown);
+            var selectedText = selectElement.SelectedOption?.Text?.Trim() ?? string.Empty;
+            _output.WriteLine($"[INFO] Signed MIS contact dropdown is editable. Current selection: {selectedText}");
         }
 
         #endregion
