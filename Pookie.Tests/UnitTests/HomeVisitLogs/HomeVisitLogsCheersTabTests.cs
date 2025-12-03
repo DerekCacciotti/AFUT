@@ -281,6 +281,106 @@ namespace AFUT.Tests.UnitTests.HomeVisitLogs
             _output.WriteLine("[PASS] Reflective strategy checkboxes revealed and accepted notes.");
         }
 
+        [Theory]
+        [MemberData(nameof(HomeVisitLogsTestBase.GetTestPc1Ids), MemberType = typeof(HomeVisitLogsTestBase))]
+        [TestPriority(8)]
+        public void CheersTabCanBeSavedAfterAllInputs(string pc1Id)
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            _output.WriteLine($"[INFO] Starting CHEERS save test for PC1 {pc1Id}.");
+            NavigateToHomeVisitLogs(driver, pc1Id);
+            OpenExistingHomeVisitLog(driver);
+
+            var cheersTabLink = driver.WaitforElementToBeInDOM(By.CssSelector("a#lnkcheers"), 10)
+                ?? throw new InvalidOperationException("CHEERS tab link was not found.");
+            cheersTabLink.Click();
+            driver.WaitForReady(5);
+
+            var cheersPane = driver.WaitforElementToBeInDOM(By.CssSelector("div#cheers"), 10)
+                ?? throw new InvalidOperationException("CHEERS tab content was not found.");
+
+            // Leverage earlier routines to populate textareas and reflective strategies
+            FillCheersDropdowns(driver, cheersPane);
+            FillReflectiveStrategies(driver, cheersPane);
+
+            ClickSubmit(driver);
+            driver.WaitForReady(10);
+            Thread.Sleep(500);
+            var toastMessage = WebElementHelper.GetToastMessage(driver, 2000);
+            Assert.Contains("Partially Saved", toastMessage, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("saved", toastMessage, StringComparison.OrdinalIgnoreCase);
+
+            _output.WriteLine("[PASS] CHEERS tab saved with Partially Saved toast.");
+        }
+
+        private static void FillCheersDropdowns(IPookieWebDriver driver, IWebElement cheersPane)
+        {
+            var autoTextCheckbox = cheersPane.FindElement(By.CssSelector("input[id$='chkCCIAutoText']"));
+            if (!autoTextCheckbox.Selected)
+            {
+                autoTextCheckbox.Click();
+                driver.WaitForUpdatePanel(5);
+                driver.WaitForReady(5);
+                Thread.Sleep(200);
+            }
+
+            var dropdownSelectors = new[]
+            {
+                ("select[id$='ddlCHEERSCues']", "textarea[id$='txtCHEERSCues']"),
+                ("select[id$='ddlCHEERSHolding']", "textarea[id$='txtCHEERSHolding']"),
+                ("select[id$='ddlCHEERSExpression']", "textarea[id$='txtCHEERSExpression']"),
+                ("select[id$='ddlCHEERSEmpathy']", "textarea[id$='txtCHEERSEmpathy']"),
+                ("select[id$='ddlCHEERSRhythmReciprocity']", "textarea[id$='txtCHEERSRhythmReciprocity']"),
+                ("select[id$='ddlCHEERSSmiles']", "textarea[id$='txtCHEERSSmiles']")
+            };
+
+            foreach (var (dropdownSelector, textareaSelector) in dropdownSelectors)
+            {
+                var dropdown = cheersPane.FindElement(By.CssSelector(dropdownSelector));
+                var textarea = cheersPane.FindElement(By.CssSelector(textareaSelector));
+
+                var options = new SelectElement(dropdown).Options.Where(o => !string.IsNullOrWhiteSpace(o.Text) && !o.Text.Contains("--", StringComparison.OrdinalIgnoreCase)).ToList();
+                foreach (var option in options.Take(1))
+                {
+                    WebElementHelper.SelectDropdownOption(driver, dropdown, dropdownSelector, option.Text.Trim(), option.GetAttribute("value"));
+                    driver.WaitForReady(1);
+                    Thread.Sleep(150);
+                    WebElementHelper.SetInputValue(driver, textarea, $"{option.Text} note saved.", $"CHEERS textarea {textareaSelector}", triggerBlur: true);
+                }
+            }
+        }
+
+        private static void FillReflectiveStrategies(IPookieWebDriver driver, IWebElement cheersPane)
+        {
+            var reflectiveCheckboxes = new[]
+            {
+                ("input[id$='chkRSATP']", "#divRSATP", "#divRSATP textarea", "ATP reflections saved."),
+                ("input[id$='chkRSSATP']", "#divRSSATP", "#divRSSATP textarea", "S-ATP reflections saved."),
+                ("input[id$='chkRSFFF']", "#divRSFFF", "#divRSFFF textarea", "Feel Name & Tame saved."),
+                ("input[id$='chkRSEW']", "#divRSEW", "#divRSEW textarea", "Explore & Wonder saved."),
+                ("input[id$='chkRSNormalizing']", "#divRSNormalizing", "#divRSNormalizing textarea", "Normalizing saved."),
+                ("input[id$='chkRSSFT']", "#divRSSFT", "#divRSSFT textarea", "Solution-focused Talk saved.")
+            };
+
+            foreach (var (checkboxSelector, containerSelector, textareaSelector, note) in reflectiveCheckboxes)
+            {
+                var checkbox = cheersPane.FindElement(By.CssSelector(checkboxSelector));
+                if (!checkbox.Selected)
+                {
+                    checkbox.Click();
+                    driver.WaitForUpdatePanel(5);
+                    driver.WaitForReady(5);
+                    Thread.Sleep(200);
+                }
+
+                var container = WaitForVisibleElement(driver, containerSelector, 5)
+                    ?? throw new InvalidOperationException($"Container '{containerSelector}' was not visible.");
+                var textarea = container.FindElement(By.CssSelector("textarea"));
+                WebElementHelper.SetInputValue(driver, textarea, note, $"Strategy note {checkboxSelector}", triggerBlur: true);
+            }
+        }
+
         private static IWebElement? WaitForVisibleElement(IPookieWebDriver driver, string selector, int timeoutSeconds)
         {
             var end = DateTime.Now.AddSeconds(timeoutSeconds);
