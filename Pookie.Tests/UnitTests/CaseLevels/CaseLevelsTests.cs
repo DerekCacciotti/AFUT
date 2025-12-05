@@ -245,11 +245,13 @@ namespace AFUT.Tests.UnitTests.CaseLevels
             NavigateToCaseLevels(driver, formsPane, pc1Id);
             _output.WriteLine("[PASS] Successfully navigated to Case Levels form page");
 
-            const string caseStartDateText = "11/15/25";
-            const string invalidLevelDateText = "11/14/25";
-            const string expectedCaseStartMessageDate = "11/15/2025";
+            var intakeDateText = GetIntakeDateText(driver);
+            var intakeDate = ParseIntakeDate(intakeDateText);
+            var invalidLevelDate = intakeDate.AddDays(-1);
+            var invalidLevelDateText = invalidLevelDate.ToString("MM/dd/yy", CultureInfo.InvariantCulture);
+            var expectedCaseStartMessageDate = intakeDate.ToString("MM/dd/yyyy", CultureInfo.InvariantCulture);
 
-            _output.WriteLine($"[INFO] Case start date: {caseStartDateText} (parsed: {expectedCaseStartMessageDate})");
+            _output.WriteLine($"[INFO] Intake date: {intakeDateText} (parsed: {expectedCaseStartMessageDate})");
 
             OpenNewLevelForm(driver);
             _output.WriteLine("[PASS] Successfully clicked New Level Record button");
@@ -640,6 +642,61 @@ namespace AFUT.Tests.UnitTests.CaseLevels
             Thread.Sleep(250);
 
             return selectedValue;
+        }
+
+        /// <summary>
+        /// Reads the Intake Date value displayed on the Case Levels page
+        /// </summary>
+        private string GetIntakeDateText(IPookieWebDriver driver)
+        {
+            var intakeListItem = driver.FindElements(By.CssSelector("li.list-group-item"))
+                .FirstOrDefault(li => li.Displayed &&
+                    li.FindElements(By.CssSelector("label"))
+                        .Any(label => label.Displayed &&
+                                      label.Text.Contains("Intake Date", StringComparison.OrdinalIgnoreCase)));
+
+            if (intakeListItem != null)
+            {
+                var valueElement = intakeListItem.FindElements(By.CssSelector("span, strong"))
+                    .FirstOrDefault(el => el.Displayed && !string.IsNullOrWhiteSpace(el.Text));
+
+                if (valueElement != null)
+                {
+                    return valueElement.Text.Trim();
+                }
+            }
+
+            var intakeSpan = driver.FindElements(By.CssSelector(
+                    "span[id*='IntakeDate'], " +
+                    "span[data-field*='intake']"))
+                .FirstOrDefault(el => el.Displayed && !string.IsNullOrWhiteSpace(el.Text));
+
+            if (intakeSpan != null)
+            {
+                return intakeSpan.Text.Trim();
+            }
+
+            throw new InvalidOperationException("Intake Date display was not found on the Case Levels page.");
+        }
+
+        /// <summary>
+        /// Parses the Intake Date text into a DateTime using known formats
+        /// </summary>
+        private static DateTime ParseIntakeDate(string dateText)
+        {
+            var formats = new[] { "M/d/yy", "MM/dd/yy", "M/d/yyyy", "MM/dd/yyyy" };
+
+            if (DateTime.TryParseExact(dateText, formats, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
+            {
+                return parsed;
+            }
+
+            if (DateTime.TryParse(dateText, CultureInfo.CurrentCulture, DateTimeStyles.None, out parsed))
+            {
+                return parsed;
+            }
+
+            throw new InvalidOperationException($"Unable to parse Intake Date '{dateText}'.");
         }
 
         /// <summary>
