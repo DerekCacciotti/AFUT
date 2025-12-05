@@ -186,6 +186,105 @@ namespace AFUT.Tests.UnitTests.CaseLevels
         [Theory]
         [MemberData(nameof(GetTestPc1Ids))]
         [TestPriority(4)]
+        public void SubmitNewLevelRecordWithInvalidDateShowsRequiredMessage(string pc1Id)
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            var (homePage, formsPane) = CommonTestHelper.NavigateToFormsTab(driver, _config, pc1Id);
+
+            Assert.NotNull(homePage);
+            Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
+            _output.WriteLine("[PASS] Successfully navigated to Forms tab");
+
+            NavigateToCaseLevels(driver, formsPane, pc1Id);
+            _output.WriteLine("[PASS] Successfully navigated to Case Levels form page");
+
+            OpenNewLevelForm(driver);
+            _output.WriteLine("[PASS] Successfully clicked New Level Record button");
+
+            var formHeading = WaitForFormHeading(driver);
+            Assert.Contains("Add New Level", formHeading.Text, StringComparison.OrdinalIgnoreCase);
+
+            SelectRandomLevelOption(driver);
+            SelectAdditionalCaseWeightOption(driver);
+
+            var levelDateInput = driver.FindElements(By.CssSelector(
+                    "div.input-group.date input.form-control, " +
+                    "input.form-control[type='text'][class*='2dy'], " +
+                    "input.form-control[class*='2dy']"))
+                .FirstOrDefault(el => el.Displayed)
+                ?? throw new InvalidOperationException("Level Date input was not found in the form.");
+
+            WebElementHelper.SetInputValue(driver, levelDateInput, "30/30/30", "Level Date", triggerBlur: true);
+            _output.WriteLine("[INFO] Set Level Date to invalid value 30/30/30");
+
+            var submitButton = FindSubmitButton(driver);
+            CommonTestHelper.ClickElement(driver, submitButton);
+            _output.WriteLine("[INFO] Submitted Level form with invalid date");
+            driver.WaitForUpdatePanel(10);
+            driver.WaitForReady(10);
+            Thread.Sleep(500);
+
+            AssertValidationMessageDisplayed(driver, "Level Date is required!", "level date input");
+            _output.WriteLine("[PASS] Validation message displayed for invalid Level Date");
+        }
+
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
+        [TestPriority(5)]
+        public void SubmitNewLevelRecordWithDateBeforeCaseStartShowsValidation(string pc1Id)
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            var (homePage, formsPane) = CommonTestHelper.NavigateToFormsTab(driver, _config, pc1Id);
+
+            Assert.NotNull(homePage);
+            Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
+            _output.WriteLine("[PASS] Successfully navigated to Forms tab");
+
+            NavigateToCaseLevels(driver, formsPane, pc1Id);
+            _output.WriteLine("[PASS] Successfully navigated to Case Levels form page");
+
+            const string caseStartDateText = "11/15/25";
+            const string invalidLevelDateText = "11/14/25";
+            const string expectedCaseStartMessageDate = "11/15/2025";
+
+            _output.WriteLine($"[INFO] Case start date: {caseStartDateText} (parsed: {expectedCaseStartMessageDate})");
+
+            OpenNewLevelForm(driver);
+            _output.WriteLine("[PASS] Successfully clicked New Level Record button");
+
+            var formHeading = WaitForFormHeading(driver);
+            Assert.Contains("Add New Level", formHeading.Text, StringComparison.OrdinalIgnoreCase);
+
+            SelectRandomLevelOption(driver);
+            SelectAdditionalCaseWeightOption(driver);
+
+            var levelDateInput = driver.FindElements(By.CssSelector(
+                    "div.input-group.date input.form-control, " +
+                    "input.form-control[type='text'][class*='2dy'], " +
+                    "input.form-control[class*='2dy']"))
+                .FirstOrDefault(el => el.Displayed)
+                ?? throw new InvalidOperationException("Level Date input was not found in the form.");
+
+            WebElementHelper.SetInputValue(driver, levelDateInput, invalidLevelDateText, "Level Date", triggerBlur: true);
+            _output.WriteLine($"[INFO] Set Level Date to {invalidLevelDateText} (one day before case start)");
+
+            var submitButton = FindSubmitButton(driver);
+            CommonTestHelper.ClickElement(driver, submitButton);
+            _output.WriteLine("[INFO] Submitted Level form with Level Date before case start");
+            driver.WaitForUpdatePanel(10);
+            driver.WaitForReady(10);
+            Thread.Sleep(500);
+
+            var expectedValidation = $"Level Date must be on or after the case start date of {expectedCaseStartMessageDate}!";
+            AssertValidationMessageDisplayed(driver, expectedValidation, "level date input");
+            _output.WriteLine($"[PASS] Validation message displayed for Level Date before case start ({expectedCaseStartMessageDate})");
+        }
+
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
+        [TestPriority(6)]
         public void EditLevelRecordUpdatesCaseWeight(string pc1Id)
         {
             using var driver = _driverFactory.CreateDriver();
@@ -258,7 +357,7 @@ namespace AFUT.Tests.UnitTests.CaseLevels
 
         [Theory]
         [MemberData(nameof(GetTestPc1Ids))]
-        [TestPriority(5)]
+        [TestPriority(7)]
         public void DeleteLevelRecordShowsConfirmationAndSuccessToast(string pc1Id)
         {
             using var driver = _driverFactory.CreateDriver();
@@ -372,7 +471,7 @@ namespace AFUT.Tests.UnitTests.CaseLevels
         }
 
         /// <summary>
-        /// Waits for the form heading to appear and be displayed
+        /// Waits for the form heading to appear and be displayed//
         /// </summary>
         private IWebElement WaitForFormHeading(IPookieWebDriver driver, string expectedText = "Add New Level")
         {
@@ -467,6 +566,7 @@ namespace AFUT.Tests.UnitTests.CaseLevels
                 _output.WriteLine("[INFO] Cancel button is present");
             }
         }
+
 
         /// <summary>
         /// Selects a random option from the Level dropdown
