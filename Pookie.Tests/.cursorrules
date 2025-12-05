@@ -1,0 +1,287 @@
+# Pookie.Tests - Selenium Test Automation Coding Standards
+
+## 1. Selector Strategy - CSS Classes Over IDs
+
+### ✅ DO: Use CSS class selectors and semantic attributes
+```csharp
+// Good - Uses Bootstrap classes and attributes
+var element = driver.FindElements(By.CssSelector(
+    "a.btn.btn-primary[href*='PHQ9.aspx'], " +
+    "button.btn.btn-default, " +
+    "input.form-control[type='text']"))
+    .FirstOrDefault(el => el.Displayed);
+
+// Good - Uses data attributes
+var link = formsPane.FindElements(By.CssSelector(
+    "a.list-group-item.moreInfo[href*='Forms.aspx'], " +
+    "a.moreInfo[data-formtype='pq']"))
+    .FirstOrDefault(el => el.Displayed);
+```
+
+### ❌ DON'T: Use ASP.NET generated IDs
+```csharp
+// Bad - ASP.NET IDs can change based on master pages and control hierarchy
+var element = driver.FindElement(By.CssSelector(
+    "a#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_btnSubmit"));
+
+// Bad - Even with partial ID matching
+var element = driver.FindElement(By.CssSelector("a[id$='_btnSubmit']"));
+```
+
+### Why?
+- ASP.NET Web Forms generates dynamic IDs that change when:
+  - Controls are moved in the hierarchy
+  - Master pages are restructured
+  - LoginView or other container controls are added/removed
+- CSS classes (especially Bootstrap classes) are more stable
+- Semantic attributes like `href`, `title`, `data-*` are intentional and stable
+
+### Preferred Selector Patterns
+1. **Bootstrap classes**: `.btn`, `.btn-primary`, `.form-control`, `.list-group-item`, `.modal`, `.panel-body`
+2. **Semantic attributes**: `[href*='PageName.aspx']`, `[title='Button Name']`, `[data-formtype='code']`
+3. **Type attributes**: `[type='text']`, `[type='submit']`, `[type='radio']`
+4. **Fallback to partial ID only when necessary**: `[id$='uniquePart']` or `[id*='uniquePart']`
+
+---
+
+## 2. Always Use Existing Helper Methods
+
+### ✅ DO: Check and use helper classes before writing new code
+
+**Before writing any element interaction code, check these helpers:**
+
+1. **`WebElementHelper.cs`** - For common web element operations
+   - `SelectWorker()` - Select worker from dropdown
+   - `SelectDropdownOption()` - Select any dropdown option
+   - `FindElementInModalOrPage()` - Find element in modal or page
+   - `SetInputValue()` - Set input field value with fallback
+   - `GetToastMessage()` - Get toast/notification message
+   - `SelectByTextOrValue()` - Select dropdown by text or value
+
+2. **`CommonTestHelper.cs`** - For common navigation flows
+   - `NavigateToFormsTab()` - Login → Role → Search → Forms Tab
+   - `FindPc1Display()` - Find PC1 ID display on page
+   - `ClickElement()` - Click with JavaScript fallback
+
+```csharp
+// ✅ Good - Uses existing helper
+WebElementHelper.SelectWorker(driver, "105, Worker", "105");
+
+// ❌ Bad - Reimplementing existing helper functionality
+var workerDropdown = driver.FindElement(By.CssSelector("select[id$='ddlWorker']"));
+var select = new SelectElement(workerDropdown);
+select.SelectByText("105, Worker");
+```
+
+### How to Use Helpers
+```csharp
+// Navigation flow - use CommonTestHelper
+var (homePage, formsPane) = CommonTestHelper.NavigateToFormsTab(driver, _config, pc1Id);
+
+// Click with fallback - use CommonTestHelper
+CommonTestHelper.ClickElement(driver, submitButton);
+
+// Find PC1 display - use CommonTestHelper
+var pc1Display = CommonTestHelper.FindPc1Display(driver, pc1Id);
+
+// Dropdown selection - use WebElementHelper
+WebElementHelper.SelectDropdownOption(driver, 
+    "select.form-control[id$='ddlStatus']", 
+    "Status dropdown", 
+    "Active", 
+    "1");
+
+// Input field - use WebElementHelper
+WebElementHelper.SetInputValue(driver, dateInput, "11/20/25", "Date field", triggerBlur: true);
+
+// Find in modal - use WebElementHelper
+var submitBtn = WebElementHelper.FindElementInModalOrPage(driver, 
+    "a.btn.btn-primary", 
+    "Submit button", 
+    15);
+```
+
+### Why?
+- **DRY Principle**: Don't repeat yourself
+- **Consistency**: All tests behave the same way
+- **Maintainability**: Fix once, benefit everywhere
+- **Reliability**: Helpers have fallback logic and edge case handling
+
+---
+
+## 3. Avoid Unnecessary Try-Catch Blocks
+
+### ✅ DO: Let exceptions bubble up for test failures
+```csharp
+// Good - Clean and readable, exceptions will fail the test with clear message
+var element = driver.FindElement(By.CssSelector("a.btn.btn-primary"));
+element.Click();
+
+// Good - Use null-coalescing with clear error message
+var element = driver.FindElements(By.CssSelector("a.btn.btn-primary"))
+    .FirstOrDefault(el => el.Displayed)
+    ?? throw new InvalidOperationException("Primary button was not found.");
+```
+
+### ❌ DON'T: Wrap everything in try-catch
+```csharp
+// Bad - Unnecessary try-catch that hides failures
+try
+{
+    var element = driver.FindElement(By.CssSelector("a.btn"));
+    element.Click();
+}
+catch (Exception ex)
+{
+    // What do we do here? Log and swallow? This hides test failures!
+    _output.WriteLine($"Error: {ex.Message}");
+}
+
+// Bad - Catching exceptions just to rethrow
+try
+{
+    element.Click();
+}
+catch (Exception ex)
+{
+    throw new Exception($"Failed to click: {ex.Message}", ex);
+}
+```
+
+### When Try-Catch IS Appropriate
+
+#### 1. Implementing Fallback Logic
+```csharp
+// Good - Try standard click, fallback to JavaScript
+public static void ClickElement(IPookieWebDriver driver, IWebElement element)
+{
+    try
+    {
+        element.Click();
+        return;
+    }
+    catch (Exception)
+    {
+        // Fallback to JavaScript click
+        var js = (IJavaScriptExecutor)driver;
+        js.ExecuteScript("arguments[0].scrollIntoView({block: 'center'});", element);
+        Thread.Sleep(200);
+        js.ExecuteScript("arguments[0].click();", element);
+    }
+}
+```
+
+#### 2. Trying Multiple Selection Methods
+```csharp
+// Good - Try text selection first, fallback to value
+public static void SelectByTextOrValue(SelectElement selectElement, string optionText, string? optionValue)
+{
+    try
+    {
+        selectElement.SelectByText(optionText);
+        return;
+    }
+    catch (NoSuchElementException)
+    {
+        // Try value as fallback
+    }
+
+    if (!string.IsNullOrWhiteSpace(optionValue))
+    {
+        selectElement.SelectByValue(optionValue);
+        return;
+    }
+
+    throw new InvalidOperationException($"Option '{optionText}' was not found in dropdown.");
+}
+```
+
+#### 3. Optional Element Checks
+```csharp
+// Good - Element might not exist, that's OK
+IWebElement? FindOptionalElement(string selector)
+{
+    try
+    {
+        return driver.FindElement(By.CssSelector(selector));
+    }
+    catch (NoSuchElementException)
+    {
+        return null;
+    }
+}
+```
+
+### Why Avoid Unnecessary Try-Catch?
+- **Clarity**: Test failures should be obvious
+- **Debugging**: Stack traces are more useful without wrapper exceptions
+- **Intent**: Tests should fail fast when something is wrong
+- **Xunit handles it**: The test framework will capture and report exceptions properly
+
+---
+
+## 4. Additional Best Practices
+
+### Use Parameterized Tests
+```csharp
+// Good - Test runs for each PC1 ID from configuration
+[Theory]
+[MemberData(nameof(GetTestPc1Ids))]
+[TestPriority(1)]
+public void TestMethod(string pc1Id)
+{
+    // Test implementation
+}
+
+public static IEnumerable<object[]> GetTestPc1Ids()
+{
+    var config = new AppConfig();
+    return config.TestPc1Ids.Select(id => new object[] { id });
+}
+```
+
+### Wait Patterns
+```csharp
+// Good - Use driver wait methods
+driver.WaitForReady(30);
+driver.WaitForUpdatePanel(30);
+
+// Good - Use WaitforElementToBeInDOM
+var element = driver.WaitforElementToBeInDOM(By.CssSelector("a.btn.btn-primary"), 10)
+    ?? throw new InvalidOperationException("Element not found");
+
+// Acceptable - Short sleeps after waits for UI to settle
+Thread.Sleep(500);
+```
+
+### Clear Error Messages
+```csharp
+// Good - Descriptive error messages
+var submitButton = driver.FindElements(By.CssSelector("a.btn.btn-primary"))
+    .FirstOrDefault(el => el.Displayed)
+    ?? throw new InvalidOperationException("Submit button was not found on the PHQ9 form page.");
+
+// Bad - Generic error
+var submitButton = driver.FindElement(By.CssSelector("a.btn.btn-primary"));
+```
+
+### Logging
+```csharp
+// Good - Log important steps and values
+_output.WriteLine("[PASS] Successfully navigated to Forms tab");
+_output.WriteLine($"Current URL: {currentUrl}");
+_output.WriteLine($"Found element: {element.Text?.Trim()}");
+
+// Use [INFO], [PASS], [WARN], [DEBUG] prefixes for clarity
+```
+
+---
+
+## Summary
+
+1. ✅ **Use CSS classes and attributes** - Avoid ASP.NET generated IDs
+2. ✅ **Check helpers first** - Use `WebElementHelper` and `CommonTestHelper`
+3. ✅ **Avoid unnecessary try-catch** - Let exceptions fail tests, use try-catch only for fallback logic
+4. ✅ **Write clear, maintainable tests** - Future you will thank present you!
+
+
