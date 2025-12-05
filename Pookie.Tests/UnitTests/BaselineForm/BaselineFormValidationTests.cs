@@ -228,11 +228,12 @@ namespace AFUT.Tests.UnitTests.BaselineForm
             Assert.True(languageSpecifyHidden, "Specify primary language row should hide when selecting a predefined language.");
             _output.WriteLine("[PASS] Specify primary language row hides after selecting a predefined language option");
 
-            var (gradeText, gradeValue) = SelectRandomDropdownOption(
+            var higherGradeOption = SelectSpecificDropdownOption(
                 driver,
                 "select.form-control[id*='ddlHighestGrade']",
-                "Highest grade completed dropdown");
-            _output.WriteLine($"[INFO] Selected random highest grade option: {gradeText} (value: {gradeValue})");
+                "Highest grade completed dropdown",
+                optionComparer: option => option.GetAttribute("value") is "07" or "08");
+            _output.WriteLine($"[INFO] Selected higher highest grade option: {higherGradeOption.text} (value: {higherGradeOption.value})");
 
             WebElementHelper.SelectDropdownOption(
                 driver,
@@ -240,6 +241,22 @@ namespace AFUT.Tests.UnitTests.BaselineForm
                 "Educational enrollment dropdown",
                 "Yes",
                 "1");
+            ClickSubmitButton(driver);
+            var enrollmentConsistencyValidation = FindValidationMessage(
+                driver,
+                "Enrollment consistency validation",
+                "Highest Grade Completed",
+                "do not agree");
+
+            if (enrollmentConsistencyValidation != null)
+            {
+                _output.WriteLine($"[PASS] Enrollment consistency validation displayed: {enrollmentConsistencyValidation.Text.Trim()}");
+            }
+            else
+            {
+                _output.WriteLine("[WARN] Enrollment consistency validation did not appear after conflicting answers.");
+            }
+
             driver.WaitForUpdatePanel(10);
             driver.WaitForReady(10);
 
@@ -287,9 +304,7 @@ namespace AFUT.Tests.UnitTests.BaselineForm
                 Assert.False(checkbox.Enabled, "Program type checkbox should be disabled when enrollment is No.");
             }
 
-            var programOtherCheckbox = programCheckboxes.FirstOrDefault(cb =>
-                cb.GetAttribute("id")?.EndsWith("_9", StringComparison.OrdinalIgnoreCase) == true)
-                ?? throw new InvalidOperationException("Program Type 'Other' checkbox was not found.");
+            var programOtherCheckbox = WaitForProgramCheckbox(driver, "_9");
             _output.WriteLine($"[INFO] Program type 'Other' checkbox disabled attribute: {programOtherCheckbox.GetAttribute("disabled")}");
 
             WebElementHelper.SelectDropdownOption(
@@ -330,6 +345,21 @@ namespace AFUT.Tests.UnitTests.BaselineForm
             WebElementHelper.SetInputValue(driver, hoursInput, validHours, "Educational hours per month", triggerBlur: true);
             _output.WriteLine($"[INFO] Entered valid hours per month (1-450): {validHours}");
 
+            Assert.True(driver.FindElements(By.CssSelector(".ProgramType_PC1Form input[type='checkbox']")).Any(cb => cb.Enabled), "Program type checkboxes should be enabled when enrollment is Yes.");
+
+            SetProgramCheckboxState(driver, "_0", true, "Lower-level program checkbox (Middle School)");
+
+            ClickSubmitButton(driver);
+            var enrollmentConsistencyValidationAfterProgram = FindValidationMessage(
+                driver,
+                "Enrollment consistency validation",
+                "Highest Grade Completed",
+                "do not agree");
+            Assert.NotNull(enrollmentConsistencyValidationAfterProgram);
+            _output.WriteLine($"[PASS] Enrollment consistency validation displayed: {enrollmentConsistencyValidationAfterProgram!.Text.Trim()}");
+
+            SetProgramCheckboxState(driver, "_0", false, "Lower-level program checkbox (Middle School)");
+
             ClickSubmitButton(driver);
             var programValidation = FindValidationMessage(
                 driver,
@@ -339,19 +369,9 @@ namespace AFUT.Tests.UnitTests.BaselineForm
             Assert.NotNull(programValidation);
             _output.WriteLine($"[PASS] Program type validation displayed: {programValidation!.Text.Trim()}");
 
-            programCheckboxes = driver.FindElements(By.CssSelector(".ProgramType_PC1Form input[type='checkbox']")).ToList();
-            Assert.True(programCheckboxes.Any(cb => cb.Enabled), "Program type checkboxes should be enabled when enrollment is Yes.");
-
-            programOtherCheckbox = programCheckboxes.FirstOrDefault(cb =>
-                cb.GetAttribute("id")?.EndsWith("_9", StringComparison.OrdinalIgnoreCase) == true)
-                ?? throw new InvalidOperationException("Program Type 'Other' checkbox was not found.");
-
+            programOtherCheckbox = WaitForProgramCheckbox(driver, "_9");
             Assert.True(programOtherCheckbox.Enabled, "Program type 'Other' checkbox should be enabled when enrollment is Yes.");
-            if (!programOtherCheckbox.Selected)
-            {
-                CommonTestHelper.ClickElement(driver, programOtherCheckbox);
-                driver.WaitForReady(2);
-            }
+            SetProgramCheckboxState(driver, "_9", true, "'Other' program type checkbox");
             _output.WriteLine("[INFO] Selected 'Other' program type checkbox");
 
             var programSpecifyRow = driver.WaitforElementToBeInDOM(By.CssSelector("#divProgramTypeSpecify_PC1Form"), 5)
@@ -591,6 +611,37 @@ namespace AFUT.Tests.UnitTests.BaselineForm
             return false;
         }
 
+        private IWebElement WaitForProgramCheckbox(IPookieWebDriver driver, string idSuffix, int timeoutSeconds = 5)
+        {
+            var end = DateTime.Now.AddSeconds(timeoutSeconds);
+            while (DateTime.Now <= end)
+            {
+                var checkbox = driver.FindElements(By.CssSelector($".ProgramType_PC1Form input[type='checkbox'][id$='{idSuffix}']"))
+                    .FirstOrDefault(el => el.Displayed);
+                if (checkbox != null)
+                {
+                    return checkbox;
+                }
+
+                Thread.Sleep(200);
+            }
+
+            throw new InvalidOperationException($"Program Type checkbox ending with '{idSuffix}' was not found.");
+        }
+
+        private void SetProgramCheckboxState(IPookieWebDriver driver, string idSuffix, bool shouldBeChecked, string description)
+        {
+            var checkbox = WaitForProgramCheckbox(driver, idSuffix);
+            if (checkbox.Selected == shouldBeChecked)
+            {
+                return;
+            }
+
+            _output.WriteLine($"[INFO] Toggling {description} to {(shouldBeChecked ? "checked" : "unchecked")}.");
+            CommonTestHelper.ClickElement(driver, checkbox);
+            driver.WaitForReady(2);
+        }
+
         private static (string text, string value) SelectRandomDropdownOption(
             IPookieWebDriver driver,
             string cssSelector,
@@ -611,6 +662,36 @@ namespace AFUT.Tests.UnitTests.BaselineForm
             var randomOption = validOptions[randomIndex];
             var optionText = randomOption.Text.Trim();
             var optionValue = randomOption.GetAttribute("value");
+
+            selectElement.SelectByValue(optionValue);
+            driver.WaitForUpdatePanel(5);
+            driver.WaitForReady(5);
+            Thread.Sleep(250);
+
+            return (optionText, optionValue ?? string.Empty);
+        }
+
+        private static (string text, string value) SelectSpecificDropdownOption(
+            IPookieWebDriver driver,
+            string cssSelector,
+            string description,
+            Func<IWebElement, bool> optionComparer)
+        {
+            if (optionComparer is null)
+            {
+                throw new ArgumentNullException(nameof(optionComparer));
+            }
+
+            var dropdown = WebElementHelper.FindElementInModalOrPage(driver, cssSelector, description, 10);
+            var selectElement = new SelectElement(dropdown);
+
+            var targetOption = selectElement.Options
+                .FirstOrDefault(option => !string.IsNullOrWhiteSpace(option.GetAttribute("value")) && optionComparer(option))
+                ?? selectElement.Options.FirstOrDefault(option => !string.IsNullOrWhiteSpace(option.GetAttribute("value")))
+                ?? throw new InvalidOperationException($"No selectable options were found for {description}.");
+
+            var optionText = targetOption.Text.Trim();
+            var optionValue = targetOption.GetAttribute("value");
 
             selectElement.SelectByValue(optionValue);
             driver.WaitForUpdatePanel(5);
