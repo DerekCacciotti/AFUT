@@ -19,11 +19,15 @@ namespace AFUT.Tests.UnitTests.BaselineForm
     [TestCaseOrderer("AFUT.Tests.UnitTests.Attributes.PriorityOrderer", "AFUT.Tests")]
         public class BaselineFormValidationTests : IClassFixture<AppConfig>
     {
-        private readonly AppConfig _config;
-        private readonly IPookieDriverFactory _driverFactory;
-        private readonly ITestOutputHelper _output;
-            private static readonly Random RandomGenerator = new();
-            private static readonly object RandomLock = new();
+        protected readonly AppConfig _config;
+        protected readonly IPookieDriverFactory _driverFactory;
+        protected readonly ITestOutputHelper _output;
+        protected static readonly Random RandomGenerator = new();
+        protected static readonly object RandomLock = new();
+
+        protected virtual string FormToken => "PC1Form";
+        protected virtual string TabSelector => "#tab_PC1 a[href='#PC1']";
+        protected virtual bool CheckConsistencyValidation => true;
 
         public static IEnumerable<object[]> GetTestPc1Ids()
         {
@@ -42,6 +46,20 @@ namespace AFUT.Tests.UnitTests.BaselineForm
             CaseHomePage.ConfigureDefaultTabs(_config.CaseHomeTabs);
         }
 
+        protected string F(string selector)
+        {
+            return selector.Replace("PC1Form", FormToken, StringComparison.Ordinal);
+        }
+
+        protected void ActivateTab(IPookieWebDriver driver)
+        {
+            var tabLink = driver.WaitforElementToBeInDOM(By.CssSelector(TabSelector), 5)
+                ?? throw new InvalidOperationException($"Tab link '{FormToken}' was not found.");
+            CommonTestHelper.ClickElement(driver, tabLink);
+            driver.WaitForReady(5);
+            Thread.Sleep(300);
+        }
+
         [Theory]
         [MemberData(nameof(GetTestPc1Ids))]
         [TestPriority(1)]
@@ -55,6 +73,7 @@ namespace AFUT.Tests.UnitTests.BaselineForm
             _output.WriteLine("[PASS] Successfully navigated to Forms tab");
 
             NavigateToBaselineForm(driver, formsPane);
+            ActivateTab(driver);
             _output.WriteLine("[PASS] Intake (Baseline) form loaded successfully");
 
             SelectRelationshipDropdown(driver);
@@ -105,6 +124,7 @@ namespace AFUT.Tests.UnitTests.BaselineForm
             _output.WriteLine("[PASS] Navigated to Forms tab for conditional question test");
 
             NavigateToBaselineForm(driver, formsPane);
+            ActivateTab(driver);
             _output.WriteLine("[PASS] Intake (Baseline) form loaded successfully");
 
             WebElementHelper.SelectDropdownOption(
@@ -156,7 +176,7 @@ namespace AFUT.Tests.UnitTests.BaselineForm
                 "Born in USA dropdown",
                 "No",
                 "0");
-            var bornSection = driver.WaitforElementToBeInDOM(By.CssSelector("#divBornUSA_PC1Form"), 5)
+            var bornSection = driver.WaitforElementToBeInDOM(By.CssSelector(F("#divBornUSA_PC1Form")), 5)
                 ?? throw new InvalidOperationException("Born in USA follow-up section was not found.");
             Assert.True(ElementIsDisplayed(bornSection), "Country of birth section should be visible when selecting No for Born in USA.");
 
@@ -183,7 +203,7 @@ namespace AFUT.Tests.UnitTests.BaselineForm
 
             var bornSectionHidden = WaitUntilChildrenHidden(
                 driver,
-                "#divBornUSA_PC1Form",
+                F("#divBornUSA_PC1Form"),
                 ".row",
                 8,
                 _output,
@@ -199,7 +219,7 @@ namespace AFUT.Tests.UnitTests.BaselineForm
                 "99");
             driver.WaitForReady(3);
 
-            var specifyLanguageRow = driver.WaitforElementToBeInDOM(By.CssSelector("#divPrimaryLanguageSpecify_PC1Form"), 5)
+            var specifyLanguageRow = driver.WaitforElementToBeInDOM(By.CssSelector(F("#divPrimaryLanguageSpecify_PC1Form")), 5)
                 ?? throw new InvalidOperationException("Specify Primary Language row was not found.");
             Assert.True(ElementIsDisplayed(specifyLanguageRow), "Specify primary language row should appear when selecting Other.");
 
@@ -221,7 +241,7 @@ namespace AFUT.Tests.UnitTests.BaselineForm
 
             var languageSpecifyHidden = WaitUntilElementHidden(
                 driver,
-                "#divPrimaryLanguageSpecify_PC1Form",
+                F("#divPrimaryLanguageSpecify_PC1Form"),
                 8,
                 _output,
                 "Specify primary language row");
@@ -260,7 +280,7 @@ namespace AFUT.Tests.UnitTests.BaselineForm
             driver.WaitForUpdatePanel(10);
             driver.WaitForReady(10);
 
-            var enrollmentSection = driver.WaitforElementToBeInDOM(By.CssSelector("#divEducationalEnrollment_PC1Form"), 5)
+            var enrollmentSection = driver.WaitforElementToBeInDOM(By.CssSelector(F("#divEducationalEnrollment_PC1Form")), 5)
                 ?? throw new InvalidOperationException("Educational enrollment hours section was not found.");
             Assert.True(ElementIsDisplayed(enrollmentSection), "Educational enrollment section should display when selecting Yes.");
             _output.WriteLine("[INFO] Educational enrollment section displayed after selecting Yes");
@@ -289,14 +309,14 @@ namespace AFUT.Tests.UnitTests.BaselineForm
 
             var enrollmentHidden = WaitUntilElementHidden(
                 driver,
-                "#divEducationalEnrollment_PC1Form",
+                F("#divEducationalEnrollment_PC1Form"),
                 8,
                 _output,
                 "Educational enrollment hours section");
             Assert.True(enrollmentHidden, "Educational enrollment section should hide when selecting No.");
             _output.WriteLine("[PASS] Educational enrollment section hides after selecting No");
 
-            var programCheckboxes = driver.FindElements(By.CssSelector(".ProgramType_PC1Form input[type='checkbox']")).ToList();
+            var programCheckboxes = driver.FindElements(By.CssSelector(F(".ProgramType_PC1Form input[type='checkbox']"))).ToList();
             Assert.NotEmpty(programCheckboxes);
 
             foreach (var checkbox in programCheckboxes)
@@ -316,7 +336,7 @@ namespace AFUT.Tests.UnitTests.BaselineForm
             driver.WaitForUpdatePanel(10);
             driver.WaitForReady(10);
 
-            enrollmentSection = driver.WaitforElementToBeInDOM(By.CssSelector("#divEducationalEnrollment_PC1Form"), 5)
+            enrollmentSection = driver.WaitforElementToBeInDOM(By.CssSelector(F("#divEducationalEnrollment_PC1Form")), 5)
                 ?? throw new InvalidOperationException("Educational enrollment hours section was not found after reselecting Yes.");
             Assert.True(ElementIsDisplayed(enrollmentSection), "Educational enrollment section should display after switching back to Yes.");
 
@@ -345,26 +365,29 @@ namespace AFUT.Tests.UnitTests.BaselineForm
             WebElementHelper.SetInputValue(driver, hoursInput, validHours, "Educational hours per month", triggerBlur: true);
             _output.WriteLine($"[INFO] Entered valid hours per month (1-450): {validHours}");
 
-            Assert.True(driver.FindElements(By.CssSelector(".ProgramType_PC1Form input[type='checkbox']")).Any(cb => cb.Enabled), "Program type checkboxes should be enabled when enrollment is Yes.");
+            Assert.True(driver.FindElements(By.CssSelector(F(".ProgramType_PC1Form input[type='checkbox']"))).Any(cb => cb.Enabled), "Program type checkboxes should be enabled when enrollment is Yes.");
 
-            SetProgramCheckboxState(driver, "_0", true, "Lower-level program checkbox (Middle School)");
+            if (CheckConsistencyValidation)
+            {
+                SetProgramCheckboxState(driver, "_0", true, "Lower-level program checkbox (Middle School)");
 
-            ClickSubmitButton(driver);
-            var enrollmentConsistencyValidationAfterProgram = FindValidationMessage(
-                driver,
-                "Enrollment consistency validation",
-                "Highest Grade Completed",
-                "do not agree");
-            Assert.NotNull(enrollmentConsistencyValidationAfterProgram);
-            _output.WriteLine($"[PASS] Enrollment consistency validation displayed: {enrollmentConsistencyValidationAfterProgram!.Text.Trim()}");
+                ClickSubmitButton(driver);
+                var enrollmentConsistencyValidationAfterProgram = FindValidationMessage(
+                    driver,
+                    "Enrollment consistency validation",
+                    "Highest Grade Completed",
+                    "do not agree");
+                Assert.NotNull(enrollmentConsistencyValidationAfterProgram);
+                _output.WriteLine($"[PASS] Enrollment consistency validation displayed: {enrollmentConsistencyValidationAfterProgram!.Text.Trim()}");
 
-            SetProgramCheckboxState(driver, "_0", false, "Lower-level program checkbox (Middle School)");
+                SetProgramCheckboxState(driver, "_0", false, "Lower-level program checkbox (Middle School)");
+            }
 
             ClickSubmitButton(driver);
             var programValidation = FindValidationMessage(
                 driver,
                 "Program type validation",
-                "PC1 You must specify a education or employment program");
+                "You must specify a education or employment program");
 
             Assert.NotNull(programValidation);
             _output.WriteLine($"[PASS] Program type validation displayed: {programValidation!.Text.Trim()}");
@@ -374,7 +397,7 @@ namespace AFUT.Tests.UnitTests.BaselineForm
             SetProgramCheckboxState(driver, "_9", true, "'Other' program type checkbox");
             _output.WriteLine("[INFO] Selected 'Other' program type checkbox");
 
-            var programSpecifyRow = driver.WaitforElementToBeInDOM(By.CssSelector("#divProgramTypeSpecify_PC1Form"), 5)
+            var programSpecifyRow = driver.WaitforElementToBeInDOM(By.CssSelector(F("#divProgramTypeSpecify_PC1Form")), 5)
                 ?? throw new InvalidOperationException("Specify Program row was not found after selecting Other.");
             Assert.True(ElementIsDisplayed(programSpecifyRow), "Specify Program row should display after selecting Other program type.");
 
@@ -450,7 +473,7 @@ namespace AFUT.Tests.UnitTests.BaselineForm
             _output.WriteLine("[PASS] Baseline form saved successfully with expected toast message");
         }
 
-        private void NavigateToBaselineForm(IPookieWebDriver driver, IWebElement formsPane)
+        protected void NavigateToBaselineForm(IPookieWebDriver driver, IWebElement formsPane)
         {
             var baselineFormLink = formsPane.FindElements(By.CssSelector(
                     "a.list-group-item.moreInfo[href*='Intake.aspx'], " +
@@ -473,9 +496,9 @@ namespace AFUT.Tests.UnitTests.BaselineForm
             _output.WriteLine($"[INFO] Navigated to Intake page: {currentUrl}");
         }
 
-        private void SelectRelationshipDropdown(IPookieWebDriver driver)
+        protected void SelectRelationshipDropdown(IPookieWebDriver driver)
         {
-            var dropdownSelector = "select.form-control[id$='ddlRelation'], select[id*='PC1Form_ddlRelation']";
+            var dropdownSelector = F("select.form-control[id$='ddlRelation'], select[id*='PC1Form_ddlRelation']");
             WebElementHelper.SelectDropdownOption(
                 driver,
                 dropdownSelector,
@@ -484,7 +507,7 @@ namespace AFUT.Tests.UnitTests.BaselineForm
                 string.Empty);
         }
 
-        private static bool ElementIsDisplayed(IWebElement? element)
+        protected static bool ElementIsDisplayed(IWebElement? element)
         {
             if (element == null)
             {
@@ -501,7 +524,7 @@ namespace AFUT.Tests.UnitTests.BaselineForm
             }
         }
 
-        private static bool WaitUntilElementHidden(
+        protected static bool WaitUntilElementHidden(
             IPookieWebDriver driver,
             string cssSelector,
             int timeoutSeconds,
@@ -550,7 +573,7 @@ namespace AFUT.Tests.UnitTests.BaselineForm
             return false;
         }
 
-        private static bool WaitUntilChildrenHidden(
+        protected static bool WaitUntilChildrenHidden(
             IPookieWebDriver driver,
             string parentSelector,
             string childSelector,
@@ -611,12 +634,12 @@ namespace AFUT.Tests.UnitTests.BaselineForm
             return false;
         }
 
-        private IWebElement WaitForProgramCheckbox(IPookieWebDriver driver, string idSuffix, int timeoutSeconds = 5)
+        protected IWebElement WaitForProgramCheckbox(IPookieWebDriver driver, string idSuffix, int timeoutSeconds = 5)
         {
             var end = DateTime.Now.AddSeconds(timeoutSeconds);
             while (DateTime.Now <= end)
             {
-                var checkbox = driver.FindElements(By.CssSelector($".ProgramType_PC1Form input[type='checkbox'][id$='{idSuffix}']"))
+                var checkbox = driver.FindElements(By.CssSelector(F($".ProgramType_PC1Form input[type='checkbox'][id$='{idSuffix}']")))
                     .FirstOrDefault(el => el.Displayed);
                 if (checkbox != null)
                 {
@@ -629,7 +652,7 @@ namespace AFUT.Tests.UnitTests.BaselineForm
             throw new InvalidOperationException($"Program Type checkbox ending with '{idSuffix}' was not found.");
         }
 
-        private void SetProgramCheckboxState(IPookieWebDriver driver, string idSuffix, bool shouldBeChecked, string description)
+        protected void SetProgramCheckboxState(IPookieWebDriver driver, string idSuffix, bool shouldBeChecked, string description)
         {
             var checkbox = WaitForProgramCheckbox(driver, idSuffix);
             if (checkbox.Selected == shouldBeChecked)
@@ -642,7 +665,7 @@ namespace AFUT.Tests.UnitTests.BaselineForm
             driver.WaitForReady(2);
         }
 
-        private static (string text, string value) SelectRandomDropdownOption(
+        protected static (string text, string value) SelectRandomDropdownOption(
             IPookieWebDriver driver,
             string cssSelector,
             string description)
@@ -671,7 +694,7 @@ namespace AFUT.Tests.UnitTests.BaselineForm
             return (optionText, optionValue ?? string.Empty);
         }
 
-        private static (string text, string value) SelectSpecificDropdownOption(
+        protected static (string text, string value) SelectSpecificDropdownOption(
             IPookieWebDriver driver,
             string cssSelector,
             string description,
@@ -701,7 +724,7 @@ namespace AFUT.Tests.UnitTests.BaselineForm
             return (optionText, optionValue ?? string.Empty);
         }
 
-        private static int GetRandomNumber(int minInclusive, int maxInclusive)
+        protected static int GetRandomNumber(int minInclusive, int maxInclusive)
         {
             if (maxInclusive < minInclusive)
             {
@@ -714,7 +737,7 @@ namespace AFUT.Tests.UnitTests.BaselineForm
             }
         }
 
-        private void ClickSubmitButton(IPookieWebDriver driver)
+        protected virtual void ClickSubmitButton(IPookieWebDriver driver)
         {
             var submitButton = FindSubmitButton(driver);
             CommonTestHelper.ClickElement(driver, submitButton);
@@ -723,7 +746,7 @@ namespace AFUT.Tests.UnitTests.BaselineForm
             Thread.Sleep(1000);
         }
 
-        private IWebElement FindSubmitButton(IPookieWebDriver driver)
+        protected IWebElement FindSubmitButton(IPookieWebDriver driver)
         {
             return driver.FindElements(By.CssSelector("a.btn.btn-primary"))
                 .FirstOrDefault(el =>
@@ -733,7 +756,7 @@ namespace AFUT.Tests.UnitTests.BaselineForm
                 ?? throw new InvalidOperationException("Baseline form Submit button was not found.");
         }
 
-        private IWebElement? FindValidationMessage(
+        protected IWebElement? FindValidationMessage(
             IPookieWebDriver driver,
             string description,
             params string[] keywords)
