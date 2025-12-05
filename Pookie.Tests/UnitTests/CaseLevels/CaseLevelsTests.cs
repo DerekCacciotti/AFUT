@@ -471,7 +471,7 @@ namespace AFUT.Tests.UnitTests.CaseLevels
         }
 
         /// <summary>
-        /// Waits for the form heading to appear and be displayed
+        /// Waits for the form heading to appear and be displayed//
         /// </summary>
         private IWebElement WaitForFormHeading(IPookieWebDriver driver, string expectedText = "Add New Level")
         {
