@@ -71,6 +71,20 @@ namespace AFUT.Tests.UnitTests.TargetChildID
         private const string ChildFedBreastMilkDropdownSelector = "select.form-control[id$='ddlChildFedBreastMilk']";
         private const string AdditionalItemsTooltipSelector = "#OptionalItems span.glyphicon.glyphicon-question-sign";
         private const string AdditionalItemsTabSelector = "#OptionalItems";
+        private const string PhqTabSelector = "#PHQ9";
+        private const string PhqDateInputSelector = "input.form-control[id$='txtPHQDateAdministered']";
+        private const string IntakeDateLabelSelector = "span[id$='lblIntakeDate']";
+        private const string TargetChildDobLabelSelector = "span[id$='lblTCDOB']";
+        private const string PhqParticipantDropdownSelector = "select.form-control[id$='ddlPHQ9Participant']";
+        private const string PhqParticipantSpecifyInputSelector = "input.form-control[id$='txtPHQ9ParticipantSpecify']";
+        private const string PhqRefusedCheckboxSelector = "input[id$='chkPHQ9Refused']";
+        private const string PhqWorkerDropdownSelector = "select.form-control[id$='ddlPHQWorker']";
+        private const string PhqScoreLabelSelector = "span[id$='lblPHQ9Score']";
+        private const string PhqResultLabelSelector = "span[id$='lblPHQ9Result']";
+        private const string PhqScoreValidityLabelSelector = "span[id$='lblPHQ9ScoreValidity']";
+        private const string PhqQuestionDropdownsSelector = "#PHQ9 select.phq9score";
+        private const string PhqDifficultyDropdownSelector = "select.form-control[id$='ddlDifficulty']";
+        private const string PhqDepressionReferralCheckboxSelector = "input[id$='chkDepressionReferralMade']";
         private const string PrenatalCareInputSelector =
             "input.form-control[id*='Prenatal'][type='text'], " +
             "input.form-control[name*='Prenatal'], " +
