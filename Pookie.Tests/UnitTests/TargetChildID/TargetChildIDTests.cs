@@ -16,7 +16,7 @@ using Xunit.Abstractions;
 namespace AFUT.Tests.UnitTests.TargetChildID
 {
     [TestCaseOrderer("AFUT.Tests.UnitTests.Attributes.PriorityOrderer", "AFUT.Tests")]
-    public class TargetChildIDTests : IClassFixture<AppConfig>
+    public partial class TargetChildIDTests : IClassFixture<AppConfig>
     {
         private const string TargetChildLinkSelector =
             "a.list-group-item.moreInfo[href*='TCIDs.aspx'], " +
@@ -67,6 +67,10 @@ namespace AFUT.Tests.UnitTests.TargetChildID
         private const string MedicalFacilityModalSelector = ".modal.show .modal-content, .modal.fade.in .modal-content";
         private const string MedicalFacilityModalValidationSelector = "div[id$='ctlMedicalFacility_vsMF']";
         private const string MedicalFacilityModalSubmitButtonSelector = "a[id$='ctlMedicalFacility_btnSubmitFacility']";
+        private const string DeliveryTypeDropdownSelector = "select.form-control[id$='ddlDeliveryType']";
+        private const string ChildFedBreastMilkDropdownSelector = "select.form-control[id$='ddlChildFedBreastMilk']";
+        private const string AdditionalItemsTooltipSelector = "#OptionalItems span.glyphicon.glyphicon-question-sign";
+        private const string AdditionalItemsTabSelector = "#OptionalItems";
         private const string PrenatalCareInputSelector =
             "input.form-control[id*='Prenatal'][type='text'], " +
             "input.form-control[name*='Prenatal'], " +
@@ -582,6 +586,16 @@ namespace AFUT.Tests.UnitTests.TargetChildID
 
         private string SubmitForm(IPookieWebDriver driver, bool expectValidation = true)
         {
+            return SubmitFormCore(driver, expectValidation, switchBackToAdditionalItems: false);
+        }
+
+        protected string SubmitFormFromAdditionalItemsTab(IPookieWebDriver driver, bool expectValidation = true)
+        {
+            return SubmitFormCore(driver, expectValidation, switchBackToAdditionalItems: true);
+        }
+
+        private string SubmitFormCore(IPookieWebDriver driver, bool expectValidation, bool switchBackToAdditionalItems)
+        {
             var submitButton = driver.FindElements(By.CssSelector(SubmitButtonSelector))
                 .FirstOrDefault(el => el.Displayed && el.Text.Contains("Submit", StringComparison.OrdinalIgnoreCase))
                 ?? throw new InvalidOperationException("Submit button was not found on the TCID form.");
@@ -590,6 +604,11 @@ namespace AFUT.Tests.UnitTests.TargetChildID
             driver.WaitForUpdatePanel(30);
             driver.WaitForReady(30);
             Thread.Sleep(1500);
+
+            if (switchBackToAdditionalItems)
+            {
+                TrySwitchBackToAdditionalItems(driver);
+            }
 
             if (!expectValidation)
             {
@@ -831,6 +850,54 @@ namespace AFUT.Tests.UnitTests.TargetChildID
             }
 
             throw new InvalidOperationException($"Unable to locate {description}.");
+        }
+
+        private static void SelectDropdownPlaceholderOption(IWebElement dropdown, string description)
+        {
+            var selectElement = new SelectElement(dropdown);
+            var placeholderOption = selectElement.Options.FirstOrDefault(opt => string.IsNullOrWhiteSpace(opt.GetAttribute("value")));
+            if (placeholderOption == null)
+            {
+                throw new InvalidOperationException($"No placeholder option was available for {description}.");
+            }
+
+            try
+            {
+                selectElement.SelectByValue(string.Empty);
+            }
+            catch (NoSuchElementException)
+            {
+                placeholderOption.Click();
+            }
+        }
+
+        private void TrySwitchBackToAdditionalItems(IPookieWebDriver driver)
+        {
+            try
+            {
+                var tabLink = driver.FindElements(By.CssSelector(
+                        $"ul.nav.nav-pills li a[data-toggle='tab'][href='{AdditionalItemsTabSelector}'], " +
+                        $"ul.nav.nav-pills li a[title*='Additional Items']"))
+                    .FirstOrDefault(el => el.Displayed);
+
+                if (tabLink != null)
+                {
+                    CommonTestHelper.ClickElement(driver, tabLink);
+                    driver.WaitForReady(5);
+                    Thread.Sleep(300);
+                }
+            }
+            catch (Exception ex)
+            {
+                _output.WriteLine($"[WARN] Unable to switch back to Additional Items tab automatically: {ex.Message}");
+            }
+        }
+
+        protected void NavigateBackToExistingTcid(IPookieWebDriver driver, string pc1Id)
+        {
+            driver.Navigate().GoToUrl($"{_config.AppUrl}/Pages/TCIDs.aspx?pc1id={pc1Id}");
+            driver.WaitForReady(15);
+            OpenExistingTcidEntry(driver);
         }
     }
 }
