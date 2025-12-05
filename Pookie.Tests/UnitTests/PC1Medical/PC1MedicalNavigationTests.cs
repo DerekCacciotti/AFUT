@@ -101,6 +101,77 @@ namespace AFUT.Tests.UnitTests.PC1Medical
         [Theory]
         [MemberData(nameof(GetTestPc1Ids))]
         [TestPriority(3)]
+        public void ReasonFieldVisibilityDependsOnMedicalTypeSelection(string pc1Id)
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            var (_, formsPane) = CommonTestHelper.NavigateToFormsTab(driver, _config, pc1Id);
+            _output.WriteLine("[PASS] Successfully navigated to Forms tab");
+
+            NavigateToPc1MedicalPage(driver, formsPane, pc1Id);
+            OpenNewPc1MedicalRecord(driver);
+            _output.WriteLine("[INFO] Opened new PC1 Medical form to verify Reason field behavior");
+
+            foreach (var option in MedicalTypeOptions)
+            {
+                _output.WriteLine($"[INFO] Selecting medical type '{option.TypeText}' to validate Reason field visibility");
+                SelectMedicalType(driver, option.TypeText, option.TypeValue);
+                driver.WaitForReady(5);
+                driver.WaitForUpdatePanel(5);
+                Thread.Sleep(250);
+
+                var shouldBeVisible = ReasonEnabledMedicalTypes.Contains(option.TypeText);
+                var actualVisibility = WaitForReasonInputState(driver, shouldBeVisible);
+
+                if (shouldBeVisible)
+                {
+                    Assert.True(actualVisibility, $"Reason input should be visible for {option.TypeText}.");
+                    var labelText = GetReasonLabelText(driver);
+                    Assert.True(string.Equals(labelText, "Reason", StringComparison.OrdinalIgnoreCase),
+                        $"Reason label text mismatch for {option.TypeText}. Actual: {labelText ?? "<null>"}");
+                }
+                else
+                {
+                    Assert.False(actualVisibility, $"Reason input should be hidden for {option.TypeText}.");
+                }
+            }
+        }
+
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
+        [TestPriority(4)]
+        public void SubmittingPc1MedicalFormWithInvalidDateShowsValidationMessage(string pc1Id)
+        {
+            using var driver = _driverFactory.CreateDriver();
+            const string invalidDate = "30/30/30";
+
+            var (_, formsPane) = CommonTestHelper.NavigateToFormsTab(driver, _config, pc1Id);
+            _output.WriteLine("[PASS] Successfully navigated to Forms tab");
+
+            NavigateToPc1MedicalPage(driver, formsPane, pc1Id);
+            OpenNewPc1MedicalRecord(driver);
+
+            var firstType = MedicalTypeOptions.First();
+            SelectMedicalType(driver, firstType.TypeText, firstType.TypeValue);
+            _output.WriteLine($"[INFO] Selected PC1 Medical type: {firstType.TypeText}");
+
+            SetMedicalRecordDate(driver, invalidDate);
+            _output.WriteLine("[INFO] Entered invalid date '30/30/30' to trigger validation");
+
+            var submitButton = GetPc1MedicalSubmitButton(driver);
+            CommonTestHelper.ClickElement(driver, submitButton);
+            driver.WaitForUpdatePanel(30);
+            driver.WaitForReady(30);
+            Thread.Sleep(1000);
+
+            var dateError = FindValidationMessage(driver, "Date is required")
+                ?? throw new InvalidOperationException("Date validation message was not displayed for invalid date input.");
+            _output.WriteLine($"[PASS] Date validation displayed for invalid date: {dateError.Text?.Trim()}");
+        }
+
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
+        [TestPriority(5)]
         public void SavingPc1MedicalRecordShowsSuccessFeedback(string pc1Id)
         {
             using var driver = _driverFactory.CreateDriver();
@@ -121,7 +192,7 @@ namespace AFUT.Tests.UnitTests.PC1Medical
 
         [Theory]
         [MemberData(nameof(GetTestPc1Ids))]
-        [TestPriority(4)]
+        [TestPriority(6)]
         public void EditingPc1MedicalRecordUpdatesGrid(string pc1Id)
         {
             using var driver = _driverFactory.CreateDriver();
@@ -157,7 +228,7 @@ namespace AFUT.Tests.UnitTests.PC1Medical
 
         [Theory]
         [MemberData(nameof(GetTestPc1Ids))]
-        [TestPriority(5)]
+        [TestPriority(7)]
         public void DashboardSummaryCountsMatchGridTotals(string pc1Id)
         {
             using var driver = _driverFactory.CreateDriver();
@@ -204,7 +275,7 @@ namespace AFUT.Tests.UnitTests.PC1Medical
 
         [Theory]
         [MemberData(nameof(GetTestPc1Ids))]
-        [TestPriority(6)]
+        [TestPriority(8)]
         public void DeletingPc1MedicalRecordUpdatesCounts(string pc1Id)
         {
             using var driver = _driverFactory.CreateDriver();
@@ -280,7 +351,7 @@ namespace AFUT.Tests.UnitTests.PC1Medical
 
         [Theory]
         [MemberData(nameof(GetTestPc1Ids))]
-        [TestPriority(7)]
+        [TestPriority(9)]
         public void PrenatalCheckupModalValidatesAndUpdatesDashboard(string pc1Id)
         {
             using var driver = _driverFactory.CreateDriver();
@@ -342,6 +413,12 @@ namespace AFUT.Tests.UnitTests.PC1Medical
             new("ED (Emergency Room Visit)", "02", "#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_lblEmergency"),
             new("Primary Care Provider", "19", "#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_lblPrimaryCareProvider"),
             new("Urgent Care", "20", "#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_lblUrgentCare"),
+        };
+
+        private static readonly HashSet<string> ReasonEnabledMedicalTypes = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "ED (Emergency Room Visit)",
+            "Urgent Care",
         };
 
         private string BuildExpectedPc1MedicalUrlPrefix(string pc1Id)
@@ -479,6 +556,61 @@ namespace AFUT.Tests.UnitTests.PC1Medical
             driver.WaitForUpdatePanel(5);
             driver.WaitForReady(5);
             Thread.Sleep(250);
+        }
+
+        private IWebElement? FindReasonInput(IPookieWebDriver driver)
+        {
+            return driver.FindElements(By.CssSelector(
+                    "input#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_txtMedicalIssue, " +
+                    "input[id*='txtMedicalIssue'], input[name*='txtMedicalIssue']"))
+                .FirstOrDefault();
+        }
+
+        private bool IsReasonInputDisplayed(IPookieWebDriver driver)
+        {
+            var input = FindReasonInput(driver);
+            if (input == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                return input.Displayed;
+            }
+            catch (StaleElementReferenceException)
+            {
+                return false;
+            }
+        }
+
+        private bool WaitForReasonInputState(IPookieWebDriver driver, bool shouldBeVisible, int timeoutSeconds = 5)
+        {
+            var end = DateTime.Now.AddSeconds(timeoutSeconds);
+            var lastState = IsReasonInputDisplayed(driver);
+
+            while (DateTime.Now <= end)
+            {
+                lastState = IsReasonInputDisplayed(driver);
+                if (lastState == shouldBeVisible)
+                {
+                    return lastState;
+                }
+
+                Thread.Sleep(200);
+            }
+
+            return lastState;
+        }
+
+        private string? GetReasonLabelText(IPookieWebDriver driver)
+        {
+            var label = driver.FindElements(By.CssSelector(
+                    "label#ctl00_ctl00_ContentPlaceHolder1_ContentPlaceHolder1_lblMedicalIssue, " +
+                    "label[id*='lblMedicalIssue']"))
+                .FirstOrDefault();
+
+            return label?.Text?.Trim();
         }
 
         private IWebElement? FindInlineSaveMessage(IPookieWebDriver driver)
