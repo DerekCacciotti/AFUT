@@ -85,6 +85,9 @@ namespace AFUT.Tests.UnitTests.TargetChildID
         private const string PhqQuestionDropdownsSelector = "#PHQ9 select.phq9score";
         private const string PhqDifficultyDropdownSelector = "select.form-control[id$='ddlDifficulty']";
         private const string PhqDepressionReferralCheckboxSelector = "input[id$='chkDepressionReferralMade']";
+        private const string MiechvTabSelector = "#MIECHV";
+        private const string MedicalCareSourceDropdownSelector = "select.form-control[id$='ddlTCMedicalCareSource']";
+        private const string MedicalCareSourceSpecifyInputSelector = "input.form-control[id$='txtTCMedicalCareSourceOtherSpecify']";
         private const string PrenatalCareInputSelector =
             "input.form-control[id*='Prenatal'][type='text'], " +
             "input.form-control[name*='Prenatal'], " +
