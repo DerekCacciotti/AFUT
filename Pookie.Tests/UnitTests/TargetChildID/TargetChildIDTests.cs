@@ -40,6 +40,33 @@ namespace AFUT.Tests.UnitTests.TargetChildID
         private const string GestationalAgeInputSelector = "input.form-control[id$='txtGestationalAge']";
         private const string BirthWeightLbsInputSelector = "input.form-control[id$='txtBirthWtLbs']";
         private const string BirthWeightOzInputSelector = "input.form-control[id$='txtBirthWtOz']";
+        private const string MedicaidDropdownSelector = "select.form-control[id$='ddlTCReceivingMedicaid']";
+        private const string HealthInsuranceCheckboxesSelector =
+            "input[id$='chkTCHIFamilyChildHealth'], " +
+            "input[id$='chkTCHIPrivateInsurance'], " +
+            "input[id$='chkTCHIOther'], " +
+            "input[id$='chkTCHIUninsured'], " +
+            "input[id$='chkTCHIUnknown']";
+        private const string HealthInsuranceOtherCheckboxSelector = "input[id$='chkTCHIOther']";
+        private const string HealthInsuranceOtherSpecifyInputSelector = "input.form-control[id$='txtTCHIOtherSpecify']";
+        private const string HasMedicalProviderDropdownSelector = "select.form-control[id$='ddlTCHasMedicalProvider']";
+        private const string MedicalProviderDropdownSelector = "select.form-control[id$='ddlTCMedicalProviderFK']";
+        private const string MedicalFacilityDropdownSelector = "select.form-control[id$='ddlTCMedicalFacilityFK']";
+        private const string MedicalProviderNotInListLinkSelector = "a[id$='lnkNewMedicalProvider']";
+        private const string MedicalProviderModalSelector = ".modal.show .modal-content, .modal.fade.in .modal-content";
+        private const string MedicalProviderModalValidationSelector = "div[id$='ctlMedicalProvider_vsMP']";
+        private const string MedicalProviderModalSubmitButtonSelector = "a[id$='ctlMedicalProvider_btnSubmitProvider']";
+        private const string MedicalProviderModalFirstNameInputSelector = "input[id$='ctlMedicalProvider_txtMPFirstName']";
+        private const string MedicalProviderModalLastNameInputSelector = "input[id$='ctlMedicalProvider_txtMPLastName']";
+        private const string MedicalProviderModalAddressInputSelector = "input[id$='ctlMedicalProvider_txtMPAddress']";
+        private const string MedicalProviderModalStateInputSelector = "input[id$='ctlMedicalProvider_txtMPState']";
+        private const string MedicalProviderModalZipInputSelector = "input[id$='ctlMedicalProvider_txtMPZip']";
+        private const string MedicalProviderModalPhoneInputSelector = "input[id$='ctlMedicalProvider_txtMPPhone']";
+        private const string MedicaidCaseNumberInputSelector = "input.form-control[id$='txtTcHIMedicaidCaseNumber']";
+        private const string MedicalFacilityNotInListLinkSelector = "a[id$='lnkNewMedicalFacility']";
+        private const string MedicalFacilityModalSelector = ".modal.show .modal-content, .modal.fade.in .modal-content";
+        private const string MedicalFacilityModalValidationSelector = "div[id$='ctlMedicalFacility_vsMF']";
+        private const string MedicalFacilityModalSubmitButtonSelector = "a[id$='ctlMedicalFacility_btnSubmitFacility']";
         private const string PrenatalCareInputSelector =
             "input.form-control[id*='Prenatal'][type='text'], " +
             "input.form-control[name*='Prenatal'], " +
@@ -274,6 +301,232 @@ namespace AFUT.Tests.UnitTests.TargetChildID
             _output.WriteLine("[PASS] Existing TCID saved successfully after entering valid birth weight.");
         }
 
+        [Theory]
+        [MemberData(nameof(GetTestPc1Ids))]
+        [TestPriority(6)]
+        public void HealthInsuranceOptionsRespectMedicaidSelection(string pc1Id)
+        {
+            using var driver = _driverFactory.CreateDriver();
+
+            var (homePage, formsPane) = CommonTestHelper.NavigateToFormsTab(driver, _config, pc1Id);
+            Assert.NotNull(homePage);
+            Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
+
+            NavigateToTargetChildPage(driver, formsPane, pc1Id);
+            OpenExistingTcidEntry(driver);
+
+            const string healthInsuranceTab = "#HealthInsurance";
+            SwitchToTab(driver, healthInsuranceTab, "Health Insurance");
+
+            var medicaidDropdown = driver.WaitforElementToBeInDOM(By.CssSelector(MedicaidDropdownSelector), 10)
+                ?? throw new InvalidOperationException("Medicaid dropdown was not found on the Health Insurance tab.");
+
+            _output.WriteLine("[INFO] Selecting 'Yes' for Medicaid.");
+            WebElementHelper.SelectDropdownOption(driver, medicaidDropdown, "Medicaid dropdown", "Yes", "1");
+            EnsureMedicaidCaseNumberInputVisible(driver);
+            var insuranceCheckboxes = GetHealthInsuranceCheckboxes(driver);
+            foreach (var checkbox in insuranceCheckboxes)
+            {
+                Assert.False(checkbox.Enabled, $"Checkbox '{checkbox.GetAttribute("id")}' should be disabled when Medicaid is 'Yes'.");
+            }
+            _output.WriteLine("[PASS] Health insurance options were disabled when Medicaid was set to Yes.");
+
+            _output.WriteLine("[INFO] Selecting 'No' for Medicaid.");
+            WebElementHelper.SelectDropdownOption(driver, medicaidDropdown, "Medicaid dropdown", "No", "0");
+            insuranceCheckboxes = GetHealthInsuranceCheckboxes(driver);
+            foreach (var checkbox in insuranceCheckboxes)
+            {
+                Assert.True(checkbox.Enabled, $"Checkbox '{checkbox.GetAttribute("id")}' should be editable when Medicaid is 'No'.");
+            }
+
+            var otherCheckbox = GetHealthInsuranceOtherCheckbox(driver);
+            var otherSpecifyInput = GetHealthInsuranceOtherSpecifyInput(driver);
+
+            if (!otherCheckbox.Selected)
+            {
+                CommonTestHelper.ClickElement(driver, otherCheckbox);
+                driver.WaitForReady(2);
+                Thread.Sleep(300);
+            }
+
+            Assert.True(IsElementVisible(otherSpecifyInput), "Health insurance 'Other specify' field should be visible when 'Other' is selected and Medicaid is 'No'.");
+            _output.WriteLine("[PASS] 'Other specify' text box displayed after selecting Other with Medicaid = No.");
+
+            if (otherCheckbox.Selected)
+            {
+                CommonTestHelper.ClickElement(driver, otherCheckbox);
+                driver.WaitForReady(2);
+                Thread.Sleep(300);
+            }
+
+            _output.WriteLine("[INFO] Selecting 'Unknown' for Medicaid.");
+            WebElementHelper.SelectDropdownOption(driver, medicaidDropdown, "Medicaid dropdown", "Unknown", "9");
+            insuranceCheckboxes = GetHealthInsuranceCheckboxes(driver);
+            foreach (var checkbox in insuranceCheckboxes)
+            {
+                Assert.True(checkbox.Enabled, $"Checkbox '{checkbox.GetAttribute("id")}' should be editable when Medicaid is 'Unknown'.");
+            }
+
+            otherCheckbox = GetHealthInsuranceOtherCheckbox(driver);
+            otherSpecifyInput = GetHealthInsuranceOtherSpecifyInput(driver);
+
+            if (!otherCheckbox.Selected)
+            {
+                CommonTestHelper.ClickElement(driver, otherCheckbox);
+                driver.WaitForReady(2);
+                Thread.Sleep(300);
+            }
+
+            Assert.True(IsElementVisible(otherSpecifyInput), "Health insurance 'Other specify' field should be visible when 'Other' is selected and Medicaid is 'Unknown'.");
+            _output.WriteLine("[PASS] 'Other specify' text box displayed after selecting Other with Medicaid = Unknown.");
+
+            medicaidDropdown = driver.WaitforElementToBeInDOM(By.CssSelector(MedicaidDropdownSelector), 10)
+                ?? throw new InvalidOperationException("Medicaid dropdown was not found after finishing Unknown validation.");
+            _output.WriteLine("[INFO] Selecting 'Yes' for Medicaid to capture case number.");
+            WebElementHelper.SelectDropdownOption(driver, medicaidDropdown, "Medicaid dropdown", "Yes", "1");
+            var medicaidCaseNumberInput = EnsureMedicaidCaseNumberInputVisible(driver);
+            WebElementHelper.SetInputValue(driver, medicaidCaseNumberInput, "MCN12345", "Medicaid case number", triggerBlur: true);
+
+            var hasMedicalProviderDropdown = driver.WaitforElementToBeInDOM(By.CssSelector(HasMedicalProviderDropdownSelector), 10)
+                ?? throw new InvalidOperationException("Medical provider question dropdown was not found on the Health Insurance tab.");
+
+            _output.WriteLine("[INFO] Selecting 'No' for medical provider question (Q19).");
+            WebElementHelper.SelectDropdownOption(driver, hasMedicalProviderDropdown, "Medical provider availability dropdown", "No", "0");
+            AssertMedicalProviderDropdownsEnabledState(driver, shouldBeEnabled: false);
+            var medicalProviderNotInListLink = GetMedicalProviderNotInListLink(driver);
+            Assert.True(HasDisabledClass(medicalProviderNotInListLink), "'Not in List' doctor link should be disabled when Q19 is 'No'.");
+            var medicalFacilityNotInListLink = GetMedicalFacilityNotInListLink(driver);
+            Assert.True(HasDisabledClass(medicalFacilityNotInListLink), "'Not in List' facility link should be disabled when Q19 is 'No'.");
+            _output.WriteLine("[PASS] Question 20 dropdowns were disabled when Has Medical Provider = No.");
+
+            hasMedicalProviderDropdown = driver.WaitforElementToBeInDOM(By.CssSelector(HasMedicalProviderDropdownSelector), 10)
+                ?? throw new InvalidOperationException("Medical provider question dropdown was not found after updating the selection.");
+
+            _output.WriteLine("[INFO] Selecting 'Yes' for medical provider question (Q19).");
+            WebElementHelper.SelectDropdownOption(driver, hasMedicalProviderDropdown, "Medical provider availability dropdown", "Yes", "1");
+            AssertMedicalProviderDropdownsEnabledState(driver, shouldBeEnabled: true);
+            medicalProviderNotInListLink = GetMedicalProviderNotInListLink(driver);
+            Assert.False(HasDisabledClass(medicalProviderNotInListLink), "'Not in List' doctor link should be enabled when Q19 is 'Yes'.");
+            medicalFacilityNotInListLink = GetMedicalFacilityNotInListLink(driver);
+            Assert.False(HasDisabledClass(medicalFacilityNotInListLink), "'Not in List' facility link should be enabled when Q19 is 'Yes'.");
+
+            _output.WriteLine("[INFO] Opening the Medical Provider modal via 'Not in List'.");
+            CommonTestHelper.ClickElement(driver, medicalProviderNotInListLink);
+            driver.WaitForReady(5);
+            Thread.Sleep(500);
+
+            var modal = driver.WaitforElementToBeInDOM(By.CssSelector(MedicalProviderModalSelector), 10)
+                ?? throw new InvalidOperationException("Medical provider modal did not appear after clicking 'Not in List'.");
+
+            var modalFirstNameInput = WebElementHelper.FindElementInModalOrPage(driver, MedicalProviderModalFirstNameInputSelector, "Medical provider first name input", 5);
+            var modalLastNameInput = WebElementHelper.FindElementInModalOrPage(driver, MedicalProviderModalLastNameInputSelector, "Medical provider last name input", 5);
+            modalFirstNameInput.Clear();
+            modalLastNameInput.Clear();
+
+            var modalSubmitButton = WebElementHelper.FindElementInModalOrPage(driver, MedicalProviderModalSubmitButtonSelector, "Medical provider modal submit button", 5);
+            CommonTestHelper.ClickElement(driver, modalSubmitButton);
+            driver.WaitForReady(5);
+            Thread.Sleep(300);
+
+            var modalValidation = driver.FindElements(By.CssSelector(MedicalProviderModalValidationSelector))
+                .FirstOrDefault(el => el.Displayed && !string.IsNullOrWhiteSpace(el.Text))
+                ?? throw new InvalidOperationException("Medical provider validation summary did not appear after submitting without a last name.");
+            Assert.Contains("Provider's Last Name", modalValidation.Text, StringComparison.OrdinalIgnoreCase);
+            _output.WriteLine("[PASS] Medical provider modal displayed validation when last name was missing.");
+
+            var modalAddressInput = WebElementHelper.FindElementInModalOrPage(driver, MedicalProviderModalAddressInputSelector, "Medical provider address input", 5);
+            var modalStateInput = WebElementHelper.FindElementInModalOrPage(driver, MedicalProviderModalStateInputSelector, "Medical provider state input", 5);
+            var modalZipInput = WebElementHelper.FindElementInModalOrPage(driver, MedicalProviderModalZipInputSelector, "Medical provider zip input", 5);
+            var modalPhoneInput = WebElementHelper.FindElementInModalOrPage(driver, MedicalProviderModalPhoneInputSelector, "Medical provider phone input", 5);
+
+            WebElementHelper.SetInputValue(driver, modalFirstNameInput, "testone", "Medical provider first name input", triggerBlur: true);
+            WebElementHelper.SetInputValue(driver, modalLastNameInput, "testtwo", "Medical provider last name input", triggerBlur: true);
+            WebElementHelper.SetInputValue(driver, modalAddressInput, "aaaaaaaa", "Medical provider address input", triggerBlur: true);
+            WebElementHelper.SetInputValue(driver, modalStateInput, "aa", "Medical provider state input", triggerBlur: true);
+            WebElementHelper.SetInputValue(driver, modalZipInput, "00000", "Medical provider zip input", triggerBlur: true);
+            WebElementHelper.SetInputValue(driver, modalPhoneInput, "000000000", "Medical provider phone input", triggerBlur: true);
+
+            CommonTestHelper.ClickElement(driver, modalSubmitButton);
+            driver.WaitForUpdatePanel(20);
+            driver.WaitForReady(20);
+            Thread.Sleep(1000);
+            WaitForElementToDisappear(driver, MedicalProviderModalSelector, 10);
+            SwitchToTab(driver, healthInsuranceTab, "Health Insurance");
+
+            var providerDropdownAfterSave = driver.WaitforElementToBeInDOM(By.CssSelector(MedicalProviderDropdownSelector), 10)
+                ?? throw new InvalidOperationException("Medical provider dropdown was not found after saving the new provider.");
+            var providerSelectAfterSave = new SelectElement(providerDropdownAfterSave);
+            var matchingProviderOptions = providerSelectAfterSave.Options
+                .Where(opt => opt.Text.Contains("testtwo", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            Assert.True(matchingProviderOptions.Any(), "Expected at least one provider option containing 'testtwo' after save.");
+            var selectedOptionValue = providerSelectAfterSave.SelectedOption.GetAttribute("value");
+            Assert.Contains(matchingProviderOptions, opt => string.Equals(opt.GetAttribute("value"), selectedOptionValue, StringComparison.OrdinalIgnoreCase));
+            _output.WriteLine($"[PASS] Newly added provider '{providerSelectAfterSave.SelectedOption.Text}' appeared in Question 20 and was auto-selected.");
+
+            medicalFacilityNotInListLink = GetMedicalFacilityNotInListLink(driver);
+            _output.WriteLine("[INFO] Opening the Medical Facility modal via 'Not in List'.");
+            CommonTestHelper.ClickElement(driver, medicalFacilityNotInListLink);
+            driver.WaitForReady(5);
+            Thread.Sleep(500);
+
+            var facilityModal = driver.WaitforElementToBeInDOM(By.CssSelector(MedicalFacilityModalSelector), 10)
+                ?? throw new InvalidOperationException("Medical facility modal did not appear after clicking 'Not in List'.");
+            var facilitySubmitButton = WebElementHelper.FindElementInModalOrPage(driver, MedicalFacilityModalSubmitButtonSelector, "Medical facility modal submit button", 5);
+            CommonTestHelper.ClickElement(driver, facilitySubmitButton);
+            driver.WaitForReady(5);
+            Thread.Sleep(300);
+
+            var facilityValidation = driver.FindElements(By.CssSelector(MedicalFacilityModalValidationSelector))
+                .FirstOrDefault(el => el.Displayed && !string.IsNullOrWhiteSpace(el.Text))
+                ?? throw new InvalidOperationException("Medical facility validation summary did not appear after submitting without data.");
+            Assert.Contains("Facility", facilityValidation.Text, StringComparison.OrdinalIgnoreCase);
+            _output.WriteLine("[PASS] Medical facility modal displayed validation when facility name was missing.");
+
+            var facilityNameInput = FindInputInContainerByIdParts(facilityModal, "Medical facility name input", "MedicalFacility", "Name");
+            var facilityAddressInput = FindInputInContainerByIdParts(facilityModal, "Medical facility address input", "MedicalFacility", "Address");
+            var facilityCityInput = FindInputInContainerByIdParts(facilityModal, "Medical facility city input", "MedicalFacility", "City");
+            var facilityStateInput = FindInputInContainerByIdParts(facilityModal, "Medical facility state input", "MedicalFacility", "State");
+            var facilityZipInput = FindInputInContainerByIdParts(facilityModal, "Medical facility zip input", "MedicalFacility", "Zip");
+            var facilityPhoneInput = FindInputInContainerByIdParts(facilityModal, "Medical facility phone input", "MedicalFacility", "Phone");
+
+            WebElementHelper.SetInputValue(driver, facilityNameInput, "avengers", "Medical facility name input", triggerBlur: true);
+            WebElementHelper.SetInputValue(driver, facilityAddressInput, "aaaa", "Medical facility address input", triggerBlur: true);
+            WebElementHelper.SetInputValue(driver, facilityCityInput, "aaaaaa", "Medical facility city input", triggerBlur: true);
+            WebElementHelper.SetInputValue(driver, facilityStateInput, "aa", "Medical facility state input", triggerBlur: true);
+            WebElementHelper.SetInputValue(driver, facilityZipInput, "00000", "Medical facility zip input", triggerBlur: true);
+            WebElementHelper.SetInputValue(driver, facilityPhoneInput, "3434343434", "Medical facility phone input", triggerBlur: true);
+
+            var facilitySubmitButtonAfterInputs = WebElementHelper.FindElementInModalOrPage(driver, MedicalFacilityModalSubmitButtonSelector, "Medical facility modal submit button", 5);
+            CommonTestHelper.ClickElement(driver, facilitySubmitButtonAfterInputs);
+            driver.WaitForUpdatePanel(20);
+            driver.WaitForReady(20);
+            Thread.Sleep(1000);
+            WaitForElementToDisappear(driver, MedicalFacilityModalSelector, 10);
+            SwitchToTab(driver, healthInsuranceTab, "Health Insurance");
+
+            var facilityDropdownAfterSave = driver.WaitforElementToBeInDOM(By.CssSelector(MedicalFacilityDropdownSelector), 10)
+                ?? throw new InvalidOperationException("Medical facility dropdown was not found after saving the new facility.");
+            var facilitySelectAfterSave = new SelectElement(facilityDropdownAfterSave);
+            var matchingFacilityOptions = facilitySelectAfterSave.Options
+                .Where(opt => opt.Text.Contains("avengers", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            Assert.True(matchingFacilityOptions.Any(), "Expected at least one facility option containing 'avengers' after save.");
+            var selectedFacilityValue = facilitySelectAfterSave.SelectedOption.GetAttribute("value");
+            Assert.Contains(matchingFacilityOptions, opt => string.Equals(opt.GetAttribute("value"), selectedFacilityValue, StringComparison.OrdinalIgnoreCase));
+            _output.WriteLine($"[PASS] Newly added facility '{facilitySelectAfterSave.SelectedOption.Text}' appeared in Question 20 and was auto-selected.");
+
+            _output.WriteLine("[INFO] Submitting TCID form to persist health insurance updates.");
+            SubmitForm(driver, expectValidation: false);
+
+            var toastMessage = WebElementHelper.GetToastMessage(driver, 2000);
+            Assert.False(string.IsNullOrWhiteSpace(toastMessage), "Success toast message was not displayed after saving the TCID form.");
+            Assert.Contains("Form Saved", toastMessage, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Target Child Identification", toastMessage, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(pc1Id, toastMessage, StringComparison.OrdinalIgnoreCase);
+            _output.WriteLine($"[PASS] TCID form saved successfully with message: {toastMessage}");
+        }
+
         private void NavigateToTargetChildPage(IPookieWebDriver driver, IWebElement formsPane, string pc1Id)
         {
             var targetChildLink = formsPane.FindElements(By.CssSelector(TargetChildLinkSelector))
@@ -441,6 +694,143 @@ namespace AFUT.Tests.UnitTests.TargetChildID
             }
 
             return Regex.Matches(text, Regex.Escape(value), RegexOptions.IgnoreCase).Count;
+        }
+
+        private static IReadOnlyList<IWebElement> GetHealthInsuranceCheckboxes(IPookieWebDriver driver)
+        {
+            var checkboxes = driver.FindElements(By.CssSelector(HealthInsuranceCheckboxesSelector))
+                .Where(el => el.Displayed)
+                .ToList();
+
+            if (!checkboxes.Any())
+            {
+                throw new InvalidOperationException("Health insurance checkboxes were not found on the TCID form.");
+            }
+
+            return checkboxes;
+        }
+
+        private static IWebElement GetHealthInsuranceOtherCheckbox(IPookieWebDriver driver)
+        {
+            return driver.FindElements(By.CssSelector(HealthInsuranceOtherCheckboxSelector))
+                .FirstOrDefault(el => el.Displayed)
+                ?? throw new InvalidOperationException("Health insurance 'Other' checkbox was not found on the TCID form.");
+        }
+
+        private static IWebElement GetHealthInsuranceOtherSpecifyInput(IPookieWebDriver driver)
+        {
+            return driver.FindElements(By.CssSelector(HealthInsuranceOtherSpecifyInputSelector))
+                .FirstOrDefault()
+                ?? throw new InvalidOperationException("Health insurance 'Other specify' input was not found on the TCID form.");
+        }
+
+        private static bool IsElementVisible(IWebElement element)
+        {
+            if (element == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                return element.Displayed && !string.Equals(element.GetCssValue("display"), "none", StringComparison.OrdinalIgnoreCase);
+            }
+            catch (StaleElementReferenceException)
+            {
+                return false;
+            }
+        }
+
+        private void AssertMedicalProviderDropdownsEnabledState(IPookieWebDriver driver, bool shouldBeEnabled)
+        {
+            var providerDropdown = driver.WaitforElementToBeInDOM(By.CssSelector(MedicalProviderDropdownSelector), 10)
+                ?? throw new InvalidOperationException("Medical provider dropdown was not found on the Health Insurance tab.");
+            var facilityDropdown = driver.WaitforElementToBeInDOM(By.CssSelector(MedicalFacilityDropdownSelector), 10)
+                ?? throw new InvalidOperationException("Medical facility dropdown was not found on the Health Insurance tab.");
+
+            AssertDropdownEnabledState(providerDropdown, shouldBeEnabled, "Medical provider dropdown");
+            AssertDropdownEnabledState(facilityDropdown, shouldBeEnabled, "Medical facility dropdown");
+        }
+
+        private static void AssertDropdownEnabledState(IWebElement dropdown, bool shouldBeEnabled, string description)
+        {
+            var disabledAttr = dropdown.GetAttribute("disabled");
+            if (shouldBeEnabled)
+            {
+                Assert.True(dropdown.Enabled && string.IsNullOrWhiteSpace(disabledAttr), $"{description} should be enabled.");
+            }
+            else
+            {
+                var isDisabled = !dropdown.Enabled ||
+                                 string.Equals(disabledAttr, "true", StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(disabledAttr, "disabled", StringComparison.OrdinalIgnoreCase);
+                Assert.True(isDisabled, $"{description} should be disabled.");
+            }
+        }
+
+        private static IWebElement GetMedicalProviderNotInListLink(IPookieWebDriver driver)
+        {
+            return driver.FindElements(By.CssSelector(MedicalProviderNotInListLinkSelector))
+                .FirstOrDefault(el => el.Displayed)
+                ?? throw new InvalidOperationException("'Not in List' medical provider link was not found on the Health Insurance tab.");
+        }
+
+        private static bool HasDisabledClass(IWebElement element)
+        {
+            var classAttr = element.GetAttribute("class") ?? string.Empty;
+            return classAttr
+                .Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)
+                .Any(c => c.Equals("disabled", StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static void WaitForElementToDisappear(IPookieWebDriver driver, string cssSelector, int timeoutSeconds = 10)
+        {
+            var endTime = DateTime.Now.AddSeconds(timeoutSeconds);
+            while (DateTime.Now <= endTime)
+            {
+                var visibleElement = driver.FindElements(By.CssSelector(cssSelector))
+                    .FirstOrDefault(el => el.Displayed);
+                if (visibleElement == null)
+                {
+                    return;
+                }
+
+                Thread.Sleep(200);
+            }
+
+            throw new TimeoutException($"Element '{cssSelector}' did not disappear within {timeoutSeconds} seconds.");
+        }
+
+        private static IWebElement GetMedicalFacilityNotInListLink(IPookieWebDriver driver)
+        {
+            return driver.FindElements(By.CssSelector(MedicalFacilityNotInListLinkSelector))
+                .FirstOrDefault(el => el.Displayed)
+                ?? throw new InvalidOperationException("'Not in List' medical facility link was not found on the Health Insurance tab.");
+        }
+
+        private IWebElement EnsureMedicaidCaseNumberInputVisible(IPookieWebDriver driver)
+        {
+            var medicaidCaseInput = driver.FindElements(By.CssSelector(MedicaidCaseNumberInputSelector))
+                .FirstOrDefault()
+                ?? throw new InvalidOperationException("Medicaid case number input was not found on the Health Insurance tab.");
+
+            Assert.True(IsElementVisible(medicaidCaseInput), "Medicaid case number input should be visible when Medicaid is 'Yes'.");
+            return medicaidCaseInput;
+        }
+
+        private static IWebElement FindInputInContainerByIdParts(IWebElement container, string description, params string[] idParts)
+        {
+            var inputs = container.FindElements(By.CssSelector("input"));
+            foreach (var input in inputs)
+            {
+                var inputId = input.GetAttribute("id") ?? string.Empty;
+                if (idParts.All(part => inputId.IndexOf(part, StringComparison.OrdinalIgnoreCase) >= 0))
+                {
+                    return input;
+                }
+            }
+
+            throw new InvalidOperationException($"Unable to locate {description}.");
         }
     }
 }
