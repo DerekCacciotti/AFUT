@@ -5,6 +5,7 @@ using AFUT.Tests.Driver;
 using AFUT.Tests.Pages;
 using OpenQA.Selenium;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace AFUT.Tests.UnitTests
 {
@@ -131,6 +132,64 @@ namespace AFUT.Tests.UnitTests
                 System.Threading.Thread.Sleep(200);
                 js.ExecuteScript("arguments[0].click();", element);
             }
+        }
+
+        /// <summary>
+        /// Performs the common flow: Login -> DataEntry -> Reports HomePage
+        /// </summary>
+        /// <param name="driver">The web driver instance</param>
+        /// <param name="config">Application configuration</param>
+        /// <param name="output">Optional test output helper for logging</param>
+        /// <returns>The HomePage instance after navigation</returns>
+        public static Pages.HomePage NavigateToReportsHomePage(
+            IPookieWebDriver driver,
+            AppConfig config,
+            ITestOutputHelper? output = null)
+        {
+            // Step 1: Login
+            driver.Navigate().GoToUrl(config.AppUrl);
+            driver.WaitForReady(30);
+
+            var loginPage = new LoginPage(driver);
+            loginPage.SignIn(config.UserName, config.Password);
+
+            Assert.True(loginPage.IsSignedIn(), "User was not signed in successfully.");
+
+            // Step 2: Select DataEntry role
+            var selectRolePage = new SelectRolePage(driver);
+            var landingPage = selectRolePage.SelectRole("Program 1", "DataEntry");
+
+            Assert.NotNull(landingPage);
+            Assert.IsType<Pages.HomePage>(landingPage);
+            var homePage = (Pages.HomePage)landingPage;
+
+            Assert.True(homePage.IsLoaded, "Home page did not load after selecting DataEntry role.");
+
+            // Step 3: Navigate to Reports
+            var navigationBar = driver.WaitforElementToBeInDOM(By.CssSelector(".navbar"), 30)
+                ?? throw new InvalidOperationException("Navigation bar was not present on the page.");
+
+            var reportsButton = navigationBar.FindElements(By.CssSelector(
+                "a#lnkReportCatalog, " +
+                "a[href*='ReportCatalog.aspx'], " +
+                "a[href*='/Reports/']"))
+                .FirstOrDefault(el => el.Displayed)
+                ?? throw new InvalidOperationException("Reports button was not found in the navigation bar.");
+
+            ClickElement(driver, reportsButton);
+            driver.WaitForUpdatePanel(30);
+            driver.WaitForReady(30);
+            System.Threading.Thread.Sleep(1000);
+
+            // Verify we're on the Reports page
+            var currentUrl = driver.Url;
+            var isOnReportsPage = currentUrl.Contains("ReportCatalog.aspx", StringComparison.OrdinalIgnoreCase) ||
+                                   currentUrl.Contains("/Reports/", StringComparison.OrdinalIgnoreCase) ||
+                                   currentUrl.Contains("Reports.aspx", StringComparison.OrdinalIgnoreCase);
+            
+            Assert.True(isOnReportsPage, $"Expected to be on Reports page, but current URL is: {currentUrl}");
+
+            return homePage;
         }
     }
 }
